@@ -16,24 +16,28 @@ const AIAssistant: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef<Chat | null>(null);
 
-  // Initialize Chat
+  // Initialize Chat Logic
+  const initChat = () => {
+    try {
+      const apiKey = process.env.API_KEY;
+      if (apiKey) {
+        const ai = new GoogleGenAI({ apiKey });
+        chatRef.current = ai.chats.create({
+          model: 'gemini-3-flash-preview',
+          config: {
+            systemInstruction: '你是一个热情、专业的游戏社区助手 GameBox AI。你了解各类热门游戏（如古剑奇谭、赛博飞车、原神、王者荣耀等）。你的回复应该简短有力，语气活泼，带有游戏玩家的“黑话”和幽默感。请始终使用中文回复。',
+          },
+        });
+      }
+    } catch (e) {
+      console.error("Failed to init AI", e);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
     if (!chatRef.current) {
-      try {
-         // Using process.env.API_KEY as mandated
-         const apiKey = process.env.API_KEY;
-         if (apiKey) {
-            const ai = new GoogleGenAI({ apiKey });
-            chatRef.current = ai.chats.create({
-              model: 'gemini-3-flash-preview',
-              config: {
-                systemInstruction: '你是一个热情、专业的游戏社区助手 GameBox AI。你了解各类热门游戏（如古剑奇谭、赛博飞车、原神、王者荣耀等）。你的回复应该简短有力，语气活泼，带有游戏玩家的“黑话”和幽默感。请始终使用中文回复。',
-              },
-            });
-         }
-      } catch (e) {
-        console.error("Failed to init AI", e);
-      }
+      initChat();
     }
   }, []);
 
@@ -45,6 +49,14 @@ const AIAssistant: React.FC = () => {
     scrollToBottom();
   }, [messages, isOpen]);
 
+  // Reset Session Function
+  const handleReset = () => {
+    setMessages([
+      { role: 'model', text: '记忆已清除！✨ 我们可以重新开始了，不管是找游戏还是聊八卦，我随时待命！' }
+    ]);
+    initChat(); // Re-initialize to clear API context
+  };
+
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -55,16 +67,8 @@ const AIAssistant: React.FC = () => {
 
     try {
       if (!chatRef.current) {
-         // Fallback if key is missing or init failed. 
-         // In a real app we might handle this gracefully, here we simulate a response if API key is missing for demo purposes,
-         // or try to reconnect if possible.
-         const apiKey = process.env.API_KEY;
-         if (apiKey) {
-             const ai = new GoogleGenAI({ apiKey });
-             chatRef.current = ai.chats.create({ model: 'gemini-3-flash-preview' });
-         } else {
-             throw new Error("API Key missing");
-         }
+         initChat();
+         if (!chatRef.current) throw new Error("API Key missing or Init failed");
       }
 
       const response: GenerateContentResponse = await chatRef.current!.sendMessage({ message: userText });
@@ -98,9 +102,21 @@ const AIAssistant: React.FC = () => {
                     </div>
                  </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white p-1 transition-colors rounded-full hover:bg-white/10">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              
+              <div className="flex items-center space-x-1">
+                {/* Reset Button */}
+                <button 
+                  onClick={handleReset} 
+                  title="重置对话"
+                  className="text-white/70 hover:text-white p-1.5 transition-colors rounded-full hover:bg-white/10 group"
+                >
+                   <svg className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                </button>
+                {/* Close Button */}
+                <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white p-1.5 transition-colors rounded-full hover:bg-white/10">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
            </div>
            
            {/* Messages Area */}
