@@ -13,33 +13,39 @@ const GameCard: React.FC<GameCardProps> = ({ game, compact = false }) => {
   return (
     <div 
       onClick={() => navigate(`/game/${game.id}`)}
-      // Light Mode: bg-white, border-gray-100, shadow-sm, hover:shadow-md
-      className="relative bg-white rounded-2xl p-3 flex items-center space-x-4 cursor-pointer group overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300"
+      // Premium: No border, high-end shadow, pure white bg, extra rounded corners
+      className="relative bg-white rounded-[20px] p-4 flex items-center space-x-4 cursor-pointer group shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:translate-y-[-2px] transition-all duration-500 ease-out"
     >
-      {/* Subtle Glow Background (Light) */}
-      <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50/50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-blue-100/50 transition-all"></div>
-
       <img 
         src={game.icon} 
         alt={game.title} 
-        className={`${compact ? 'w-12 h-12' : 'w-16 h-16'} rounded-xl object-cover shadow-sm group-hover:scale-105 transition-transform duration-300`} 
+        className={`${compact ? 'w-12 h-12' : 'w-18 h-18'} rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform duration-500`} 
       />
       
-      <div className="flex-1 min-w-0 z-10">
-        <h3 className="text-base font-bold text-gray-900 truncate group-hover:text-violet-600 transition-colors tracking-tight">{game.title}</h3>
-        <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1.5">
-          <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded text-gray-500">{game.category}</span>
-          <span className="flex items-center text-amber-500 font-medium">
-             ★ {game.rating}
+      <div className="flex-1 min-w-0">
+        <h3 className="text-[17px] font-bold text-slate-900 truncate tracking-tight group-hover:text-indigo-600 transition-colors">{game.title}</h3>
+        
+        <div className="flex items-center space-x-2 mt-1.5">
+          {/* Tag Design: Very subtle gray background */}
+          <span className="bg-slate-50 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md tracking-wide uppercase border border-slate-100">
+            {game.category}
           </span>
+          <div className="flex items-center text-amber-500">
+             <span className="text-xs">★</span>
+             <span className="text-xs font-bold ml-0.5 text-slate-700">{game.rating}</span>
+          </div>
         </div>
+        
         {!compact && (
-           <p className="text-xs text-gray-400 mt-1.5 truncate pr-2">{game.description}</p>
+           <p className="text-xs text-slate-400 mt-2 truncate pr-2 font-light">{game.description}</p>
         )}
       </div>
       
-      <button className="relative overflow-hidden bg-violet-50 text-violet-600 text-xs font-bold px-5 py-2 rounded-full hover:bg-violet-600 hover:text-white transition-all transform active:scale-95 border border-violet-100">
-        <span className="relative z-10">Play</span>
+      {/* Premium Button: Ghost style or soft gradient */}
+      <button className="relative overflow-hidden group/btn">
+        <div className="bg-slate-50 text-slate-900 text-xs font-bold px-5 py-2.5 rounded-full hover:bg-slate-900 hover:text-white transition-all duration-300 border border-slate-100 shadow-sm">
+          <span className="relative z-10">开始</span>
+        </div>
       </button>
     </div>
   );

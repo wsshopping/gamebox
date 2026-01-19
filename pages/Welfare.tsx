@@ -1,97 +1,192 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TASKS } from '../services/mockData';
 
 const Welfare: React.FC = () => {
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [reward, setReward] = useState<string | null>(null);
+
+  const handleDraw = () => {
+    if (isDrawing || reward) return;
+    
+    setIsDrawing(true);
+    
+    // Simulate network request and animation
+    setTimeout(() => {
+      setIsDrawing(false);
+      // Translated prizes
+      const prizes = ['500 积分', '限定皮肤', '10 钻石', '经验加成卡 (1h)', '神秘碎片'];
+      const randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
+      setReward(randomPrize);
+    }, 2000);
+  };
+
+  const resetBox = () => {
+    setReward(null);
+  };
+
   return (
     <div className="bg-[#f8fafc] min-h-full">
-      {/* Header Banner - Credit Card Style */}
-      <div className="p-5 pt-8 pb-12">
-        <div className="relative h-48 rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-700 p-6 overflow-hidden shadow-xl shadow-indigo-200 border border-white/20">
-           {/* Decorative circles */}
-           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-           <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full blur-2xl -ml-10 -mb-10"></div>
+      {/* 
+        Platinum Card Banner 
+        Metallic gradients and high-end feel
+      */}
+      <div className="p-6 pt-10 pb-12">
+        <div className="relative h-52 rounded-[32px] bg-gradient-to-br from-slate-300 via-slate-100 to-slate-300 p-8 overflow-hidden shadow-2xl shadow-slate-200 border border-white">
+           {/* Metallic Shine */}
+           <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent transform rotate-45 scale-150"></div>
            
-           <div className="relative z-10 flex flex-col h-full justify-between">
+           {/* Texture */}
+           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
+
+           <div className="relative z-10 flex flex-col h-full justify-between text-slate-800">
               <div className="flex justify-between items-start">
                  <div>
-                    <h1 className="text-2xl font-black text-white tracking-tight">福利中心</h1>
-                    <p className="text-indigo-100 text-xs font-medium tracking-wide opacity-80">WELFARE CENTER</p>
+                    <h1 className="text-2xl font-black tracking-tight text-slate-900 italic">PLATINUM</h1>
+                    <p className="text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase mt-1">至尊会员中心</p>
                  </div>
-                 <span className="text-2xl">💎</span>
+                 <div className="w-10 h-10 rounded-full border-2 border-slate-800/10 flex items-center justify-center">
+                    <span className="text-2xl">💎</span>
+                 </div>
               </div>
               
               <div className="flex items-end justify-between">
                  <div>
-                    <p className="text-[10px] text-indigo-100 uppercase tracking-widest mb-1">Total Points</p>
-                    <p className="text-3xl font-mono font-bold text-white tracking-tight">1,250</p>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">当前余额</p>
+                    <p className="text-4xl font-mono font-bold text-slate-900 tracking-tighter">1,250</p>
                  </div>
-                 <button className="bg-white text-indigo-900 px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-gray-50 transition-colors">
-                    立即兑换
+                 <button className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg hover:bg-slate-800 transition-colors">
+                    积分兑换
                  </button>
               </div>
            </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="-mt-8 px-5 pb-20 relative z-10">
-        {/* Daily Sign In */}
-        <div className="bg-white rounded-3xl border border-gray-100 p-5 mb-5 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4 flex items-center">
-             <span className="w-1 h-4 bg-amber-500 rounded-full mr-2"></span>
-             每日签到
-          </h3>
-          <div className="flex justify-between">
-            {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-              <div key={day} className={`flex flex-col items-center group cursor-pointer`}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm mb-2 transition-all border ${
-                   day <= 3 
-                   ? 'bg-amber-100 text-amber-700 border-amber-200' 
-                   : 'bg-gray-50 text-gray-400 border-gray-100 group-hover:border-gray-200'
-                }`}>
-                   {day <= 3 ? '✓' : '🎁'}
+      {/* Main Content Area - Overlapping */}
+      <div className="-mt-10 px-6 pb-24 relative z-10">
+
+        {/* 
+          NEW: Blind Box Section 
+          Premium purple/gold gradient style
+        */}
+        <div className="bg-white rounded-[24px] border border-slate-50 p-1 mb-6 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)] relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-[#1e1b4b] to-[#312e81] rounded-[20px] p-6 relative overflow-hidden text-center">
+             {/* Background Effects */}
+             <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+             <div className="absolute top-[-50px] right-[-50px] w-40 h-40 bg-purple-500/30 rounded-full blur-[50px]"></div>
+             <div className="absolute bottom-[-20px] left-[-20px] w-32 h-32 bg-indigo-500/30 rounded-full blur-[40px]"></div>
+
+             <div className="relative z-10">
+                <div className="flex justify-center items-center space-x-2 mb-4">
+                  <span className="text-amber-400 text-lg">✨</span>
+                  <h3 className="text-white font-black text-lg tracking-wide uppercase italic">幸运盲盒</h3>
+                  <span className="text-amber-400 text-lg">✨</span>
                 </div>
-                <span className={`text-[10px] ${day <= 3 ? 'text-amber-600' : 'text-gray-400'}`}>Day {day}</span>
-              </div>
-            ))}
+
+                {/* Box Container */}
+                <div className="h-40 flex items-center justify-center relative mb-4">
+                  {reward ? (
+                    <div className="animate-fade-in-up">
+                       <div className="text-5xl mb-2">🎁</div>
+                       <p className="text-amber-300 font-bold text-lg">{reward}</p>
+                       <button onClick={resetBox} className="mt-3 text-[10px] text-white/50 underline hover:text-white">再来一次</button>
+                    </div>
+                  ) : (
+                    <div 
+                      onClick={handleDraw}
+                      className={`cursor-pointer transition-all duration-300 ${isDrawing ? 'animate-bounce' : 'hover:scale-105'}`}
+                    >
+                       {/* 3D Box Representation using Emoji/Icon for simplicity but high impact */}
+                       <div className="text-[80px] drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] transform transition-transform">
+                         📦
+                       </div>
+                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-purple-500/20 rounded-full blur-xl -z-10"></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Draw Button */}
+                {!reward && (
+                  <button 
+                    onClick={handleDraw}
+                    disabled={isDrawing}
+                    className="w-full bg-gradient-to-r from-amber-300 to-amber-500 text-indigo-950 font-black text-sm py-3.5 rounded-xl shadow-[0_0_20px_rgba(251,191,36,0.3)] hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] active:scale-95 transition-all flex items-center justify-center space-x-2"
+                  >
+                    {isDrawing ? (
+                      <span>开启中...</span>
+                    ) : (
+                      <>
+                        <span>开启盲盒</span>
+                        <span className="bg-black/10 px-1.5 py-0.5 rounded text-[10px] font-mono">-50 💎</span>
+                      </>
+                    )}
+                  </button>
+                )}
+             </div>
+          </div>
+        </div>
+        
+        {/* Daily Sign In - Clean White Card */}
+        <div className="bg-white rounded-[24px] border border-slate-50 p-6 mb-6 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)]">
+          <div className="flex justify-between items-center mb-6">
+             <h3 className="font-bold text-slate-900 text-lg">每日签到</h3>
+             <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-md">赢取好礼</span>
+          </div>
+          
+          <div className="flex justify-between">
+            {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+              const active = day <= 3;
+              return (
+                <div key={day} className={`flex flex-col items-center group cursor-pointer`}>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm mb-2 transition-all border-2 ${
+                     active 
+                     ? 'bg-amber-400 border-amber-400 text-white shadow-md shadow-amber-200' 
+                     : 'bg-transparent border-slate-100 text-slate-300'
+                  }`}>
+                     {active ? '✓' : ''}
+                  </div>
+                  <span className={`text-[10px] font-bold ${active ? 'text-amber-500' : 'text-slate-300'}`}>{day}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Task List */}
-        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="p-5 border-b border-gray-50">
-             <h3 className="font-bold text-gray-800 flex items-center">
-                <span className="w-1 h-4 bg-indigo-500 rounded-full mr-2"></span>
-                每日任务
-             </h3>
-          </div>
-          <div>
+        {/* Task List - Minimalist */}
+        <div className="space-y-4">
+           <h3 className="font-bold text-slate-900 text-lg px-2">今日任务</h3>
+           
             {TASKS.map((task, index) => (
-              <div key={task.id} className={`p-4 flex items-center justify-between hover:bg-gray-50 transition-colors ${index !== TASKS.length - 1 ? 'border-b border-gray-50' : ''}`}>
+              <div key={task.id} className="bg-white p-5 rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-50 flex items-center justify-between hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-lg text-indigo-500">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm ${
+                      index === 0 ? 'bg-indigo-50 text-indigo-500' : 
+                      index === 1 ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'
+                  }`}>
                     {task.icon}
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-gray-800">{task.title}</h4>
-                    <p className="text-xs text-amber-500 font-medium mt-0.5">+{task.reward}</p>
+                    <h4 className="text-sm font-bold text-slate-900">{task.title}</h4>
+                    <div className="flex items-center mt-1">
+                       <span className="text-[10px] font-bold bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">+{task.reward}</span>
+                    </div>
                   </div>
                 </div>
+                
                 <button 
                   disabled={task.status === 'claimed'}
-                  className={`text-xs px-4 py-2 rounded-full font-bold transition-all ${
+                  className={`text-xs px-5 py-2.5 rounded-full font-bold transition-all ${
                     task.status === 'completed' 
-                      ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700' 
+                      ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 hover:bg-slate-800' 
                       : task.status === 'claimed'
-                      ? 'bg-gray-100 text-gray-400 border border-gray-200'
-                      : 'border border-indigo-500 text-indigo-600 hover:bg-indigo-50'
+                      ? 'bg-slate-100 text-slate-400'
+                      : 'bg-white border-2 border-slate-100 text-slate-400 hover:border-slate-300 hover:text-slate-600'
                   }`}
                 >
                   {task.status === 'claimed' ? '已领' : task.status === 'completed' ? '领取' : '去完成'}
                 </button>
               </div>
             ))}
-          </div>
         </div>
       </div>
     </div>
