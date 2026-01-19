@@ -21,17 +21,28 @@ const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-between px-1 pb-safe z-50">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.name}
-          to={item.path}
-          className={({ isActive }) => `flex flex-col items-center justify-center w-full py-2 transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-          {item.icon}
-          <span className="text-[10px] mt-1 font-medium transform scale-90">{item.name}</span>
-        </NavLink>
-      ))}
+    <div className="fixed bottom-4 left-4 right-4 z-50">
+      <div className="bg-[#1e293b]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-lg shadow-black/40 flex justify-between px-2 py-3">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.name}
+            to={item.path}
+            className={({ isActive }) => `flex flex-col items-center justify-center w-full transition-all duration-300 relative group ${isActive ? 'text-blue-400 scale-110' : 'text-gray-400 hover:text-gray-200'}`}
+          >
+            {({ isActive }) => (
+              <>
+                <div className={`absolute -top-10 bg-blue-500/20 rounded-full w-10 h-10 blur-md transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
+                <div className="relative z-10">
+                  {item.icon}
+                </div>
+                <span className={`text-[10px] mt-1 font-medium transform transition-all ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 hidden'}`}>
+                  {item.name}
+                </span>
+              </>
+            )}
+          </NavLink>
+        ))}
+      </div>
     </div>
   );
 };

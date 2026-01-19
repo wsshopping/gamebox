@@ -6,27 +6,27 @@ const Social: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'trade' | 'message'>('trade');
 
   return (
-    <div className="bg-gray-50 min-h-full flex flex-col">
+    <div className="bg-[#0f172a] min-h-full flex flex-col">
       {/* Sticky Tab Header */}
-      <div className="bg-white sticky top-0 z-40 shadow-sm">
+      <div className="bg-[#0f172a]/80 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 pt-4 pb-2">
         <div className="flex justify-center p-2">
-           <div className="flex bg-gray-100 p-1 rounded-lg">
+           <div className="flex bg-[#1e293b] p-1 rounded-xl border border-white/5">
              <button 
                onClick={() => setActiveTab('trade')}
-               className={`px-6 py-1.5 rounded-md text-sm font-bold transition-all ${
+               className={`px-8 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
                  activeTab === 'trade' 
-                 ? 'bg-white text-blue-600 shadow-sm' 
-                 : 'text-gray-500 hover:text-gray-700'
+                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
+                 : 'text-gray-400 hover:text-gray-200'
                }`}
              >
                市场交易
              </button>
              <button 
                onClick={() => setActiveTab('message')}
-               className={`px-6 py-1.5 rounded-md text-sm font-bold transition-all ${
+               className={`px-8 py-2 rounded-lg text-sm font-bold transition-all duration-300 ${
                  activeTab === 'message' 
-                 ? 'bg-white text-blue-600 shadow-sm' 
-                 : 'text-gray-500 hover:text-gray-700'
+                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
+                 : 'text-gray-400 hover:text-gray-200'
                }`}
              >
                消息中心
