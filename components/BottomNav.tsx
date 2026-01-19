@@ -20,12 +20,10 @@ const BottomNav: React.FC = () => {
     )},
   ];
 
-  // Changed 'fixed' to 'absolute' to constrain the nav bar within the App container
-  // This prevents it from floating outside the phone view on desktop and fixes scroll jitter on mobile
   return (
-    <div className="absolute bottom-6 left-6 right-6 z-50">
-      <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] flex justify-between px-4 py-2 relative overflow-hidden">
-        {/* Shine effect */}
+    <div className="absolute bottom-0 left-0 w-full z-50">
+      <div className="bg-[#020617]/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.6)] flex justify-between px-6 py-2 pb-6 relative">
+        {/* Top border shine effect */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
         
         {navItems.map((item) => (
@@ -36,14 +34,14 @@ const BottomNav: React.FC = () => {
           >
             {({ isActive }) => (
               <>
-                 <div className={`relative transition-all duration-300 ${isActive ? '-translate-y-0.5 scale-105' : 'translate-y-0'}`}>
+                 <div className={`relative transition-all duration-300 ${isActive ? '-translate-y-1' : 'translate-y-0'}`}>
                     {/* Glow effect under icon */}
-                    <div className={`absolute -inset-2 bg-violet-500/30 rounded-full blur-lg transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute -inset-3 bg-violet-500/20 rounded-full blur-xl transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
                     <div className="relative z-10 drop-shadow-md">
                       {item.icon}
                     </div>
                  </div>
-                 <span className={`text-[10px] font-medium mt-0.5 transition-all duration-300 ${isActive ? 'opacity-100 text-violet-200' : 'opacity-80'}`}>
+                 <span className={`text-[10px] font-medium mt-1 transition-all duration-300 ${isActive ? 'opacity-100 text-violet-200' : 'opacity-60'}`}>
                     {item.name}
                  </span>
               </>
