@@ -3,63 +3,88 @@ import { TASKS } from '../services/mockData';
 
 const Welfare: React.FC = () => {
   return (
-    <div className="bg-gray-50 min-h-full">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 text-white pb-12">
-        <h1 className="text-2xl font-bold mb-1">福利中心</h1>
-        <p className="text-indigo-200 text-sm">完成任务赢取积分，兑换超值好礼。</p>
-        
-        <div className="mt-6 flex items-center justify-between bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-          <div>
-            <p className="text-xs text-indigo-200">我的积分</p>
-            <p className="text-2xl font-bold">1,250</p>
-          </div>
-          <button className="bg-yellow-400 text-yellow-900 px-4 py-1.5 rounded-full text-xs font-bold shadow-md hover:bg-yellow-300">
-            去兑换
-          </button>
+    <div className="bg-[#020617] min-h-full">
+      {/* Header Banner - Credit Card Style */}
+      <div className="p-5 pt-8 pb-12">
+        <div className="relative h-48 rounded-3xl bg-gradient-to-br from-indigo-900 to-violet-800 p-6 overflow-hidden shadow-2xl border border-white/10">
+           {/* Decorative circles */}
+           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+           <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/20 rounded-full blur-2xl -ml-10 -mb-10"></div>
+           
+           <div className="relative z-10 flex flex-col h-full justify-between">
+              <div className="flex justify-between items-start">
+                 <div>
+                    <h1 className="text-2xl font-black text-white tracking-tight">福利中心</h1>
+                    <p className="text-indigo-200 text-xs font-medium tracking-wide opacity-80">WELFARE CENTER</p>
+                 </div>
+                 <span className="text-2xl">💎</span>
+              </div>
+              
+              <div className="flex items-end justify-between">
+                 <div>
+                    <p className="text-[10px] text-indigo-300 uppercase tracking-widest mb-1">Total Points</p>
+                    <p className="text-3xl font-mono font-bold text-white tracking-tight">1,250</p>
+                 </div>
+                 <button className="bg-amber-400 text-amber-900 px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-amber-300 transition-colors">
+                    立即兑换
+                 </button>
+              </div>
+           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="-mt-6 px-4 pb-4">
+      <div className="-mt-8 px-5 pb-20 relative z-10">
         {/* Daily Sign In */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-          <h3 className="font-bold text-gray-800 mb-3">每日签到</h3>
+        <div className="bg-[#111827]/80 backdrop-blur-md rounded-3xl border border-white/5 p-5 mb-5 shadow-lg">
+          <h3 className="font-bold text-gray-200 mb-4 flex items-center">
+             <span className="w-1 h-4 bg-amber-500 rounded-full mr-2"></span>
+             每日签到
+          </h3>
           <div className="flex justify-between">
             {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-              <div key={day} className={`flex flex-col items-center p-2 rounded-lg ${day <= 3 ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                <span className="text-[10px] text-gray-500 mb-1">第{day}天</span>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${day <= 3 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+              <div key={day} className={`flex flex-col items-center group cursor-pointer`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm mb-2 transition-all border ${
+                   day <= 3 
+                   ? 'bg-amber-500 text-amber-950 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]' 
+                   : 'bg-white/5 text-gray-500 border-white/5 group-hover:border-white/20'
+                }`}>
                    {day <= 3 ? '✓' : '🎁'}
                 </div>
+                <span className={`text-[10px] ${day <= 3 ? 'text-amber-500' : 'text-gray-600'}`}>Day {day}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Task List */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-             <h3 className="font-bold text-gray-800">每日任务</h3>
+        <div className="bg-[#111827]/80 backdrop-blur-md rounded-3xl border border-white/5 overflow-hidden shadow-lg">
+          <div className="p-5 border-b border-white/5">
+             <h3 className="font-bold text-gray-200 flex items-center">
+                <span className="w-1 h-4 bg-indigo-500 rounded-full mr-2"></span>
+                每日任务
+             </h3>
           </div>
           <div>
             {TASKS.map((task, index) => (
-              <div key={task.id} className={`p-4 flex items-center justify-between ${index !== TASKS.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                <div className="flex items-center space-x-3">
-                  <div className="text-2xl">{task.icon}</div>
+              <div key={task.id} className={`p-4 flex items-center justify-between hover:bg-white/5 transition-colors ${index !== TASKS.length - 1 ? 'border-b border-white/5' : ''}`}>
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center text-lg border border-indigo-500/20">
+                    {task.icon}
+                  </div>
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900">{task.title}</h4>
-                    <p className="text-xs text-yellow-600 font-medium">+{task.reward}</p>
+                    <h4 className="text-sm font-bold text-gray-200">{task.title}</h4>
+                    <p className="text-xs text-amber-400 font-medium mt-0.5">+{task.reward}</p>
                   </div>
                 </div>
                 <button 
                   disabled={task.status === 'claimed'}
-                  className={`text-xs px-3 py-1.5 rounded-full border ${
+                  className={`text-xs px-4 py-2 rounded-full font-bold transition-all ${
                     task.status === 'completed' 
-                      ? 'bg-blue-600 text-white border-blue-600' 
+                      ? 'bg-indigo-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.4)] hover:bg-indigo-500' 
                       : task.status === 'claimed'
-                      ? 'bg-gray-100 text-gray-400 border-gray-100'
-                      : 'bg-white text-blue-600 border-blue-600'
+                      ? 'bg-white/5 text-gray-500 border border-white/5'
+                      : 'border border-indigo-500 text-indigo-400 hover:bg-indigo-500/10'
                   }`}
                 >
                   {task.status === 'claimed' ? '已领' : task.status === 'completed' ? '领取' : '去完成'}
