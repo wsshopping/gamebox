@@ -13,6 +13,7 @@ import MessageList from './pages/MessageList';
 import Social from './pages/Social';
 import Chat from './pages/Chat';
 import BottomNav from './components/BottomNav';
+import AIAssistant from './components/AIAssistant';
 
 // Layout wrapper to conditionally show BottomNav
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -26,6 +27,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>
+      
+      {/* Global AI Assistant - Persistent across pages */}
+      <AIAssistant />
+      
       {showNav && <BottomNav />}
     </div>
   );

@@ -22,25 +22,37 @@ const BottomNav: React.FC = () => {
 
   return (
     <div className="absolute bottom-0 left-0 w-full z-50">
-      {/* Light Theme: bg-white/95, border-t border-gray-100, shadow-lg */}
-      <div className="bg-white/95 backdrop-blur-xl border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] flex justify-between px-6 py-2 pb-6 relative">
+      {/* 
+        Premium Aesthetics:
+        - Higher blur (backdrop-blur-2xl)
+        - Subtle top border (border-white/40)
+        - Pure white with slight transparency (bg-white/90)
+        - Soft upward shadow (shadow-[0_-5px_20px_...])
+      */}
+      <div className="bg-white/85 backdrop-blur-2xl border-t border-white/50 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] flex justify-between px-6 py-2 pb-8 relative">
         
         {navItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.path}
-            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? 'text-violet-600' : 'text-gray-400 hover:text-gray-600'}`}
+            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
           >
             {({ isActive }) => (
               <>
-                 <div className={`relative transition-all duration-300 ${isActive ? '-translate-y-1' : 'translate-y-0'}`}>
-                    {/* Glow effect under icon (lighter) */}
-                    <div className={`absolute -inset-3 bg-violet-500/10 rounded-full blur-xl transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
-                    <div className="relative z-10 drop-shadow-sm">
+                 <div className={`relative transition-all duration-500 ease-out ${isActive ? '-translate-y-2' : 'translate-y-0'}`}>
+                    {/* Active Background Glow - Soft and diffused */}
+                    <div className={`absolute -inset-4 bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-full blur-xl transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}></div>
+                    
+                    {/* Icon Container - Scale change */}
+                    <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-sm' : 'scale-100'}`}>
                       {item.icon}
                     </div>
+
+                    {/* Active Dot Indicator - Premium Minimalist */}
+                    <div className={`absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full bg-slate-900 transition-all duration-500 ${isActive ? 'opacity-100 w-1.5 h-1.5' : 'opacity-0 w-0 h-0'}`}></div>
                  </div>
-                 <span className={`text-[10px] font-medium mt-1 transition-all duration-300 ${isActive ? 'opacity-100 text-violet-600' : 'opacity-70'}`}>
+                 
+                 <span className={`text-[9px] font-semibold tracking-wide mt-2 transition-all duration-500 absolute -bottom-3 ${isActive ? 'opacity-100 translate-y-0 text-slate-900' : 'opacity-0 translate-y-2 text-slate-400'}`}>
                     {item.name}
                  </span>
               </>
