@@ -21,7 +21,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-[#0f172a] shadow-2xl overflow-hidden relative text-gray-100">
+    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-[#020617] shadow-2xl overflow-hidden relative text-gray-100 font-sans selection:bg-violet-500/30">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24">
         {children}
       </div>
