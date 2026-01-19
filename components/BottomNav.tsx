@@ -20,8 +20,10 @@ const BottomNav: React.FC = () => {
     )},
   ];
 
+  // Changed 'fixed' to 'absolute' to constrain the nav bar within the App container
+  // This prevents it from floating outside the phone view on desktop and fixes scroll jitter on mobile
   return (
-    <div className="fixed bottom-6 left-6 right-6 z-50">
+    <div className="absolute bottom-6 left-6 right-6 z-50">
       <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] flex justify-between px-4 py-2 relative overflow-hidden">
         {/* Shine effect */}
         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
