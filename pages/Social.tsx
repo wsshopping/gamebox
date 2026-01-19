@@ -6,14 +6,14 @@ const Social: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'trade' | 'message'>('trade');
 
   return (
-    <div className="bg-[#020617] min-h-full flex flex-col">
+    <div className="bg-[#f8fafc] min-h-full flex flex-col">
       {/* Sticky Tab Header */}
-      <div className="bg-[#020617]/80 backdrop-blur-xl sticky top-0 z-40 border-b border-white/5 pt-4 pb-3">
+      <div className="bg-white/90 backdrop-blur-xl sticky top-0 z-40 border-b border-gray-100 pt-4 pb-3">
         <div className="flex justify-center px-4">
-           <div className="relative flex w-full max-w-xs bg-black/40 p-1 rounded-2xl border border-white/5 shadow-inner">
-             {/* Slider Background */}
+           <div className="relative flex w-full max-w-xs bg-gray-100 p-1 rounded-2xl shadow-inner">
+             {/* Slider Background - White */}
              <div 
-               className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#1e293b] rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.5)] border border-white/10 transition-all duration-300 ease-out ${
+               className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-300 ease-out ${
                  activeTab === 'trade' ? 'left-1' : 'left-[calc(50%+4px)]'
                }`}
              ></div>
@@ -22,8 +22,8 @@ const Social: React.FC = () => {
                onClick={() => setActiveTab('trade')}
                className={`relative flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 z-10 ${
                  activeTab === 'trade' 
-                 ? 'text-white' 
-                 : 'text-gray-500 hover:text-gray-300'
+                 ? 'text-gray-900' 
+                 : 'text-gray-500 hover:text-gray-700'
                }`}
              >
                市场交易
@@ -32,8 +32,8 @@ const Social: React.FC = () => {
                onClick={() => setActiveTab('message')}
                className={`relative flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 z-10 ${
                  activeTab === 'message' 
-                 ? 'text-white' 
-                 : 'text-gray-500 hover:text-gray-300'
+                 ? 'text-gray-900' 
+                 : 'text-gray-500 hover:text-gray-700'
                }`}
              >
                消息中心

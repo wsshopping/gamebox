@@ -22,26 +22,25 @@ const BottomNav: React.FC = () => {
 
   return (
     <div className="absolute bottom-0 left-0 w-full z-50">
-      <div className="bg-[#020617]/95 backdrop-blur-xl border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.6)] flex justify-between px-6 py-2 pb-6 relative">
-        {/* Top border shine effect */}
-        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+      {/* Light Theme: bg-white/95, border-t border-gray-100, shadow-lg */}
+      <div className="bg-white/95 backdrop-blur-xl border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] flex justify-between px-6 py-2 pb-6 relative">
         
         {navItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.path}
-            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? 'text-violet-600' : 'text-gray-400 hover:text-gray-600'}`}
           >
             {({ isActive }) => (
               <>
                  <div className={`relative transition-all duration-300 ${isActive ? '-translate-y-1' : 'translate-y-0'}`}>
-                    {/* Glow effect under icon */}
-                    <div className={`absolute -inset-3 bg-violet-500/20 rounded-full blur-xl transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
-                    <div className="relative z-10 drop-shadow-md">
+                    {/* Glow effect under icon (lighter) */}
+                    <div className={`absolute -inset-3 bg-violet-500/10 rounded-full blur-xl transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}></div>
+                    <div className="relative z-10 drop-shadow-sm">
                       {item.icon}
                     </div>
                  </div>
-                 <span className={`text-[10px] font-medium mt-1 transition-all duration-300 ${isActive ? 'opacity-100 text-violet-200' : 'opacity-60'}`}>
+                 <span className={`text-[10px] font-medium mt-1 transition-all duration-300 ${isActive ? 'opacity-100 text-violet-600' : 'opacity-70'}`}>
                     {item.name}
                  </span>
               </>
