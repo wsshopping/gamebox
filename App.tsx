@@ -1,0 +1,86 @@
+import React from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Home from './pages/Home';
+import GameCenter from './pages/GameCenter';
+import Trade from './pages/Trade';
+import Welfare from './pages/Welfare';
+import UserCenter from './pages/UserCenter';
+import Community from './pages/Community';
+import Login from './pages/Login';
+import GameDetail from './pages/GameDetail';
+import Search from './pages/Search';
+import MessageList from './pages/MessageList';
+import Social from './pages/Social';
+import Chat from './pages/Chat';
+import BottomNav from './components/BottomNav';
+
+// Layout wrapper to conditionally show BottomNav
+const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat'];
+  const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
+
+  return (
+    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-20">
+        {children}
+      </div>
+      {showNav && <BottomNav />}
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <HashRouter>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          
+          {/* Game Routes */}
+          <Route path="/game" element={<GameCenter />} />
+          <Route path="/game/:id" element={<GameDetail />} />
+          <Route path="/screen-game" element={<Navigate to="/game" replace />} />
+          <Route path="/newrank" element={<Navigate to="/game" replace />} />
+          
+          {/* Social/Trade/Message Routes */}
+          <Route path="/social" element={<Social />} />
+          {/* Keep old routes for compatibility, or redirect */}
+          <Route path="/trade" element={<Trade />} /> 
+          <Route path="/message/list" element={<MessageList />} />
+          <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
+          
+          {/* Welfare/Task Routes */}
+          <Route path="/screen-welfare" element={<Welfare />} />
+          <Route path="/task" element={<Welfare />} />
+          <Route path="/signgift" element={<Welfare />} />
+          
+          {/* Community Routes */}
+          <Route path="/article" element={<Community />} />
+          <Route path="/topic" element={<Community />} />
+          <Route path="/index/video" element={<Navigate to="/article" replace />} />
+          
+          {/* User Routes */}
+          <Route path="/user" element={<UserCenter />} />
+          <Route path="/screen-user" element={<Navigate to="/user" replace />} />
+          <Route path="/user/*" element={<UserCenter />} />
+          
+          {/* Search */}
+          <Route path="/search" element={<Search />} />
+          
+          {/* Chat Detail */}
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:id" element={<Chat />} />
+          
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </HashRouter>
+  );
+};
+
+export default App;
