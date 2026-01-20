@@ -54,7 +54,7 @@ const App: React.FC = () => {
             <Route path="/game/:id" element={<GameDetail />} />
             <Route path="/screen-game" element={<Navigate to="/game" replace />} />
             
-            {/* Rank Route - Newly Added */}
+            {/* Rank Route */}
             <Route path="/newrank" element={<Rank />} />
             
             {/* Social/Trade/Message Routes */}

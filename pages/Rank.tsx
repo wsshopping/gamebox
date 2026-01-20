@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+// Fix: Import directly from index to avoid 'services/api' folder vs file conflict
+import { api } from '../services/api/index';
 import { Game } from '../types';
 
 const Rank: React.FC = () => {
@@ -11,18 +12,22 @@ const Rank: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchRank = async () => {
       setIsLoading(true);
       try {
         const data = await api.game.getRankings(activeTab);
-        setGames(data);
+        if (isMounted) {
+            setGames(data || []);
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Rank fetch failed", e);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
     fetchRank();
+    return () => { isMounted = false; };
   }, [activeTab]);
 
   const getRankStyle = (index: number) => {
