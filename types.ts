@@ -52,6 +52,36 @@ export interface Message {
   members?: number;
 }
 
+// New Types
+export interface SystemNotification {
+  id: string;
+  title: string;
+  content: string;
+  time: string;
+  level: 'info' | 'warning' | 'success'; // for icon/color differentiation
+  read: boolean;
+}
+
+export interface Interaction {
+  id: string;
+  userAvatar: string;
+  userName: string;
+  type: 'like' | 'comment' | 'follow' | 'mention';
+  targetContent?: string; // e.g., "your post", "your comment"
+  time: string;
+  read: boolean;
+}
+
+export interface GroupRecommendation {
+  id: string;
+  name: string;
+  category: string;
+  members: number;
+  avatar: string;
+  desc: string;
+  tags: string[];
+}
+
 export enum TabType {
   HOME = 'home',
   GAME = 'game',

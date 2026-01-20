@@ -1,8 +1,30 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const UserCenter: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout, isLoading } = useAuth();
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, isLoading, navigate]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  if (isLoading || !user) {
+    return (
+      <div className="bg-[#f8fafc] min-h-full flex items-center justify-center">
+         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#f8fafc] min-h-full">
@@ -20,20 +42,20 @@ const UserCenter: React.FC = () => {
           <div className="relative group cursor-pointer">
              <div className="absolute -inset-1 bg-gradient-to-r from-amber-300 to-amber-600 rounded-full opacity-70 blur group-hover:opacity-100 transition duration-500"></div>
              <div className="relative w-20 h-20 rounded-full p-[3px] bg-[#0f172a]">
-                <img src="https://picsum.photos/100/100?random=user" alt="avatar" className="w-full h-full rounded-full object-cover border-2 border-[#1e293b]" />
+                <img src={user.avatar} alt="avatar" className="w-full h-full rounded-full object-cover border-2 border-[#1e293b]" />
              </div>
              <div className="absolute bottom-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md border-2 border-[#0f172a]">
-               Lv.8
+               Lv.{Math.floor((user.assets || 0) / 100) + 1}
              </div>
           </div>
           
           <div className="flex-1">
-            <h2 className="text-2xl font-black text-white tracking-tight mb-1">Player_8839</h2>
-            <p className="text-slate-400 text-xs font-mono mb-3 tracking-wider">ID: 8839 2010</p>
+            <h2 className="text-2xl font-black text-white tracking-tight mb-1">{user.username}</h2>
+            <p className="text-slate-400 text-xs font-mono mb-3 tracking-wider">ID: {user.id.slice(-8)}</p>
             
             <div className="inline-flex items-center space-x-2 bg-slate-800/50 border border-slate-700/50 px-3 py-1 rounded-full backdrop-blur-md">
                <span className="text-amber-400 text-xs drop-shadow-md">♛</span>
-               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 text-[10px] font-bold tracking-widest uppercase">VIP 3 Platinum</span>
+               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 text-[10px] font-bold tracking-widest uppercase">VIP {user.vipLevel} Platinum</span>
             </div>
           </div>
           
@@ -71,8 +93,8 @@ const UserCenter: React.FC = () => {
               </p>
               <div className="flex items-baseline">
                 <span className="text-xl font-medium text-slate-900 mr-1">¥</span>
-                <span className="text-3xl font-black text-slate-900 tracking-tight">1,240</span>
-                <span className="text-lg font-medium text-slate-400">.50</span>
+                <span className="text-3xl font-black text-slate-900 tracking-tight">{user.assets.toLocaleString()}</span>
+                <span className="text-lg font-medium text-slate-400">.00</span>
               </div>
             </div>
             <button className="bg-slate-900 text-white text-xs font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
@@ -123,8 +145,8 @@ const UserCenter: React.FC = () => {
             </div>
          </div>
 
-         <button onClick={() => navigate('/login')} className="w-full mt-4 text-rose-500 font-bold text-sm py-4 hover:bg-rose-50 rounded-2xl transition-colors">
-            Log Out
+         <button onClick={handleLogout} className="w-full mt-4 text-rose-500 font-bold text-sm py-4 hover:bg-rose-50 rounded-2xl transition-colors">
+            退出登录
          </button>
       </div>
     </div>

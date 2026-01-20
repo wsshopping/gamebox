@@ -1,11 +1,46 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { GAMES } from '../services/mockData';
+import { api } from '../services/api';
+import { Game } from '../types';
 
 const GameDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const game = GAMES.find(g => g.id === id) || GAMES[0];
+  const [game, setGame] = useState<Game | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadGame = async () => {
+      if (!id) return;
+      try {
+        const data = await api.game.getById(id);
+        setGame(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadGame();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+       <div className="bg-white min-h-screen flex items-center justify-center">
+         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+       </div>
+    );
+  }
+
+  if (!game) {
+    return (
+      <div className="bg-white min-h-screen flex flex-col items-center justify-center p-6">
+        <div className="text-4xl mb-4">👾</div>
+        <p className="text-gray-500 font-bold mb-4">游戏未找到</p>
+        <button onClick={() => navigate(-1)} className="text-blue-600 font-bold">返回</button>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white min-h-screen relative">
@@ -39,10 +74,10 @@ const GameDetail: React.FC = () => {
 
         {/* Action Buttons */}
         <div className="flex space-x-4 mb-8">
-           <button className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200">
+           <button className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-transform">
              立即下载
            </button>
-           <button className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500">
+           <button className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-200">
              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
            </button>
         </div>
@@ -60,7 +95,7 @@ const GameDetail: React.FC = () => {
           <h3 className="font-bold text-gray-900 mb-3">游戏预览</h3>
           <div className="flex space-x-3 overflow-x-auto no-scrollbar">
              {game.images?.map((img, i) => (
-               <img key={i} src={img} className="w-64 h-36 object-cover rounded-lg flex-shrink-0" alt="screenshot" />
+               <img key={i} src={img} className="w-64 h-36 object-cover rounded-lg flex-shrink-0 shadow-sm" alt="screenshot" />
              ))}
              {!game.images && (
                 <>

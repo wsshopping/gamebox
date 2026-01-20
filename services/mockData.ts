@@ -1,5 +1,5 @@
 
-import { Game, TradeItem, Article, Task, Message } from '../types';
+import { Game, TradeItem, Article, Task, Message, SystemNotification, Interaction, GroupRecommendation } from '../types';
 
 export const GAMES: Game[] = [
   {
@@ -147,14 +147,6 @@ export const TASKS: Task[] = [
 
 export const MESSAGES: Message[] = [
   {
-    id: 'm1',
-    title: '系统通知',
-    content: '您的账号已成功完成实名认证。',
-    time: '10:30',
-    type: 'system',
-    read: false
-  },
-  {
     id: 'g1',
     title: 'GameBox 官方交流群',
     content: '管理员: 欢迎新加入的小伙伴！请查看群公告。',
@@ -181,13 +173,30 @@ export const MESSAGES: Message[] = [
     read: true,
     members: 88,
     avatar: 'https://picsum.photos/100/100?random=g2'
-  },
-  {
-    id: 'm2',
-    title: '活动提醒',
-    content: '夏日狂欢活动即将开始，请准时参加！',
-    time: '昨天',
-    type: 'activity',
-    read: true
   }
+];
+
+// --- New Mock Data ---
+
+export const SYSTEM_NOTIFICATIONS: SystemNotification[] = [
+  { id: 's1', title: '版本更新完成', content: 'GameBox Pro 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
+  { id: 's2', title: '安全警告', content: '检测到您的异地登录尝试，请确认是否为本人操作。', time: '昨天', level: 'warning', read: true },
+  { id: 's3', title: '充值成功', content: '您充值的 6480 钻石已到账。', time: '3天前', level: 'success', read: true }
+];
+
+export const INTERACTIONS: Interaction[] = [
+  { id: 'i1', userAvatar: 'https://picsum.photos/50/50?random=u1', userName: '快乐风男', type: 'like', targetContent: '你的评论', time: '5分钟前', read: false },
+  { id: 'i2', userAvatar: 'https://picsum.photos/50/50?random=u2', userName: '暴走萝莉', type: 'comment', targetContent: '这篇文章写的太好了！', time: '1小时前', read: false },
+  { id: 'i3', userAvatar: 'https://picsum.photos/50/50?random=u3', userName: 'Faker001', type: 'follow', time: '2小时前', read: true },
+  { id: 'i4', userAvatar: 'https://picsum.photos/50/50?random=u4', userName: '官方小助手', type: 'mention', targetContent: '恭喜你中奖了！', time: '昨天', read: true }
+];
+
+export const GROUPS: GroupRecommendation[] = [
+  // g1 is the group user has already joined
+  { id: 'g1', name: 'GameBox 官方交流群', category: '官方社区', members: 1205, avatar: 'https://picsum.photos/100/100?random=g1', desc: 'GameBox 官方唯一指定交流群，禁止广告。', tags: ['官方', '公告', '反馈'] },
+  { id: 'ng1', name: '原神-提瓦特探索', category: '开放世界', members: 5420, avatar: 'https://picsum.photos/100/100?random=ng1', desc: '萌新指导，攻略分享，一起锄大地！', tags: ['攻略', '联机'] },
+  { id: 'ng2', name: 'Apex 冠军小队', category: '竞技射击', members: 890, avatar: 'https://picsum.photos/100/100?random=ng2', desc: '寻找固定队友，上分车队。', tags: ['排位', '语音'] },
+  { id: 'ng3', name: 'Steam 喜加一', category: '单机主机', members: 12050, avatar: 'https://picsum.photos/100/100?random=ng3', desc: '第一时间获取免费游戏资讯。', tags: ['福利', '资讯'] },
+  { id: 'ng4', name: 'Switch 动森联机', category: '休闲模拟', members: 2300, avatar: 'https://picsum.photos/100/100?random=ng4', desc: '大头菜交易，家具互摸。', tags: ['交易', '互助'] },
+  { id: 'ng5', name: '王者荣耀-巅峰赛', category: 'MOBA', members: 8840, avatar: 'https://picsum.photos/100/100?random=ng5', desc: '高端局交流，技术讨论。', tags: ['技术', '开黑'] },
 ];

@@ -1,25 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GAMES, ARTICLES } from '../services/mockData';
+import { api } from '../services/api';
+import { Game, Article } from '../types';
 import GameCard from '../components/GameCard';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
+  const [games, setGames] = useState<Game[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [gamesData, articlesData] = await Promise.all([
+          api.game.getHot(),
+          api.community.getArticles()
+        ]);
+        setGames(gamesData);
+        setArticles(articlesData);
+      } catch (e) {
+        console.error("Failed to load home data", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   return (
     <div className="bg-[#f8fafc] min-h-full pb-10">
-      {/* 
-         Premium Header:
-         - Minimalist
-         - Blur backdrop
-      */}
+      {/* Premium Header */}
       <div className="px-6 py-5 sticky top-0 z-40 flex items-center justify-between bg-white/80 backdrop-blur-xl border-b border-white/50">
         <div className="flex items-center space-x-3">
-          {/* Logo Mark */}
           <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg shadow-slate-200">
             <span className="text-white font-black text-sm italic tracking-tighter">GB</span>
           </div>
-          {/* Text Logo */}
           <h1 className="text-xl font-black tracking-tight text-slate-900 font-sans">
             GAMEBOX
             <span className="text-[9px] align-top ml-1 text-amber-600 font-bold uppercase tracking-widest">PRO</span>
@@ -34,24 +50,14 @@ const Home: React.FC = () => {
         </button>
       </div>
 
-      {/* 
-         Hero Banner: "Magazine" Style 
-         - High quality gradient
-         - Serif typography for contrast
-      */}
+      {/* Hero Banner */}
       <div className="px-6 mt-6 relative z-0">
         <div className="h-56 rounded-[32px] p-8 text-white relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_rgba(79,70,229,0.15)] transition-transform duration-500 hover:scale-[1.02]">
-          {/* Background - Deep Premium Gradient */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500 via-purple-600 to-slate-900"></div>
-          
-          {/* Noise Texture (Simulated with SVG pattern or subtle opacity) */}
           <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
-
-          {/* Abstract Glows */}
           <div className="absolute top-[-50px] right-[-50px] w-64 h-64 bg-amber-400/30 rounded-full blur-[80px] mix-blend-screen"></div>
           <div className="absolute bottom-[-20px] left-[-20px] w-40 h-40 bg-cyan-400/20 rounded-full blur-[60px] mix-blend-screen"></div>
           
-          {/* Content */}
           <div className="relative z-10 h-full flex flex-col justify-center items-start">
             <div className="inline-flex items-center space-x-2 mb-4 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
@@ -75,11 +81,7 @@ const Home: React.FC = () => {
         </div>
       </div>
 
-      {/* 
-         Quick Access - Apple Style Icons
-         - White squares with soft shadow
-         - Centered high contrast icons
-      */}
+      {/* Quick Access */}
       <div className="flex justify-between px-8 mt-10 mb-10">
         {[
           { name: '排行榜', icon: '🏆', color: 'text-amber-500', path: '/newrank' },
@@ -96,7 +98,7 @@ const Home: React.FC = () => {
         ))}
       </div>
 
-      {/* Recommended Games - Clean Headers */}
+      {/* Recommended Games */}
       <div className="px-6 mb-10">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-slate-900 tracking-tight">精选推荐</h3>
@@ -105,38 +107,61 @@ const Home: React.FC = () => {
             <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </span>
         </div>
-        <div className="space-y-4">
-          {GAMES.slice(0, 3).map(game => (
-            <GameCard key={game.id} game={game} />
-          ))}
+        <div className="space-y-4 min-h-[200px]">
+          {isLoading ? (
+            // Skeleton Loader
+            [1, 2, 3].map(i => (
+              <div key={i} className="bg-white rounded-[20px] p-4 flex space-x-4 animate-pulse">
+                <div className="w-18 h-18 bg-slate-100 rounded-2xl w-[72px] h-[72px]"></div>
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+                  <div className="h-3 bg-slate-100 rounded w-1/4"></div>
+                </div>
+              </div>
+            ))
+          ) : (
+            games.map(game => (
+              <GameCard key={game.id} game={game} />
+            ))
+          )}
         </div>
       </div>
 
-       {/* News - Horizontal Scroll for Premium Feel */}
+       {/* News */}
        <div className="px-6 pb-20">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-slate-900 tracking-tight">前沿资讯</h3>
         </div>
         <div className="flex overflow-x-auto space-x-4 no-scrollbar pb-4 -mx-6 px-6">
-          {ARTICLES.map(article => (
-            <div 
-               key={article.id} 
-               onClick={() => navigate('/article')}
-               className="min-w-[280px] bg-white p-4 rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.03)] border border-slate-50 cursor-pointer hover:shadow-lg transition-all"
-            >
-               <div className="relative h-36 rounded-2xl overflow-hidden mb-4">
-                 <img src={article.image} alt={article.title} className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700" />
-                 <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg">
-                    <span className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">{article.tag}</span>
+          {isLoading ? (
+            [1, 2].map(i => (
+               <div key={i} className="min-w-[280px] bg-white p-4 rounded-[24px] h-[250px] animate-pulse">
+                  <div className="h-36 bg-slate-100 rounded-2xl mb-4"></div>
+                  <div className="h-4 bg-slate-100 rounded w-full mb-2"></div>
+                  <div className="h-4 bg-slate-100 rounded w-2/3"></div>
+               </div>
+            ))
+          ) : (
+            articles.map(article => (
+              <div 
+                 key={article.id} 
+                 onClick={() => navigate('/article')}
+                 className="min-w-[280px] bg-white p-4 rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.03)] border border-slate-50 cursor-pointer hover:shadow-lg transition-all"
+              >
+                 <div className="relative h-36 rounded-2xl overflow-hidden mb-4">
+                   <img src={article.image} alt={article.title} className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700" />
+                   <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg">
+                      <span className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">{article.tag}</span>
+                   </div>
                  </div>
-               </div>
-               <h4 className="text-[15px] font-bold text-slate-900 leading-snug mb-2 line-clamp-2">{article.title}</h4>
-               <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>{article.author}</span>
-                  <span>{article.timestamp}</span>
-               </div>
-            </div>
-          ))}
+                 <h4 className="text-[15px] font-bold text-slate-900 leading-snug mb-2 line-clamp-2">{article.title}</h4>
+                 <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>{article.author}</span>
+                    <span>{article.timestamp}</span>
+                 </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
