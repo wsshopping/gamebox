@@ -143,7 +143,7 @@ export const api = {
       }
     },
     joinGroup: async (groupId: string, message?: string): Promise<boolean> => {
-      await delay(1000);
+      await delay(500); // Reduced delay for better UX
       console.log(`Applying to join group ${groupId} with message: ${message}`);
       return true;
     }

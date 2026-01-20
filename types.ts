@@ -7,8 +7,14 @@ export interface Game {
   rating: number;
   downloads: string;
   tags: string[];
-  description?: string;
-  images?: string[];
+  description?: string; // Short summary
+  intro?: string; // Detailed introduction
+  images?: string[]; // Screenshots
+  banner?: string; // Hero banner image
+  downloadUrl?: string;
+  size?: string;
+  version?: string;
+  developer?: string;
 }
 
 export interface TradeItem {

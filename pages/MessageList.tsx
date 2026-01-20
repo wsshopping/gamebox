@@ -21,6 +21,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [recommendedGroups, setRecommendedGroups] = useState<GroupRecommendation[]>([]);
   const [groupCategory, setGroupCategory] = useState('全部');
+  const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -49,6 +50,19 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
 
   const handleGroupClick = (groupId: string) => {
     navigate(`/group/${groupId}`);
+  };
+
+  const handleQuickJoin = async (groupId: string) => {
+    if (joiningGroupId) return;
+    setJoiningGroupId(groupId);
+    try {
+      await api.message.joinGroup(groupId, '');
+      navigate(`/chat/${groupId}`);
+    } catch (error) {
+      console.error("Failed to join group", error);
+    } finally {
+      setJoiningGroupId(null);
+    }
   };
 
   const handleMessageClick = (type: string, id: string) => {
@@ -217,16 +231,17 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                              if(group.id === 'g1') {
                                 navigate(`/chat/${group.id}`);
                              } else {
-                                handleGroupClick(group.id);
+                                handleQuickJoin(group.id);
                              }
                          }}
+                         disabled={joiningGroupId === group.id}
                          className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
                            group.id === 'g1' 
                            ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                            : 'bg-slate-900 text-white hover:bg-slate-800'
-                         }`}
+                         } ${joiningGroupId === group.id ? 'opacity-70 cursor-not-allowed' : ''}`}
                        >
-                         {group.id === 'g1' ? '进入' : '加入'}
+                         {group.id === 'g1' ? '进入' : (joiningGroupId === group.id ? '加入中...' : '加入')}
                        </button>
                     </div>
                  </div>

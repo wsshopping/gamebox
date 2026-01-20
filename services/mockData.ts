@@ -11,7 +11,13 @@ export const GAMES: Game[] = [
     downloads: '120万',
     tags: ['3D', '仙侠', '动作'],
     description: '沉浸式东方幻想MMORPG，拥有惊艳的画面和动态战斗系统。',
-    images: ['https://picsum.photos/400/200?random=101', 'https://picsum.photos/400/200?random=102']
+    intro: '《古剑奇谭在线版》是一款次世代国风仙侠网游。游戏采用了先进的引擎技术，打造了一个气势恢宏、生动真实的东方幻想世界。玩家可以选择不同的门派，习得绝世武功，与好友组队探索神秘的副本，挑战强大的上古神兽。游戏中还有丰富的休闲玩法，如烹饪、垂钓、抚琴等，让你在修仙之余也能享受片刻宁静。',
+    images: ['https://picsum.photos/400/200?random=101', 'https://picsum.photos/400/200?random=102', 'https://picsum.photos/400/200?random=103', 'https://picsum.photos/400/200?random=104'],
+    banner: 'https://picsum.photos/800/400?random=100',
+    downloadUrl: 'https://example.com/download/gujian',
+    size: '15.4 GB',
+    version: '2.1.0',
+    developer: '上海烛龙'
   },
   {
     id: '2',
@@ -21,7 +27,14 @@ export const GAMES: Game[] = [
     rating: 4.5,
     downloads: '85万',
     tags: ['科幻', '极速', '多人'],
-    description: '在霓虹闪烁的未来都市中进行极速竞速。'
+    description: '在霓虹闪烁的未来都市中进行极速竞速。',
+    intro: '欢迎来到2077年的夜之城，这里是极速者的天堂。驾驶经过深度改装的反重力赛车，在摩天大楼之间穿梭，体验肾上腺素飙升的快感。游戏支持多人在线竞技，你可以定制赛车的外观和性能，成为赛道上的传奇。',
+    images: ['https://picsum.photos/400/200?random=201', 'https://picsum.photos/400/200?random=202'],
+    banner: 'https://picsum.photos/800/400?random=200',
+    downloadUrl: 'https://example.com/download/cyberracer',
+    size: '4.2 GB',
+    version: '1.0.5',
+    developer: 'Neon Speed Studio'
   },
   {
     id: '3',
@@ -31,7 +44,14 @@ export const GAMES: Game[] = [
     rating: 4.7,
     downloads: '210万',
     tags: ['塔防', '休闲'],
-    description: '抵御怪物大军，保卫你的王国。'
+    description: '抵御怪物大军，保卫你的王国。',
+    intro: '经典的塔防游戏回归！指挥你的军队，建造防御塔，施放强大的法术，抵御兽人、巨魔、邪恶巫师和其他恶魔的进攻。游戏包含多个关卡和挑战模式，考验你的战略智慧。',
+    images: ['https://picsum.photos/400/200?random=301', 'https://picsum.photos/400/200?random=302'],
+    banner: 'https://picsum.photos/800/400?random=300',
+    downloadUrl: 'https://example.com/download/kingdomrush',
+    size: '800 MB',
+    version: '4.2.1',
+    developer: 'Ironhide'
   },
   {
     id: '4',
@@ -41,7 +61,14 @@ export const GAMES: Game[] = [
     rating: 4.2,
     downloads: '50万',
     tags: ['二次元', '生活模拟'],
-    description: '在这款动漫模拟游戏中体验梦想中的高中生活。'
+    description: '在这款动漫模拟游戏中体验梦想中的高中生活。',
+    intro: '高度自由的校园模拟游戏。你可以上课、参加社团活动、结交朋友，甚至谈一场轰轰烈烈的恋爱。或者，你也可以装备喷气背包，在校园里大搞破坏。你的高中生活，由你自己定义。',
+    images: ['https://picsum.photos/400/200?random=401', 'https://picsum.photos/400/200?random=402'],
+    banner: 'https://picsum.photos/800/400?random=400',
+    downloadUrl: 'https://example.com/download/schoolsim',
+    size: '1.5 GB',
+    version: '1.8.0',
+    developer: 'Sakura Soft'
   },
   {
     id: '5',
@@ -51,7 +78,14 @@ export const GAMES: Game[] = [
     rating: 4.9,
     downloads: '30万',
     tags: ['太空', '策略'],
-    description: '率领你的舰队征服银河系。'
+    description: '率领你的舰队征服银河系。',
+    intro: '在这款宏大的太空战略游戏中，你将扮演一名舰队指挥官。探索未知的星系，建立资源基地，组建无敌舰队。与全服玩家争夺星际霸权，组建联盟，改写银河系的历史。',
+    images: ['https://picsum.photos/400/200?random=501', 'https://picsum.photos/400/200?random=502'],
+    banner: 'https://picsum.photos/800/400?random=500',
+    downloadUrl: 'https://example.com/download/spacecmd',
+    size: '3.8 GB',
+    version: '0.9.5',
+    developer: 'Star Forge'
   }
 ];
 
@@ -176,8 +210,6 @@ export const MESSAGES: Message[] = [
   }
 ];
 
-// --- New Mock Data ---
-
 export const SYSTEM_NOTIFICATIONS: SystemNotification[] = [
   { id: 's1', title: '版本更新完成', content: 'GameBox Pro 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
   { id: 's2', title: '安全警告', content: '检测到您的异地登录尝试，请确认是否为本人操作。', time: '昨天', level: 'warning', read: true },
@@ -192,7 +224,6 @@ export const INTERACTIONS: Interaction[] = [
 ];
 
 export const GROUPS: GroupRecommendation[] = [
-  // g1 is the group user has already joined
   { id: 'g1', name: 'GameBox 官方交流群', category: '官方社区', members: 1205, avatar: 'https://picsum.photos/100/100?random=g1', desc: 'GameBox 官方唯一指定交流群，禁止广告。', tags: ['官方', '公告', '反馈'] },
   { id: 'ng1', name: '原神-提瓦特探索', category: '开放世界', members: 5420, avatar: 'https://picsum.photos/100/100?random=ng1', desc: '萌新指导，攻略分享，一起锄大地！', tags: ['攻略', '联机'] },
   { id: 'ng2', name: 'Apex 冠军小队', category: '竞技射击', members: 890, avatar: 'https://picsum.photos/100/100?random=ng2', desc: '寻找固定队友，上分车队。', tags: ['排位', '语音'] },
