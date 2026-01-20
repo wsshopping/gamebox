@@ -1,6 +1,7 @@
+
 import { delay, DELAY } from './core';
 
-// Mock Data for Agency (Moved from Agency.tsx to here)
+// Mock Data for Agency
 const MOCK_AGENTS = [
   { id: 1, account: '16666666633', role: '总代', inviteCode: 'QPHS', upline: '18812567888', status: '正常', time: '2026-01-20 17:50' },
   { id: 2, account: '13636363636', role: '总推', inviteCode: 'EMGP', upline: '13999999438', status: '正常', time: '2026-01-20 17:31' },
@@ -17,13 +18,19 @@ const MOCK_PLAYERS = [
   { id: 3, account: '19988998899', inviteCode: 'GNN7BE73', recharge: '0.00', time: '01-11' },
 ];
 
+// Updated to match the screenshot numbers
 const MOCK_STATS = {
   role: '超级管理员',
   code: 'GNN7BE73',
   level: '总推',
-  totalUsers: 30,
-  balance: 1280.50,
-  profit: 15420.00
+  creatable: '总推', // Added based on screenshot
+  registerCount: 30, // "总注册数"
+  
+  // Finance Data
+  totalFlow: '5060.00',
+  totalProfit: '101.20',
+  withdrawn: '0.00',
+  withdrawable: '81.20'
 };
 
 export const agencyApi = {
