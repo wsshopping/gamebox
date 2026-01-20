@@ -118,7 +118,7 @@ const GameDetail: React.FC = () => {
            </div>
            <div className="bg-white p-3 rounded-2xl text-center border border-slate-50">
               <p className="text-[10px] text-slate-400 uppercase font-bold">开发商</p>
-              <p className="text-sm font-bold text-slate-800 mt-1 truncate px-1" title={game.developer}>{game.developer || 'GameBox'}</p>
+              <p className="text-sm font-bold text-slate-800 mt-1 truncate px-1" title={game.developer}>{game.developer || '贪玩游戏'}</p>
            </div>
         </div>
 

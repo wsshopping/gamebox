@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -55,7 +56,7 @@ const Register: React.FC = () => {
 
       <div className="mb-8 animate-fade-in-up">
         <h1 className="text-3xl font-black text-gray-900 tracking-tight">创建账号</h1>
-        <p className="text-gray-500 text-sm mt-2">免费加入 GameBox Pro，畅享游戏世界</p>
+        <p className="text-gray-500 text-sm mt-2">免费加入 贪玩盒子，畅享游戏世界</p>
       </div>
 
       <form onSubmit={handleRegister} className="space-y-5 animate-fade-in-up delay-100">
@@ -68,7 +69,7 @@ const Register: React.FC = () => {
 
         <div>
            <label className="block text-xs font-bold text-gray-900 mb-1.5 ml-1">用户名</label>
-           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-orange-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all">
              <input 
                type="text" 
                value={formData.username}
@@ -81,7 +82,7 @@ const Register: React.FC = () => {
 
         <div>
            <label className="block text-xs font-bold text-gray-900 mb-1.5 ml-1">手机号</label>
-           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-orange-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all">
              <input 
                type="tel" 
                value={formData.phone}
@@ -94,7 +95,7 @@ const Register: React.FC = () => {
 
         <div>
            <label className="block text-xs font-bold text-gray-900 mb-1.5 ml-1">密码</label>
-           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-orange-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all">
              <input 
                type="password" 
                value={formData.password}
@@ -107,7 +108,7 @@ const Register: React.FC = () => {
 
         <div>
            <label className="block text-xs font-bold text-gray-900 mb-1.5 ml-1">确认密码</label>
-           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+           <div className="bg-gray-50 rounded-2xl px-4 py-3 border border-transparent focus-within:border-orange-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-orange-500/10 transition-all">
              <input 
                type="password" 
                value={formData.confirmPassword}
@@ -119,9 +120,9 @@ const Register: React.FC = () => {
         </div>
         
         <div className="flex items-center pt-2">
-           <input type="checkbox" id="terms" className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" required />
+           <input type="checkbox" id="terms" className="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500" required />
            <label htmlFor="terms" className="ml-2 text-xs text-gray-500">
-             我已阅读并同意 <span className="text-blue-600 font-bold">《用户协议》</span> 和 <span className="text-blue-600 font-bold">《隐私政策》</span>
+             我已阅读并同意 <span className="text-orange-600 font-bold">《用户协议》</span> 和 <span className="text-orange-600 font-bold">《隐私政策》</span>
            </label>
         </div>
 
@@ -135,7 +136,7 @@ const Register: React.FC = () => {
       </form>
       
       <div className="mt-8 text-center text-xs text-gray-500 pb-8">
-        已有账号？ <span onClick={() => navigate('/login')} className="text-blue-600 font-bold cursor-pointer hover:underline">直接登录</span>
+        已有账号？ <span onClick={() => navigate('/login')} className="text-orange-600 font-bold cursor-pointer hover:underline">直接登录</span>
       </div>
     </div>
   );

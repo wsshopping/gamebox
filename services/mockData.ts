@@ -182,7 +182,7 @@ export const TASKS: Task[] = [
 export const MESSAGES: Message[] = [
   {
     id: 'g1',
-    title: 'GameBox 官方交流群',
+    title: '贪玩盒子 官方交流群',
     content: '管理员: 欢迎新加入的小伙伴！请查看群公告。',
     time: '10:25',
     type: 'group',
@@ -211,7 +211,7 @@ export const MESSAGES: Message[] = [
 ];
 
 export const SYSTEM_NOTIFICATIONS: SystemNotification[] = [
-  { id: 's1', title: '版本更新完成', content: 'GameBox Pro 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
+  { id: 's1', title: '版本更新完成', content: '贪玩盒子 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
   { id: 's2', title: '安全警告', content: '检测到您的异地登录尝试，请确认是否为本人操作。', time: '昨天', level: 'warning', read: true },
   { id: 's3', title: '充值成功', content: '您充值的 6480 钻石已到账。', time: '3天前', level: 'success', read: true }
 ];
@@ -224,7 +224,7 @@ export const INTERACTIONS: Interaction[] = [
 ];
 
 export const GROUPS: GroupRecommendation[] = [
-  { id: 'g1', name: 'GameBox 官方交流群', category: '官方社区', members: 1205, avatar: 'https://picsum.photos/100/100?random=g1', desc: 'GameBox 官方唯一指定交流群，禁止广告。', tags: ['官方', '公告', '反馈'] },
+  { id: 'g1', name: '贪玩盒子 官方交流群', category: '官方社区', members: 1205, avatar: 'https://picsum.photos/100/100?random=g1', desc: '贪玩盒子 官方唯一指定交流群，禁止广告。', tags: ['官方', '公告', '反馈'] },
   { id: 'ng1', name: '原神-提瓦特探索', category: '开放世界', members: 5420, avatar: 'https://picsum.photos/100/100?random=ng1', desc: '萌新指导，攻略分享，一起锄大地！', tags: ['攻略', '联机'] },
   { id: 'ng2', name: 'Apex 冠军小队', category: '竞技射击', members: 890, avatar: 'https://picsum.photos/100/100?random=ng2', desc: '寻找固定队友，上分车队。', tags: ['排位', '语音'] },
   { id: 'ng3', name: 'Steam 喜加一', category: '单机主机', members: 12050, avatar: 'https://picsum.photos/100/100?random=ng3', desc: '第一时间获取免费游戏资讯。', tags: ['福利', '资讯'] },

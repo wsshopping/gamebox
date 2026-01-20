@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
@@ -30,70 +31,86 @@ const Home: React.FC = () => {
 
   return (
     <div className="bg-[#f8fafc] min-h-full pb-10">
-      {/* Premium Header */}
-      <div className="px-6 py-5 sticky top-0 z-40 flex items-center justify-between bg-white/80 backdrop-blur-xl border-b border-white/50">
+      {/* Premium Header: Black & Gold */}
+      <div className="px-6 py-5 sticky top-0 z-40 flex items-center justify-between bg-white/80 backdrop-blur-xl border-b border-white/50 transition-all">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg shadow-slate-200">
-            <span className="text-white font-black text-sm italic tracking-tighter">GB</span>
+          {/* Logo: Black Box with Gold Icon */}
+          <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center shadow-lg shadow-slate-300/50 relative overflow-hidden group border border-slate-700">
+            {/* Gold Shine */}
+            <div className="absolute top-0 right-0 w-8 h-8 bg-amber-400/20 rounded-full blur-md -mr-3 -mt-3"></div>
+            {/* Icon */}
+            <svg className="w-5 h-5 text-amber-400 relative z-10 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 3L3.5 7.5V16.5L12 21L20.5 16.5V7.5L12 3Z" />
+            </svg>
           </div>
-          <h1 className="text-xl font-black tracking-tight text-slate-900 font-sans">
-            GAMEBOX
-            <span className="text-[9px] align-top ml-1 text-amber-600 font-bold uppercase tracking-widest">PRO</span>
-          </h1>
+          
+          <div className="flex flex-col justify-center">
+             <h1 className="text-xl font-black tracking-tight text-slate-900 font-sans leading-none flex items-center">
+               贪玩盒子
+             </h1>
+             <span className="text-[10px] text-amber-600 font-bold tracking-[0.2em] uppercase scale-90 origin-left">BLACK GOLD</span>
+          </div>
         </div>
         
         <button 
           onClick={() => navigate('/search')} 
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-100 text-slate-400 hover:text-slate-900 hover:border-slate-300 hover:shadow-md transition-all duration-300"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-slate-100 text-slate-400 hover:text-slate-900 hover:border-amber-200 hover:shadow-md transition-all duration-300"
         >
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         </button>
       </div>
 
-      {/* Hero Banner */}
+      {/* Hero Banner: Luxury Black Card Style */}
       <div className="px-6 mt-6 relative z-0">
-        <div className="h-56 rounded-[32px] p-8 text-white relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_rgba(79,70,229,0.15)] transition-transform duration-500 hover:scale-[1.02]">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-500 via-purple-600 to-slate-900"></div>
-          <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] mix-blend-overlay"></div>
-          <div className="absolute top-[-50px] right-[-50px] w-64 h-64 bg-amber-400/30 rounded-full blur-[80px] mix-blend-screen"></div>
-          <div className="absolute bottom-[-20px] left-[-20px] w-40 h-40 bg-cyan-400/20 rounded-full blur-[60px] mix-blend-screen"></div>
+        <div className="h-56 rounded-[32px] p-8 relative overflow-hidden group cursor-pointer shadow-[0_20px_40px_-10px_rgba(0,0,0,0.4)] transition-transform duration-500 hover:scale-[1.02]">
+          {/* Dark Background */}
+          <div className="absolute inset-0 bg-[#0f172a]"></div>
+          
+          {/* Gold Accents/Glows */}
+          <div className="absolute top-[-80px] right-[-80px] w-64 h-64 bg-amber-500/20 rounded-full blur-[80px]"></div>
+          <div className="absolute bottom-[-40px] left-[-40px] w-40 h-40 bg-yellow-600/10 rounded-full blur-[60px]"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-center items-start">
-            <div className="inline-flex items-center space-x-2 mb-4 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-               <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-               <span className="text-white text-[10px] font-bold uppercase tracking-widest">Featured Event</span>
+            <div className="inline-flex items-center space-x-2 mb-4 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-amber-500/30">
+               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
+               <span className="text-amber-200 text-[10px] font-bold uppercase tracking-widest">Premium Event</span>
             </div>
             
-            <h2 className="text-4xl font-black mb-2 leading-[0.9] tracking-tighter text-white drop-shadow-lg font-serif italic">
-              SUMMER<br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-yellow-400">LEGENDS</span>
+            <h2 className="text-4xl font-black mb-2 leading-[0.9] tracking-tighter text-white font-serif italic">
+              BLACK<br/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-600">MYTH</span>
             </h2>
             
-            <p className="text-indigo-100 text-xs mb-6 font-medium max-w-[200px] leading-relaxed opacity-80">
-              Unlock exclusive platinum skins and epic rewards in our seasonal event.
+            <p className="text-slate-400 text-xs mb-6 font-medium max-w-[200px] leading-relaxed">
+              Experience the legend. Exclusive rewards for VIP members.
             </p>
             
-            <button onClick={() => navigate('/screen-welfare')} className="group/btn bg-white text-slate-900 px-6 py-2.5 rounded-full text-xs font-bold shadow-xl hover:bg-slate-50 transition-all flex items-center">
-              Explore Now
+            <button onClick={() => navigate('/screen-welfare')} className="group/btn bg-gradient-to-r from-amber-400 to-yellow-600 text-slate-900 px-6 py-2.5 rounded-full text-xs font-bold shadow-lg shadow-amber-900/20 hover:brightness-110 transition-all flex items-center">
+              立即探索
               <svg className="w-3 h-3 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Quick Access */}
+      {/* Quick Access: Black Icons on Gold/White */}
       <div className="flex justify-between px-8 mt-10 mb-10">
         {[
-          { name: '排行榜', icon: '🏆', color: 'text-amber-500', path: '/newrank' },
-          { name: '新游', icon: '⚡', color: 'text-indigo-500', path: '/game' },
-          { name: '视频', icon: '▶', color: 'text-rose-500', path: '/index/video' },
-          { name: '交易', icon: '❖', color: 'text-emerald-500', path: '/trade' },
+          { name: '排行榜', icon: '🏆', path: '/newrank' },
+          { name: '新游', icon: '⚡', path: '/game' },
+          { name: '视频', icon: '▶', path: '/index/video' },
+          { name: '交易', icon: '❖', path: '/trade' },
         ].map((item) => (
           <div key={item.name} onClick={() => navigate(item.path)} className="flex flex-col items-center space-y-3 cursor-pointer group">
-            <div className="w-[68px] h-[68px] rounded-[22px] bg-white flex items-center justify-center text-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] border border-white group-hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.1)] group-hover:-translate-y-1 transition-all duration-300">
-               <span className={`${item.color} drop-shadow-sm`}>{item.icon}</span>
+            <div className="w-[68px] h-[68px] rounded-[22px] bg-white flex items-center justify-center text-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.05)] border border-white group-hover:bg-slate-900 group-hover:border-slate-800 group-hover:shadow-[0_15px_30px_-5px_rgba(0,0,0,0.3)] group-hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+               {/* Icon Color Change on Hover */}
+               <span className="text-slate-800 group-hover:text-amber-400 transition-colors duration-300 drop-shadow-sm relative z-10">{item.icon}</span>
+               {/* Subtle background shine on hover */}
+               <div className="absolute inset-0 bg-gradient-to-tr from-slate-800 to-slate-900 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </div>
-            <span className="text-xs font-semibold tracking-wide text-slate-600 group-hover:text-slate-900 transition-colors">{item.name}</span>
+            <span className="text-xs font-bold tracking-wide text-slate-600 group-hover:text-slate-900 transition-colors">{item.name}</span>
           </div>
         ))}
       </div>
@@ -101,15 +118,18 @@ const Home: React.FC = () => {
       {/* Recommended Games */}
       <div className="px-6 mb-10">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-slate-900 tracking-tight">精选推荐</h3>
-          <span onClick={() => navigate('/game')} className="text-xs font-bold text-slate-400 flex items-center cursor-pointer hover:text-slate-900 transition-colors">
+          <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center">
+             <span className="w-1 h-5 bg-slate-900 rounded-full mr-2"></span>
+             精选推荐
+          </h3>
+          <span onClick={() => navigate('/game')} className="text-xs font-bold text-slate-400 flex items-center cursor-pointer hover:text-amber-600 transition-colors">
             查看全部 
             <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </span>
         </div>
         <div className="space-y-4 min-h-[200px]">
           {isLoading ? (
-            // Skeleton Loader
+            // Skeleton
             [1, 2, 3].map(i => (
               <div key={i} className="bg-white rounded-[20px] p-4 flex space-x-4 animate-pulse">
                 <div className="w-18 h-18 bg-slate-100 rounded-2xl w-[72px] h-[72px]"></div>
@@ -130,31 +150,30 @@ const Home: React.FC = () => {
        {/* News */}
        <div className="px-6 pb-20">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-slate-900 tracking-tight">前沿资讯</h3>
+          <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center">
+             <span className="w-1 h-5 bg-amber-500 rounded-full mr-2"></span>
+             前沿资讯
+          </h3>
         </div>
         <div className="flex overflow-x-auto space-x-4 no-scrollbar pb-4 -mx-6 px-6">
           {isLoading ? (
             [1, 2].map(i => (
-               <div key={i} className="min-w-[280px] bg-white p-4 rounded-[24px] h-[250px] animate-pulse">
-                  <div className="h-36 bg-slate-100 rounded-2xl mb-4"></div>
-                  <div className="h-4 bg-slate-100 rounded w-full mb-2"></div>
-                  <div className="h-4 bg-slate-100 rounded w-2/3"></div>
-               </div>
+               <div key={i} className="min-w-[280px] bg-white p-4 rounded-[24px] h-[250px] animate-pulse"></div>
             ))
           ) : (
             articles.map(article => (
               <div 
                  key={article.id} 
                  onClick={() => navigate('/article')}
-                 className="min-w-[280px] bg-white p-4 rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.03)] border border-slate-50 cursor-pointer hover:shadow-lg transition-all"
+                 className="min-w-[280px] bg-white p-4 rounded-[24px] shadow-[0_8px_20px_rgba(0,0,0,0.03)] border border-slate-50 cursor-pointer hover:shadow-lg transition-all group"
               >
                  <div className="relative h-36 rounded-2xl overflow-hidden mb-4">
-                   <img src={article.image} alt={article.title} className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700" />
-                   <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg">
-                      <span className="text-[10px] font-bold text-slate-900 uppercase tracking-wide">{article.tag}</span>
+                   <img src={article.image} alt={article.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" />
+                   <div className="absolute top-2 left-2 bg-slate-900/90 backdrop-blur-md px-2 py-1 rounded-lg border border-slate-700">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">{article.tag}</span>
                    </div>
                  </div>
-                 <h4 className="text-[15px] font-bold text-slate-900 leading-snug mb-2 line-clamp-2">{article.title}</h4>
+                 <h4 className="text-[15px] font-bold text-slate-900 leading-snug mb-2 line-clamp-2 group-hover:text-amber-600 transition-colors">{article.title}</h4>
                  <div className="flex items-center justify-between text-xs text-slate-400">
                     <span>{article.author}</span>
                     <span>{article.timestamp}</span>

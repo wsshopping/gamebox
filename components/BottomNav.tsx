@@ -3,22 +3,20 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const BottomNav: React.FC = () => {
-  // Config: Defines Outline (inactive), Filled/Duotone (active), and Brand Colors for each tab
+  // Config: Defines Outline (inactive), Filled/Duotone (active)
+  // Unified Theme: Active items are now Gold/Amber
   const navItems = [
     { 
       name: '首页', 
       path: '/', 
-      // Active Color Theme
-      activeColor: 'text-indigo-600',
-      glowColor: 'from-indigo-500/20 to-blue-500/20',
-      // Inactive: Clean Outline
+      activeColor: 'text-amber-500',
+      glowColor: 'from-amber-400/20 to-yellow-500/20',
       icon: (
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M9.02 2.84016L3.63 7.04016C2.73 7.74016 2 9.23016 2 10.3602V17.7702C2 20.0902 3.89 21.9902 6.21 21.9902H17.79C20.11 21.9902 22 20.0902 22 17.7802V10.5002C22 9.29016 21.19 7.74016 20.2 7.05016L14.02 2.72016C12.62 1.74016 10.37 1.79016 9.02 2.84016Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M12 17.9902V14.9902" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       ),
-      // Active: Duotone Filled
       activeIcon: (
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M9.02 2.84016L3.63 7.04016C2.73 7.74016 2 9.23016 2 10.3602V17.7702C2 20.0902 3.89 21.9902 6.21 21.9902H17.79C20.11 21.9902 22 20.0902 22 17.7802V10.5002C22 9.29016 21.19 7.74016 20.2 7.05016L14.02 2.72016C12.62 1.74016 10.37 1.79016 9.02 2.84016Z" fill="currentColor" fillOpacity="0.3"/>
@@ -30,8 +28,8 @@ const BottomNav: React.FC = () => {
     { 
       name: '游戏', 
       path: '/game', 
-      activeColor: 'text-violet-600',
-      glowColor: 'from-violet-500/20 to-fuchsia-500/20',
+      activeColor: 'text-amber-500',
+      glowColor: 'from-amber-400/20 to-yellow-500/20',
       icon: (
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M18.5 5H5.5C3.6 5 2 6.6 2 8.5V15.5C2 17.4 3.6 19 5.5 19H18.5C20.4 19 22 17.4 22 15.5V8.5C22 6.6 20.4 5 18.5 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -55,8 +53,8 @@ const BottomNav: React.FC = () => {
     { 
       name: '社交', 
       path: '/social', 
-      activeColor: 'text-rose-500',
-      glowColor: 'from-rose-500/20 to-pink-500/20',
+      activeColor: 'text-amber-500',
+      glowColor: 'from-amber-400/20 to-yellow-500/20',
       icon: (
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M17 18.4302H13L8.54999 21.3902C7.88999 21.8302 7 21.3602 7 20.5602V18.4302C4 18.4302 2 16.4302 2 13.4302V7.43018C2 4.43018 4 2.43018 7 2.43018H17C20 2.43018 22 4.43018 22 7.43018V13.4302C22 16.4302 20 18.4302 17 18.4302Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -96,8 +94,8 @@ const BottomNav: React.FC = () => {
     { 
       name: '我的', 
       path: '/user', 
-      activeColor: 'text-cyan-600',
-      glowColor: 'from-cyan-400/20 to-emerald-400/20',
+      activeColor: 'text-amber-500',
+      glowColor: 'from-amber-400/20 to-yellow-500/20',
       icon: (
         <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M12.1601 10.87C12.0601 10.86 11.9401 10.86 11.8301 10.87C9.45006 10.79 7.56006 8.84 7.56006 6.44C7.56006 3.99 9.54006 2 12.0001 2C14.4501 2 16.4401 3.99 16.4401 6.44C16.4301 8.84 14.5401 10.79 12.1601 10.87Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
