@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
@@ -15,13 +16,14 @@ import MessageList from './pages/MessageList';
 import Social from './pages/Social';
 import Chat from './pages/Chat';
 import GroupDetail from './pages/GroupDetail';
+import Rank from './pages/Rank';
 import BottomNav from './components/BottomNav';
 import AIAssistant from './components/AIAssistant';
 
 // Layout wrapper to conditionally show BottomNav
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
@@ -51,7 +53,9 @@ const App: React.FC = () => {
             <Route path="/game" element={<GameCenter />} />
             <Route path="/game/:id" element={<GameDetail />} />
             <Route path="/screen-game" element={<Navigate to="/game" replace />} />
-            <Route path="/newrank" element={<Navigate to="/game" replace />} />
+            
+            {/* Rank Route - Newly Added */}
+            <Route path="/newrank" element={<Rank />} />
             
             {/* Social/Trade/Message Routes */}
             <Route path="/social" element={<Social />} />
