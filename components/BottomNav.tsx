@@ -1,23 +1,116 @@
+
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const BottomNav: React.FC = () => {
+  // Config: Defines Outline (inactive), Filled/Duotone (active), and Brand Colors for each tab
   const navItems = [
-    { name: '首页', path: '/', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-    )},
-    { name: '游戏', path: '/game', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" /></svg>
-    )},
-    { name: '社交', path: '/social', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-    )},
-    { name: '福利', path: '/screen-welfare', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
-    )},
-    { name: '我的', path: '/user', icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-    )},
+    { 
+      name: '首页', 
+      path: '/', 
+      // Active Color Theme
+      activeColor: 'text-indigo-600',
+      glowColor: 'from-indigo-500/20 to-blue-500/20',
+      // Inactive: Clean Outline
+      icon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9.02 2.84016L3.63 7.04016C2.73 7.74016 2 9.23016 2 10.3602V17.7702C2 20.0902 3.89 21.9902 6.21 21.9902H17.79C20.11 21.9902 22 20.0902 22 17.7802V10.5002C22 9.29016 21.19 7.74016 20.2 7.05016L14.02 2.72016C12.62 1.74016 10.37 1.79016 9.02 2.84016Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 17.9902V14.9902" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      // Active: Duotone Filled
+      activeIcon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9.02 2.84016L3.63 7.04016C2.73 7.74016 2 9.23016 2 10.3602V17.7702C2 20.0902 3.89 21.9902 6.21 21.9902H17.79C20.11 21.9902 22 20.0902 22 17.7802V10.5002C22 9.29016 21.19 7.74016 20.2 7.05016L14.02 2.72016C12.62 1.74016 10.37 1.79016 9.02 2.84016Z" fill="currentColor" fillOpacity="0.3"/>
+          <path d="M9.02 2.84016L3.63 7.04016C2.73 7.74016 2 9.23016 2 10.3602V17.7702C2 20.0902 3.89 21.9902 6.21 21.9902H17.79C20.11 21.9902 22 20.0902 22 17.7802V10.5002C22 9.29016 21.19 7.74016 20.2 7.05016L14.02 2.72016C12.62 1.74016 10.37 1.79016 9.02 2.84016Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 17.9902V14.9902" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
+    { 
+      name: '游戏', 
+      path: '/game', 
+      activeColor: 'text-violet-600',
+      glowColor: 'from-violet-500/20 to-fuchsia-500/20',
+      icon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18.5 5H5.5C3.6 5 2 6.6 2 8.5V15.5C2 17.4 3.6 19 5.5 19H18.5C20.4 19 22 17.4 22 15.5V8.5C22 6.6 20.4 5 18.5 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M7.5 13.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M9 12H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M14.9945 12H15.0035" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M17.9945 12H18.0035" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      activeIcon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M18.5 5H5.5C3.6 5 2 6.6 2 8.5V15.5C2 17.4 3.6 19 5.5 19H18.5C20.4 19 22 17.4 22 15.5V8.5C22 6.6 20.4 5 18.5 5Z" fill="currentColor" fillOpacity="0.3"/>
+          <path d="M18.5 5H5.5C3.6 5 2 6.6 2 8.5V15.5C2 17.4 3.6 19 5.5 19H18.5C20.4 19 22 17.4 22 15.5V8.5C22 6.6 20.4 5 18.5 5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M7.5 13.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M9 12H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M14.9945 12H15.0035" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M17.9945 12H18.0035" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
+    { 
+      name: '社交', 
+      path: '/social', 
+      activeColor: 'text-rose-500',
+      glowColor: 'from-rose-500/20 to-pink-500/20',
+      icon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17 18.4302H13L8.54999 21.3902C7.88999 21.8302 7 21.3602 7 20.5602V18.4302C4 18.4302 2 16.4302 2 13.4302V7.43018C2 4.43018 4 2.43018 7 2.43018H17C20 2.43018 22 4.43018 22 7.43018V13.4302C22 16.4302 20 18.4302 17 18.4302Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      activeIcon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+           <path d="M17 18.4302H13L8.54999 21.3902C7.88999 21.8302 7 21.3602 7 20.5602V18.4302C4 18.4302 2 16.4302 2 13.4302V7.43018C2 4.43018 4 2.43018 7 2.43018H17C20 2.43018 22 4.43018 22 7.43018V13.4302C22 16.4302 20 18.4302 17 18.4302Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+           <path d="M12 11.3602V11.1502" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+           <path d="M16 11.3602V11.1502" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+           <path d="M8 11.3602V11.1502" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
+    { 
+      name: '福利', 
+      path: '/screen-welfare', 
+      activeColor: 'text-amber-500',
+      glowColor: 'from-amber-400/20 to-yellow-500/20',
+      icon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 8H5C4.45 8 4 8.45 4 9V17C4 19.5 5 21 8 21H16C19 21 20 19.5 20 17V9C20 8.45 19.55 8 19 8Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 21V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M20 8L16 3H8L4 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 8V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      activeIcon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M19 8H5C4.45 8 4 8.45 4 9V17C4 19.5 5 21 8 21H16C19 21 20 19.5 20 17V9C20 8.45 19.55 8 19 8Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 21V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M20 8L16 3H8L4 8" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M12 8V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
+    { 
+      name: '我的', 
+      path: '/user', 
+      activeColor: 'text-cyan-600',
+      glowColor: 'from-cyan-400/20 to-emerald-400/20',
+      icon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12.1601 10.87C12.0601 10.86 11.9401 10.86 11.8301 10.87C9.45006 10.79 7.56006 8.84 7.56006 6.44C7.56006 3.99 9.54006 2 12.0001 2C14.4501 2 16.4401 3.99 16.4401 6.44C16.4301 8.84 14.5401 10.79 12.1601 10.87Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M7.15997 14.56C4.73997 16.18 4.73997 18.82 7.15997 20.43C9.90997 22.27 14.42 22.27 17.17 20.43C19.59 18.81 19.59 16.17 17.17 14.56C14.43 12.73 9.91997 12.73 7.15997 14.56Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ),
+      activeIcon: (
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+           <path d="M12.1601 10.87C12.0601 10.86 11.9401 10.86 11.8301 10.87C9.45006 10.79 7.56006 8.84 7.56006 6.44C7.56006 3.99 9.54006 2 12.0001 2C14.4501 2 16.4401 3.99 16.4401 6.44C16.4301 8.84 14.5401 10.79 12.1601 10.87Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+           <path d="M7.15997 14.56C4.73997 16.18 4.73997 18.82 7.15997 20.43C9.90997 22.27 14.42 22.27 17.17 20.43C19.59 18.81 19.59 16.17 17.17 14.56C14.43 12.73 9.91997 12.73 7.15997 14.56Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )
+    },
   ];
 
   return (
@@ -29,30 +122,28 @@ const BottomNav: React.FC = () => {
         - Pure white with slight transparency (bg-white/90)
         - Soft upward shadow (shadow-[0_-5px_20px_...])
       */}
-      <div className="bg-white/85 backdrop-blur-2xl border-t border-white/50 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] flex justify-between px-6 py-2 pb-8 relative">
+      <div className="bg-white/90 backdrop-blur-2xl border-t border-white/50 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] flex justify-between px-6 py-2 pb-6 relative">
         
         {navItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.path}
-            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? item.activeColor : 'text-slate-400 hover:text-slate-600'}`}
           >
             {({ isActive }) => (
               <>
-                 <div className={`relative transition-all duration-500 ease-out ${isActive ? '-translate-y-2' : 'translate-y-0'}`}>
-                    {/* Active Background Glow - Soft and diffused */}
-                    <div className={`absolute -inset-4 bg-gradient-to-tr from-indigo-500/20 to-purple-500/20 rounded-full blur-xl transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}></div>
+                 <div className={`relative transition-all duration-300`}>
+                    {/* Active Background Glow - Soft and diffused, now uses specific brand color */}
+                    <div className={`absolute -inset-4 bg-gradient-to-tr ${item.glowColor} rounded-full blur-xl transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}></div>
                     
-                    {/* Icon Container - Scale change */}
-                    <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-sm' : 'scale-100'}`}>
-                      {item.icon}
+                    {/* Icon Container - Render Active or Inactive Icon */}
+                    <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-sm -translate-y-0.5' : 'scale-100'}`}>
+                      {isActive ? item.activeIcon : item.icon}
                     </div>
-
-                    {/* Active Dot Indicator - Premium Minimalist */}
-                    <div className={`absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full bg-slate-900 transition-all duration-500 ${isActive ? 'opacity-100 w-1.5 h-1.5' : 'opacity-0 w-0 h-0'}`}></div>
                  </div>
                  
-                 <span className={`text-[9px] font-semibold tracking-wide mt-2 transition-all duration-500 absolute -bottom-3 ${isActive ? 'opacity-100 translate-y-0 text-slate-900' : 'opacity-0 translate-y-2 text-slate-400'}`}>
+                 {/* Label - Always Visible and Colored when active */}
+                 <span className={`text-[10px] font-medium tracking-wide mt-1 transition-all duration-300 ${isActive ? `${item.activeColor} font-bold scale-105` : 'text-slate-500'}`}>
                     {item.name}
                  </span>
               </>

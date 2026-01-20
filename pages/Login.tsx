@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -90,18 +91,6 @@ const Login: React.FC = () => {
           ) : '登 录'}
         </button>
       </form>
-
-      <div className="mt-10 text-center animate-fade-in-up delay-200">
-        <p className="text-xs text-gray-400 mb-4">或者使用第三方账号</p>
-        <div className="flex justify-center space-x-4">
-           <button className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-colors">
-              <span className="text-xs font-bold">微信</span>
-           </button>
-           <button className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors">
-              <span className="text-xs font-bold">QQ</span>
-           </button>
-        </div>
-      </div>
       
       <div className="mt-8 text-center text-xs text-gray-500 pb-8">
         还没有账号？ <span onClick={() => navigate('/register')} className="text-blue-600 font-bold cursor-pointer hover:underline">立即注册</span>
