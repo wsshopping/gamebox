@@ -26,6 +26,8 @@ export interface TradeItem {
   image: string;
   server: string;
   type: 'Account' | 'Item' | 'Currency';
+  // Added time property to support transaction history display
+  time?: string;
 }
 
 export interface Article {

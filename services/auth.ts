@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   username: string;
@@ -27,7 +28,8 @@ export const authService = {
 
     if (user) {
       // Create a session user object (exclude password)
-      const { password, ...safeUser } = user;
+      // Fix: Rename destructured password to avoid conflict with argument 'password'
+      const { password: _dbPassword, ...safeUser } = user;
       const sessionUser = { ...safeUser, token: 'mock-jwt-token-' + Date.now() };
       localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
       return sessionUser;
