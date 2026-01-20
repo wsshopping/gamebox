@@ -1,48 +1,107 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const UserCenter: React.FC = () => {
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { GAMES, TRADE_ITEMS } from '../services/mockData';
+import GameCard from '../components/GameCard';
+
+// Sub-page Component
+const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'default' }> = ({ title, type }) => {
   const navigate = useNavigate();
+  
+  return (
+    <div className="min-h-screen bg-[#f8fafc] pb-20">
+      <div className="bg-white px-4 py-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-gray-100">
+         <button onClick={() => navigate('/user')} className="mr-3 text-gray-600 hover:bg-gray-100 p-1 rounded-full">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+         </button>
+         <h1 className="text-lg font-bold text-gray-900">{title}</h1>
+      </div>
+      
+      <div className="p-4">
+        {type === 'game' && (
+          <div className="space-y-3">
+             {GAMES.slice(0, 2).map(game => (
+               <GameCard key={game.id} game={game} />
+             ))}
+             <div className="text-center text-xs text-gray-400 mt-4">没有更多游戏了</div>
+          </div>
+        )}
+
+        {type === 'trade' && (
+           <div className="space-y-3">
+             {TRADE_ITEMS.slice(0, 1).map(item => (
+                <div key={item.id} className="bg-white p-4 rounded-xl border border-gray-100 flex justify-between items-center">
+                   <div className="flex items-center space-x-3">
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
+                        <img src={item.image} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-gray-800">{item.title}</div>
+                        <div className="text-xs text-gray-400">{item.time || '2024-05-20'}</div>
+                      </div>
+                   </div>
+                   <div className="text-amber-600 font-bold">-¥{item.price}</div>
+                </div>
+             ))}
+           </div>
+        )}
+
+        {(type === 'gift' || type === 'default') && (
+           <div className="flex flex-col items-center justify-center pt-20 text-gray-400">
+              <div className="text-4xl mb-2">📦</div>
+              <p className="text-sm">暂无记录</p>
+           </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const UserCenterMain: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  if (!user) return null;
 
   return (
     <div className="bg-[#f8fafc] min-h-full">
-      {/* 
-         Header: "Black Card" Aesthetic
-         Matte black texture with gold accents
-      */}
+      {/* Header: "Black Card" Aesthetic */}
       <div className="relative bg-[#0f172a] p-8 pt-12 pb-16 overflow-hidden rounded-b-[40px] shadow-2xl shadow-slate-200">
-        {/* Decorative Circles */}
         <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-white/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-indigo-500/10 rounded-full blur-[60px] -ml-10 -mb-10 pointer-events-none"></div>
         
-        {/* Content */}
         <div className="relative z-10 flex items-center space-x-6">
           <div className="relative group cursor-pointer">
              <div className="absolute -inset-1 bg-gradient-to-r from-amber-300 to-amber-600 rounded-full opacity-70 blur group-hover:opacity-100 transition duration-500"></div>
              <div className="relative w-20 h-20 rounded-full p-[3px] bg-[#0f172a]">
-                <img src="https://picsum.photos/100/100?random=user" alt="avatar" className="w-full h-full rounded-full object-cover border-2 border-[#1e293b]" />
+                <img src={user.avatar} alt="avatar" className="w-full h-full rounded-full object-cover border-2 border-[#1e293b]" />
              </div>
              <div className="absolute bottom-0 right-0 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md border-2 border-[#0f172a]">
-               Lv.8
+               Lv.{Math.floor((user.assets || 0) / 100) + 1}
              </div>
           </div>
           
           <div className="flex-1">
-            <h2 className="text-2xl font-black text-white tracking-tight mb-1">Player_8839</h2>
-            <p className="text-slate-400 text-xs font-mono mb-3 tracking-wider">ID: 8839 2010</p>
+            <h2 className="text-2xl font-black text-white tracking-tight mb-1">{user.username}</h2>
+            <p className="text-slate-400 text-xs font-mono mb-3 tracking-wider">ID: {user.id.slice(-8)}</p>
             
             <div className="inline-flex items-center space-x-2 bg-slate-800/50 border border-slate-700/50 px-3 py-1 rounded-full backdrop-blur-md">
                <span className="text-amber-400 text-xs drop-shadow-md">♛</span>
-               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 text-[10px] font-bold tracking-widest uppercase">VIP 3 Platinum</span>
+               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 text-[10px] font-bold tracking-widest uppercase">VIP {user.vipLevel} Platinum</span>
             </div>
           </div>
           
-          <button onClick={() => navigate('/set')} className="w-10 h-10 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 transition-all">
+          <button onClick={() => navigate('/user/set')} className="w-10 h-10 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700 transition-all">
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           </button>
         </div>
 
-        {/* Stats - Minimalist */}
         <div className="flex justify-between mt-8 px-4 relative z-10 border-t border-slate-800/50 pt-6">
           {[
             { label: 'Games', value: '12' },
@@ -58,10 +117,7 @@ const UserCenter: React.FC = () => {
         </div>
       </div>
 
-      {/* 
-         Assets Card 
-         Floating overlap design, very clean
-      */}
+      {/* Assets Card */}
       <div className="px-6 -mt-8 relative z-20">
          <div className="bg-white rounded-[24px] p-6 flex justify-between items-center shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] border border-white">
             <div>
@@ -71,8 +127,8 @@ const UserCenter: React.FC = () => {
               </p>
               <div className="flex items-baseline">
                 <span className="text-xl font-medium text-slate-900 mr-1">¥</span>
-                <span className="text-3xl font-black text-slate-900 tracking-tight">1,240</span>
-                <span className="text-lg font-medium text-slate-400">.50</span>
+                <span className="text-3xl font-black text-slate-900 tracking-tight">{user.assets.toLocaleString()}</span>
+                <span className="text-lg font-medium text-slate-400">.00</span>
               </div>
             </div>
             <button className="bg-slate-900 text-white text-xs font-bold px-6 py-3 rounded-2xl hover:bg-slate-800 hover:shadow-lg transition-all active:scale-95">
@@ -81,16 +137,15 @@ const UserCenter: React.FC = () => {
          </div>
       </div>
 
-      {/* Menu List - Grouped and Clean */}
+      {/* Menu List */}
       <div className="px-6 pt-8 pb-32 space-y-6">
-         {/* Group 1 */}
          <div>
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 pl-2">Entertainment</h4>
             <div className="bg-white rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden">
                {[
                  { name: '我的游戏', icon: '🎮', path: '/user/game' },
                  { name: '我的礼包', icon: '🎁', path: '/user/gift' },
-                 { name: '交易记录', icon: '📦', path: '/trade/record' },
+                 { name: '交易记录', icon: '📦', path: '/user/trade_record' },
                ].map((item, i) => (
                  <div key={item.name} onClick={() => navigate(item.path)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors ${i !== 2 ? 'border-b border-slate-50' : ''}`}>
                     <div className="flex items-center space-x-4">
@@ -103,14 +158,13 @@ const UserCenter: React.FC = () => {
             </div>
          </div>
 
-         {/* Group 2 */}
          <div>
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 pl-2">Settings & Support</h4>
             <div className="bg-white rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-50 overflow-hidden">
                {[
                  { name: '代金券', icon: '🎟', path: '/user/voucher' },
                  { name: '实名认证', icon: '🆔', path: '/user/realname' },
-                 { name: '客服帮助', icon: '🎧', path: '/service' },
+                 { name: '客服帮助', icon: '🎧', path: '/user/service' },
                ].map((item, i) => (
                  <div key={item.name} onClick={() => navigate(item.path)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors ${i !== 2 ? 'border-b border-slate-50' : ''}`}>
                     <div className="flex items-center space-x-4">
@@ -123,11 +177,40 @@ const UserCenter: React.FC = () => {
             </div>
          </div>
 
-         <button onClick={() => navigate('/login')} className="w-full mt-4 text-rose-500 font-bold text-sm py-4 hover:bg-rose-50 rounded-2xl transition-colors">
-            Log Out
+         <button onClick={handleLogout} className="w-full mt-4 text-rose-500 font-bold text-sm py-4 hover:bg-rose-50 rounded-2xl transition-colors">
+            退出登录
          </button>
       </div>
     </div>
+  );
+}
+
+const UserCenter: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, isLoading, navigate]);
+
+  if (isLoading || !user) {
+    return (
+      <div className="bg-[#f8fafc] min-h-full flex items-center justify-center">
+         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+       <Route path="/" element={<UserCenterMain />} />
+       <Route path="game" element={<UserSubPage title="我的游戏" type="game" />} />
+       <Route path="trade_record" element={<UserSubPage title="交易记录" type="trade" />} />
+       <Route path="gift" element={<UserSubPage title="我的礼包" type="gift" />} />
+       <Route path="*" element={<UserSubPage title="功能开发中" type="default" />} />
+    </Routes>
   );
 };
 

@@ -1,22 +1,33 @@
-import React, { useState } from 'react';
-import { GAMES } from '../services/mockData';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
+import { Game } from '../types';
 import GameCard from '../components/GameCard';
 import { useNavigate } from 'react-router-dom';
 
 const GameCenter: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'hot' | 'new' | 'reserve' | 'server'>('hot');
+  const [games, setGames] = useState<Game[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  const getFilteredGames = () => {
-     if (activeTab === 'new') return [...GAMES].reverse();
-     if (activeTab === 'reserve') return GAMES.slice(2, 5);
-     if (activeTab === 'server') return GAMES.slice(0, 3);
-     return GAMES;
-  };
+  useEffect(() => {
+    const fetchGames = async () => {
+      setIsLoading(true);
+      try {
+        const data = await api.game.getList(activeTab);
+        setGames(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGames();
+  }, [activeTab]);
 
   return (
     <div className="bg-[#f8fafc] min-h-full pb-6">
-      {/* Search Header - White background */}
+      {/* Search Header */}
       <div className="bg-white/90 backdrop-blur-md p-4 sticky top-0 z-40 border-b border-gray-100">
         <div 
           onClick={() => navigate('/search')}
@@ -27,7 +38,7 @@ const GameCenter: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs - Light style */}
+      {/* Tabs */}
       <div className="flex bg-white border-b border-gray-100 overflow-x-auto no-scrollbar pt-2">
         {[
           { id: 'hot', label: '热门' },
@@ -48,7 +59,6 @@ const GameCenter: React.FC = () => {
         ))}
       </div>
       
-      {/* Secondary Banner for Tabs */}
       {activeTab === 'server' && (
         <div className="p-3 bg-blue-50 text-blue-600 text-xs text-center border-b border-blue-100">
            今日已开服 <span className="font-bold">12</span> 款游戏，快来体验！
@@ -56,13 +66,30 @@ const GameCenter: React.FC = () => {
       )}
 
       {/* Game List */}
-      <div className="p-4 space-y-3">
-        {getFilteredGames().map(game => (
-          <GameCard key={game.id} game={game} />
-        ))}
-         {activeTab === 'hot' && getFilteredGames().map(game => (
-          <GameCard key={`dup-${game.id}`} game={game} />
-        ))}
+      <div className="p-4 space-y-3 min-h-[300px]">
+        {isLoading ? (
+           <div className="space-y-3">
+             {[1, 2, 3, 4].map(i => (
+               <div key={i} className="bg-white rounded-[20px] p-4 flex space-x-4 animate-pulse">
+                 <div className="w-[72px] h-[72px] bg-slate-100 rounded-2xl"></div>
+                 <div className="flex-1 space-y-2 py-1">
+                   <div className="h-4 bg-slate-100 rounded w-2/3"></div>
+                   <div className="h-3 bg-slate-100 rounded w-1/3"></div>
+                 </div>
+               </div>
+             ))}
+           </div>
+        ) : (
+          <>
+            {games.map(game => (
+              <GameCard key={game.id} game={game} />
+            ))}
+            {/* Mock Duplication for scroll test if list is short */}
+            {activeTab === 'hot' && games.map(game => (
+              <GameCard key={`dup-${game.id}`} game={game} />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

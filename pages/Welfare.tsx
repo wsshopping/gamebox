@@ -1,41 +1,54 @@
-import React, { useState } from 'react';
-import { TASKS } from '../services/mockData';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
+import { Task } from '../types';
 
 const Welfare: React.FC = () => {
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [reward, setReward] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleDraw = () => {
+  useEffect(() => {
+    const fetchTasks = async () => {
+       setIsLoading(true);
+       try {
+         const data = await api.welfare.getTasks();
+         setTasks(data);
+       } finally {
+         setIsLoading(false);
+       }
+    };
+    fetchTasks();
+  }, []);
+
+  const handleDraw = async () => {
     if (isDrawing || reward) return;
     
     setIsDrawing(true);
-    
-    // Simulate network request and animation
-    setTimeout(() => {
+    try {
+      const result = await api.welfare.drawBlindBox();
+      setReward(result);
+    } finally {
       setIsDrawing(false);
-      // Translated prizes
-      const prizes = ['500 积分', '限定皮肤', '10 钻石', '经验加成卡 (1h)', '神秘碎片'];
-      const randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
-      setReward(randomPrize);
-    }, 2000);
+    }
   };
 
   const resetBox = () => {
     setReward(null);
   };
 
+  const handleClaim = async (taskId: string) => {
+    // In a real app, we would optimistically update UI or re-fetch
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'claimed' } : t));
+    await api.welfare.claimTask(taskId);
+  };
+
   return (
     <div className="bg-[#f8fafc] min-h-full">
-      {/* 
-        Platinum Card Banner 
-        Metallic gradients and high-end feel
-      */}
+      {/* Platinum Card Banner */}
       <div className="p-6 pt-10 pb-12">
         <div className="relative h-52 rounded-[32px] bg-gradient-to-br from-slate-300 via-slate-100 to-slate-300 p-8 overflow-hidden shadow-2xl shadow-slate-200 border border-white">
-           {/* Metallic Shine */}
            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-transparent transform rotate-45 scale-150"></div>
-           
-           {/* Texture */}
            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>
 
            <div className="relative z-10 flex flex-col h-full justify-between text-slate-800">
@@ -62,16 +75,11 @@ const Welfare: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content Area - Overlapping */}
+      {/* Main Content Area */}
       <div className="-mt-10 px-6 pb-24 relative z-10">
-
-        {/* 
-          NEW: Blind Box Section 
-          Premium purple/gold gradient style
-        */}
+        {/* Blind Box Section */}
         <div className="bg-white rounded-[24px] border border-slate-50 p-1 mb-6 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)] relative overflow-hidden group">
           <div className="bg-gradient-to-br from-[#1e1b4b] to-[#312e81] rounded-[20px] p-6 relative overflow-hidden text-center">
-             {/* Background Effects */}
              <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
              <div className="absolute top-[-50px] right-[-50px] w-40 h-40 bg-purple-500/30 rounded-full blur-[50px]"></div>
              <div className="absolute bottom-[-20px] left-[-20px] w-32 h-32 bg-indigo-500/30 rounded-full blur-[40px]"></div>
@@ -83,7 +91,6 @@ const Welfare: React.FC = () => {
                   <span className="text-amber-400 text-lg">✨</span>
                 </div>
 
-                {/* Box Container */}
                 <div className="h-40 flex items-center justify-center relative mb-4">
                   {reward ? (
                     <div className="animate-fade-in-up">
@@ -96,7 +103,6 @@ const Welfare: React.FC = () => {
                       onClick={handleDraw}
                       className={`cursor-pointer transition-all duration-300 ${isDrawing ? 'animate-bounce' : 'hover:scale-105'}`}
                     >
-                       {/* 3D Box Representation using Emoji/Icon for simplicity but high impact */}
                        <div className="text-[80px] drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] transform transition-transform">
                          📦
                        </div>
@@ -105,7 +111,6 @@ const Welfare: React.FC = () => {
                   )}
                 </div>
 
-                {/* Draw Button */}
                 {!reward && (
                   <button 
                     onClick={handleDraw}
@@ -126,7 +131,7 @@ const Welfare: React.FC = () => {
           </div>
         </div>
         
-        {/* Daily Sign In - Clean White Card */}
+        {/* Daily Sign In */}
         <div className="bg-white rounded-[24px] border border-slate-50 p-6 mb-6 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.05)]">
           <div className="flex justify-between items-center mb-6">
              <h3 className="font-bold text-slate-900 text-lg">每日签到</h3>
@@ -152,11 +157,15 @@ const Welfare: React.FC = () => {
           </div>
         </div>
 
-        {/* Task List - Minimalist */}
+        {/* Task List */}
         <div className="space-y-4">
            <h3 className="font-bold text-slate-900 text-lg px-2">今日任务</h3>
-           
-            {TASKS.map((task, index) => (
+           {isLoading ? (
+             [1, 2].map(i => (
+               <div key={i} className="bg-white p-5 rounded-[20px] h-20 animate-pulse"></div>
+             ))
+           ) : (
+             tasks.map((task, index) => (
               <div key={task.id} className="bg-white p-5 rounded-[20px] shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-50 flex items-center justify-between hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-4">
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm ${
@@ -174,6 +183,7 @@ const Welfare: React.FC = () => {
                 </div>
                 
                 <button 
+                  onClick={() => task.status === 'completed' ? handleClaim(task.id) : null}
                   disabled={task.status === 'claimed'}
                   className={`text-xs px-5 py-2.5 rounded-full font-bold transition-all ${
                     task.status === 'completed' 
@@ -186,7 +196,8 @@ const Welfare: React.FC = () => {
                   {task.status === 'claimed' ? '已领' : task.status === 'completed' ? '领取' : '去完成'}
                 </button>
               </div>
-            ))}
+            ))
+           )}
         </div>
       </div>
     </div>

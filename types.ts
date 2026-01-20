@@ -7,8 +7,14 @@ export interface Game {
   rating: number;
   downloads: string;
   tags: string[];
-  description?: string;
-  images?: string[];
+  description?: string; // Short summary
+  intro?: string; // Detailed introduction
+  images?: string[]; // Screenshots
+  banner?: string; // Hero banner image
+  downloadUrl?: string;
+  size?: string;
+  version?: string;
+  developer?: string;
 }
 
 export interface TradeItem {
@@ -20,6 +26,8 @@ export interface TradeItem {
   image: string;
   server: string;
   type: 'Account' | 'Item' | 'Currency';
+  // Added time property to support transaction history display
+  time?: string;
 }
 
 export interface Article {
@@ -50,6 +58,36 @@ export interface Message {
   read: boolean;
   avatar?: string;
   members?: number;
+}
+
+// New Types
+export interface SystemNotification {
+  id: string;
+  title: string;
+  content: string;
+  time: string;
+  level: 'info' | 'warning' | 'success'; // for icon/color differentiation
+  read: boolean;
+}
+
+export interface Interaction {
+  id: string;
+  userAvatar: string;
+  userName: string;
+  type: 'like' | 'comment' | 'follow' | 'mention';
+  targetContent?: string; // e.g., "your post", "your comment"
+  time: string;
+  read: boolean;
+}
+
+export interface GroupRecommendation {
+  id: string;
+  name: string;
+  category: string;
+  members: number;
+  avatar: string;
+  desc: string;
+  tags: string[];
 }
 
 export enum TabType {
