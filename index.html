@@ -7,13 +7,90 @@
     <title>贪玩盒子</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+      :root {
+        /* Theme 1: Black Gold Premium (High Contrast) */
+        --bg-primary: #020617; /* Slate 950 - Deep Obsidian */
+        --bg-card: #0f172a;    /* Slate 900 */
+        --bg-glass: rgba(2, 6, 23, 0.85);
+        --text-primary: #f1f5f9;
+        --text-secondary: #64748b;
+        --accent-color: #f59e0b; /* Amber 500 */
+        --accent-gradient-from: #fbbf24;
+        --accent-gradient-to: #d97706;
+        --border-color: rgba(255, 255, 255, 0.08);
+        --card-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Theme 2: Quiet Luxury (Soft Charcoal & Champagne - Low Contrast) */
+      body.theme-quiet {
+        /* Much lighter dark mode - reduces eye strain */
+        --bg-primary: #292524; /* Stone 800 - Warm Dark Grey */
+        --bg-card: rgba(68, 64, 60, 0.65); /* Stone 700 with high blur */
+        --bg-glass: rgba(41, 37, 36, 0.75); /* Stone 800 blur */
+        --text-primary: #e7e5e4; /* Stone 200 - Off-white, softer */
+        --text-secondary: #a8a29e; /* Stone 400 */
+        --accent-color: #E5D0AC; /* Champagne Gold (Desaturated) */
+        --accent-gradient-from: #E5D0AC;
+        --accent-gradient-to: #C2A878;
+        --border-color: rgba(229, 208, 172, 0.12); /* Subtle Champagne */
+        --card-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.25); /* Softer shadow */
+      }
+
+      /* Theme 3: Bright Light (Clean White & Platinum) */
+      body.theme-light {
+        --bg-primary: #f8fafc; /* Slate 50 - Very Light Gray */
+        --bg-card: #ffffff;    /* Pure White */
+        --bg-glass: rgba(255, 255, 255, 0.85);
+        --text-primary: #0f172a; /* Slate 900 - Dark */
+        --text-secondary: #64748b; /* Slate 500 */
+        --accent-color: #d97706; /* Amber 600 - Darker Gold for contrast */
+        --accent-gradient-from: #fbbf24;
+        --accent-gradient-to: #d97706;
+        --border-color: rgba(0, 0, 0, 0.06); /* Very subtle border */
+        --card-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.08); /* Soft shadow */
+      }
+
       body {
-        background-color: #020617; /* Slate 950 - Deep Obsidian */
-        color: #f1f5f9; /* Slate 100 */
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.6s cubic-bezier(0.25, 0.1, 0.25, 1), color 0.6s ease;
       }
+
+      /* Utility classes using variables */
+      .app-bg { background-color: var(--bg-primary); }
+      
+      .card-bg { 
+        background-color: var(--bg-card); 
+        backdrop-filter: blur(20px); 
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: var(--card-shadow);
+        transition: background-color 0.5s ease, border-color 0.5s ease; 
+      }
+      
+      .glass-bg { 
+        background-color: var(--bg-glass); 
+        backdrop-filter: blur(16px); 
+        -webkit-backdrop-filter: blur(16px); 
+        border-bottom: 1px solid var(--border-color);
+      }
+      
+      .text-accent { color: var(--accent-color); }
+      .border-theme { border-color: var(--border-color); }
+      
+      .bg-accent-gradient {
+        background-image: linear-gradient(135deg, var(--accent-gradient-from), var(--accent-gradient-to));
+      }
+      
+      .text-accent-gradient {
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-image: linear-gradient(135deg, var(--accent-gradient-from), var(--accent-gradient-to));
+      }
+
       /* Hide scrollbar for clean horizontal scrolling */
       .no-scrollbar::-webkit-scrollbar {
         display: none;
@@ -21,24 +98,6 @@
       .no-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;
-      }
-      /* Premium Gold Gradient Text */
-      .text-gold {
-        background-clip: text;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-image: linear-gradient(to bottom right, #fcd34d, #d97706); /* Amber 300 to Amber 600 */
-      }
-      /* Metallic Gold Border */
-      .border-gold {
-        border-image: linear-gradient(to bottom right, #fcd34d, #d97706) 1;
-      }
-      /* Glass effect utility for dark mode */
-      .glass-panel-dark {
-        background: rgba(15, 23, 42, 0.6); /* Slate 900 with opacity */
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
       }
     </style>
     <script>

@@ -2,6 +2,7 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Home from './pages/Home';
 import GameCenter from './pages/GameCenter';
 import Trade from './pages/Trade';
@@ -27,8 +28,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
-    // Updated: Dark Theme Background (#020617 Slate-950)
-    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-[#020617] shadow-2xl overflow-hidden relative text-slate-100 font-sans selection:bg-amber-500/30">
+    // Updated: Use CSS Variable class 'app-bg' instead of hardcoded hex
+    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto app-bg shadow-2xl overflow-hidden relative text-slate-100 font-sans transition-colors duration-500">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>
@@ -44,58 +45,60 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <HashRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            
-            {/* Game Routes */}
-            <Route path="/game" element={<GameCenter />} />
-            <Route path="/game/:id" element={<GameDetail />} />
-            <Route path="/screen-game" element={<Navigate to="/game" replace />} />
-            
-            {/* Rank Route */}
-            <Route path="/newrank" element={<Rank />} />
-            
-            {/* Social/Trade/Message Routes */}
-            <Route path="/social" element={<Social />} />
-            {/* Keep old routes for compatibility, or redirect */}
-            <Route path="/trade" element={<Trade />} /> 
-            <Route path="/message/list" element={<MessageList />} />
-            <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
-            
-            {/* Welfare/Task Routes */}
-            <Route path="/screen-welfare" element={<Welfare />} />
-            <Route path="/task" element={<Welfare />} />
-            <Route path="/signgift" element={<Welfare />} />
-            
-            {/* Community Routes */}
-            <Route path="/article" element={<Community />} />
-            <Route path="/topic" element={<Community />} />
-            <Route path="/index/video" element={<Navigate to="/article" replace />} />
-            
-            {/* User Routes */}
-            <Route path="/user" element={<UserCenter />} />
-            <Route path="/screen-user" element={<Navigate to="/user" replace />} />
-            <Route path="/user/*" element={<UserCenter />} />
-            
-            {/* Search */}
-            <Route path="/search" element={<Search />} />
-            
-            {/* Chat & Group Detail */}
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/chat/:id" element={<Chat />} />
-            <Route path="/group/:id" element={<GroupDetail />} />
-            
-            {/* Auth */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </HashRouter>
+      <ThemeProvider>
+        <HashRouter>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              
+              {/* Game Routes */}
+              <Route path="/game" element={<GameCenter />} />
+              <Route path="/game/:id" element={<GameDetail />} />
+              <Route path="/screen-game" element={<Navigate to="/game" replace />} />
+              
+              {/* Rank Route */}
+              <Route path="/newrank" element={<Rank />} />
+              
+              {/* Social/Trade/Message Routes */}
+              <Route path="/social" element={<Social />} />
+              {/* Keep old routes for compatibility, or redirect */}
+              <Route path="/trade" element={<Trade />} /> 
+              <Route path="/message/list" element={<MessageList />} />
+              <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
+              
+              {/* Welfare/Task Routes */}
+              <Route path="/screen-welfare" element={<Welfare />} />
+              <Route path="/task" element={<Welfare />} />
+              <Route path="/signgift" element={<Welfare />} />
+              
+              {/* Community Routes */}
+              <Route path="/article" element={<Community />} />
+              <Route path="/topic" element={<Community />} />
+              <Route path="/index/video" element={<Navigate to="/article" replace />} />
+              
+              {/* User Routes */}
+              <Route path="/user" element={<UserCenter />} />
+              <Route path="/screen-user" element={<Navigate to="/user" replace />} />
+              <Route path="/user/*" element={<UserCenter />} />
+              
+              {/* Search */}
+              <Route path="/search" element={<Search />} />
+              
+              {/* Chat & Group Detail */}
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/chat/:id" element={<Chat />} />
+              <Route path="/group/:id" element={<GroupDetail />} />
+              
+              {/* Auth */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              {/* Fallback */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
+        </HashRouter>
+      </ThemeProvider>
     </AuthProvider>
   );
 };
