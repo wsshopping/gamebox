@@ -61,19 +61,19 @@ const Home: React.FC = () => {
         </button>
       </div>
 
-      {/* Hero Banner: Luxury Black Card Style */}
+      {/* Hero Banner: Luxury Black Card Style - FORCE DARK BACKGROUND */}
       <div className="px-6 mt-6 relative z-0">
         <div className="h-56 rounded-[32px] p-8 relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-[1.02] border border-theme">
-          {/* Background: Use variable instead of pure black for softer look in Quiet mode */}
-          <div className="absolute inset-0 bg-[var(--bg-primary)] opacity-90"></div>
+          {/* Background: Force dark slate/black to contrast with white text */}
+          <div className="absolute inset-0 bg-slate-950 opacity-100"></div>
           
           {/* Gold Accents/Glows */}
-          <div className="absolute top-[-80px] right-[-80px] w-64 h-64 bg-accent-gradient opacity-10 rounded-full blur-[80px]"></div>
-          <div className="absolute bottom-[-40px] left-[-40px] w-40 h-40 bg-accent-gradient opacity-10 rounded-full blur-[60px]"></div>
+          <div className="absolute top-[-80px] right-[-80px] w-64 h-64 bg-amber-500/20 opacity-10 rounded-full blur-[80px]"></div>
+          <div className="absolute bottom-[-40px] left-[-40px] w-40 h-40 bg-amber-600/20 opacity-10 rounded-full blur-[60px]"></div>
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay"></div>
           
           <div className="relative z-10 h-full flex flex-col justify-center items-start">
-            <div className="inline-flex items-center space-x-2 mb-4 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-theme">
+            <div className="inline-flex items-center space-x-2 mb-4 bg-white/5 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                <span className="w-1.5 h-1.5 rounded-full bg-accent-gradient shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
                <span className="text-accent text-[10px] font-bold uppercase tracking-widest">Premium Event</span>
             </div>
@@ -104,13 +104,13 @@ const Home: React.FC = () => {
           { name: '交易', icon: '❖', path: '/trade' },
         ].map((item) => (
           <div key={item.name} onClick={() => navigate(item.path)} className="flex flex-col items-center space-y-3 cursor-pointer group">
-            <div className="w-[68px] h-[68px] rounded-[22px] card-bg flex items-center justify-center text-2xl shadow-lg shadow-black/10 border border-theme group-hover:bg-[var(--bg-primary)] group-hover:border-theme group-hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+            <div className="w-[68px] h-[68px] rounded-[22px] card-bg flex items-center justify-center text-2xl shadow-lg shadow-black/5 border border-theme group-hover:bg-[var(--bg-primary)] group-hover:border-accent group-hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
                {/* Icon Color Change on Hover */}
                <span className="text-slate-400 group-hover:text-accent transition-colors duration-300 drop-shadow-sm relative z-10">{item.icon}</span>
                {/* Subtle background shine on hover */}
                <div className="absolute inset-0 bg-accent-gradient opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
             </div>
-            <span className="text-xs font-bold tracking-wide text-slate-500 group-hover:text-slate-200 transition-colors">{item.name}</span>
+            <span className="text-xs font-bold tracking-wide text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">{item.name}</span>
           </div>
         ))}
       </div>
@@ -165,9 +165,9 @@ const Home: React.FC = () => {
               <div 
                  key={article.id} 
                  onClick={() => navigate('/article')}
-                 className="min-w-[280px] card-bg p-4 rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-theme cursor-pointer hover:border-accent transition-all group"
+                 className="min-w-[280px] card-bg p-4 rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-theme cursor-pointer hover:border-accent transition-all group"
               >
-                 <div className="relative h-36 rounded-2xl overflow-hidden mb-4">
+                 <div className="relative h-36 rounded-2xl overflow-hidden mb-4 border border-theme">
                    <img src={article.image} alt={article.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700" />
                    <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10">
                       <span className="text-[10px] font-bold text-accent uppercase tracking-wide">{article.tag}</span>

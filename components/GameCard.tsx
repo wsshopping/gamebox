@@ -20,20 +20,20 @@ const GameCard: React.FC<GameCardProps> = ({ game, compact = false }) => {
       <img 
         src={game.icon} 
         alt={game.title} 
-        className={`${compact ? 'w-12 h-12' : 'w-18 h-18'} rounded-2xl object-cover shadow-lg border border-white/10 group-hover:scale-105 transition-transform duration-500`} 
+        className={`${compact ? 'w-12 h-12' : 'w-18 h-18'} rounded-2xl object-cover shadow-lg border border-theme group-hover:scale-105 transition-transform duration-500`} 
       />
       
       <div className="flex-1 min-w-0">
-        <h3 className="text-[17px] font-bold text-slate-100 truncate tracking-tight group-hover:text-accent transition-colors">{game.title}</h3>
+        <h3 className="text-[17px] font-bold truncate tracking-tight group-hover:text-accent transition-colors" style={{color: 'var(--text-primary)'}}>{game.title}</h3>
         
         <div className="flex items-center space-x-2 mt-1.5">
           {/* Tag Design: Darker background with light text */}
-          <span className="bg-black/20 text-slate-400 text-[10px] font-medium px-2 py-0.5 rounded-md tracking-wide uppercase border border-theme">
+          <span className="bg-black/10 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md tracking-wide uppercase border border-theme">
             {game.category}
           </span>
           <div className="flex items-center text-accent">
              <span className="text-xs">★</span>
-             <span className="text-xs font-bold ml-0.5 text-slate-300">{game.rating}</span>
+             <span className="text-xs font-bold ml-0.5 text-slate-400">{game.rating}</span>
           </div>
         </div>
         

@@ -28,8 +28,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
-    // Updated: Use CSS Variable class 'app-bg' instead of hardcoded hex
-    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto app-bg shadow-2xl overflow-hidden relative text-slate-100 font-sans transition-colors duration-500">
+    // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation
+    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto app-bg shadow-2xl overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>
