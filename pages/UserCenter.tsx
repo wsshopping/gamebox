@@ -191,7 +191,8 @@ const UserCenterMain: React.FC = () => {
                {[
                  { name: '代金券', icon: '🎟', path: '/user/voucher' },
                  { name: '实名认证', icon: '🆔', path: '/user/realname' },
-                 { name: '客服帮助', icon: '🎧', path: '/user/service' },
+                 // Update the link to the new Feedback page
+                 { name: '客服帮助', icon: '🎧', path: '/user/feedback' },
                ].map((item, i) => (
                  <div key={item.name} onClick={() => navigate(item.path)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-glass)] transition-colors ${i !== 2 ? 'border-b border-theme' : ''}`}>
                     <div className="flex items-center space-x-4">
@@ -236,6 +237,7 @@ const UserCenter: React.FC = () => {
        <Route path="game" element={<UserSubPage title="我的游戏" type="game" />} />
        <Route path="trade_record" element={<UserSubPage title="交易记录" type="trade" />} />
        <Route path="gift" element={<UserSubPage title="我的礼包" type="gift" />} />
+       <Route path="feedback" element={<UserSubPage title="反馈" type="default" />} /> 
        <Route path="*" element={<UserSubPage title="功能开发中" type="default" />} />
     </Routes>
   );

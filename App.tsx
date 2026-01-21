@@ -18,13 +18,14 @@ import Social from './pages/Social';
 import Chat from './pages/Chat';
 import GroupDetail from './pages/GroupDetail';
 import Rank from './pages/Rank';
+import Feedback from './pages/Feedback';
 import BottomNav from './components/BottomNav';
 import AIAssistant from './components/AIAssistant';
 
 // Layout wrapper to conditionally show BottomNav
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
@@ -78,6 +79,7 @@ const App: React.FC = () => {
               
               {/* User Routes */}
               <Route path="/user" element={<UserCenter />} />
+              <Route path="/user/feedback" element={<Feedback />} />
               <Route path="/screen-user" element={<Navigate to="/user" replace />} />
               <Route path="/user/*" element={<UserCenter />} />
               
