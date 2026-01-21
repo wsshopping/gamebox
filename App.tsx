@@ -27,8 +27,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   return (
-    // Change: bg-[#020617] -> bg-[#f8fafc] (Light Theme)
-    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-[#f8fafc] shadow-2xl overflow-hidden relative text-gray-900 font-sans selection:bg-violet-500/30">
+    // Updated: Dark Theme Background (#020617 Slate-950)
+    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-[#020617] shadow-2xl overflow-hidden relative text-slate-100 font-sans selection:bg-amber-500/30">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>

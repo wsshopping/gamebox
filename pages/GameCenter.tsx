@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { Game } from '../types';
@@ -26,20 +27,20 @@ const GameCenter: React.FC = () => {
   }, [activeTab]);
 
   return (
-    <div className="bg-[#f8fafc] min-h-full pb-6">
+    <div className="bg-[#020617] min-h-full pb-6">
       {/* Search Header */}
-      <div className="bg-white/90 backdrop-blur-md p-4 sticky top-0 z-40 border-b border-gray-100">
+      <div className="bg-[#020617]/80 backdrop-blur-md p-4 sticky top-0 z-40 border-b border-white/5">
         <div 
           onClick={() => navigate('/search')}
-          className="bg-gray-100 border border-gray-200 rounded-full flex items-center px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors"
+          className="bg-[#0f172a] border border-white/10 rounded-full flex items-center px-4 py-2.5 cursor-pointer hover:bg-slate-900 hover:border-amber-500/30 transition-colors"
         >
-          <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <span className="text-sm text-gray-400">搜索游戏、礼包、攻略...</span>
+          <svg className="w-5 h-5 text-slate-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <span className="text-sm text-slate-500">搜索游戏、礼包、攻略...</span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-white border-b border-gray-100 overflow-x-auto no-scrollbar pt-2">
+      <div className="flex bg-[#020617] border-b border-white/5 overflow-x-auto no-scrollbar pt-2">
         {[
           { id: 'hot', label: '热门' },
           { id: 'new', label: '新游' },
@@ -49,19 +50,19 @@ const GameCenter: React.FC = () => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 min-w-[20%] py-3 text-sm font-medium relative whitespace-nowrap transition-colors ${activeTab === tab.id ? 'text-gray-900 font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 min-w-[20%] py-3 text-sm font-medium relative whitespace-nowrap transition-colors ${activeTab === tab.id ? 'text-white font-bold' : 'text-slate-500 hover:text-slate-300'}`}
           >
             {tab.label}
             {activeTab === tab.id && (
-              <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-violet-600 rounded-full" />
+              <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
             )}
           </button>
         ))}
       </div>
       
       {activeTab === 'server' && (
-        <div className="p-3 bg-blue-50 text-blue-600 text-xs text-center border-b border-blue-100">
-           今日已开服 <span className="font-bold">12</span> 款游戏，快来体验！
+        <div className="p-3 bg-indigo-900/20 text-indigo-400 text-xs text-center border-b border-indigo-500/20">
+           今日已开服 <span className="font-bold text-indigo-300">12</span> 款游戏，快来体验！
         </div>
       )}
 
@@ -70,11 +71,11 @@ const GameCenter: React.FC = () => {
         {isLoading ? (
            <div className="space-y-3">
              {[1, 2, 3, 4].map(i => (
-               <div key={i} className="bg-white rounded-[20px] p-4 flex space-x-4 animate-pulse">
-                 <div className="w-[72px] h-[72px] bg-slate-100 rounded-2xl"></div>
+               <div key={i} className="bg-[#0f172a] rounded-[20px] p-4 flex space-x-4 animate-pulse border border-white/5">
+                 <div className="w-[72px] h-[72px] bg-slate-900 rounded-2xl"></div>
                  <div className="flex-1 space-y-2 py-1">
-                   <div className="h-4 bg-slate-100 rounded w-2/3"></div>
-                   <div className="h-3 bg-slate-100 rounded w-1/3"></div>
+                   <div className="h-4 bg-slate-900 rounded w-2/3"></div>
+                   <div className="h-3 bg-slate-900 rounded w-1/3"></div>
                  </div>
                </div>
              ))}
