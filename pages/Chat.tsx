@@ -108,6 +108,10 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSend();
+  };
+
   return (
     <div className="app-bg h-screen flex flex-col transition-colors duration-500">
       {/* Header */}
@@ -142,10 +146,10 @@ const Chat: React.FC = () => {
            <>
              <div className="text-center text-xs text-slate-500 my-4">昨天 10:00</div>
              {messages.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4`}>
+                <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in-up`}>
                    {msg.sender === 'other' && (
                       <div className="flex-shrink-0 mr-2 flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden shadow-sm border border-theme">
+                        <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shadow-sm border border-theme">
                            <img 
                              src={`https://picsum.photos/50/50?random=${msg.senderName ? msg.senderName.length + 10 : msg.id}`} 
                              alt="avatar" 
@@ -153,3 +157,75 @@ const Chat: React.FC = () => {
                            />
                         </div>
                       </div>
+                   )}
+                   
+                   <div className="flex flex-col">
+                      {msg.sender === 'other' && isGroup && (
+                         <span className="text-[10px] text-slate-500 mb-1 ml-1">{msg.senderName || '群友'}</span>
+                      )}
+                      
+                      <div 
+                        className={`max-w-[75vw] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words relative group ${
+                           msg.sender === 'me' 
+                           ? 'bg-accent-gradient text-black rounded-tr-sm' 
+                           : 'card-bg text-[var(--text-primary)] border border-theme rounded-tl-sm'
+                        }`}
+                      >
+                        {msg.text}
+                        <div className={`text-[9px] mt-1 text-right opacity-60 ${msg.sender === 'me' ? 'text-black' : 'text-slate-400'}`}>
+                           {msg.time}
+                        </div>
+                      </div>
+                   </div>
+                   
+                   {msg.sender === 'me' && (
+                     <div className="flex-shrink-0 ml-2">
+                        <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden shadow-sm border border-theme">
+                          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" className="w-full h-full object-cover" />
+                        </div>
+                     </div>
+                   )}
+                </div>
+             ))}
+             <div ref={endRef} />
+           </>
+         )}
+      </div>
+
+      {/* Input Area */}
+      <div className="p-3 pb-6 glass-bg border-t border-theme sticky bottom-0 z-20">
+         <div className="flex items-center space-x-2">
+            <button className="text-slate-500 hover:text-accent p-2 rounded-full card-bg border border-theme">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            </button>
+            <div className="flex-1 bg-[var(--bg-primary)] rounded-full px-4 py-2 border border-theme focus-within:border-accent/50 transition-all flex items-center">
+               <input 
+                 type="text" 
+                 value={inputText}
+                 onChange={(e) => setInputText(e.target.value)}
+                 onKeyDown={handleKeyDown}
+                 placeholder="发送消息..." 
+                 className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--text-primary)] placeholder-slate-500"
+               />
+               <button className="text-slate-400 hover:text-slate-200">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+               </button>
+            </div>
+            <button 
+              onClick={handleSend}
+              disabled={!inputText.trim()}
+              className={`p-2.5 rounded-full transition-all shadow-lg ${
+                inputText.trim() 
+                ? 'bg-accent-gradient text-black hover:scale-105 active:scale-95' 
+                : 'card-bg text-slate-500 border border-theme'
+              }`}
+            >
+              <svg className="w-5 h-5 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+            </button>
+         </div>
+      </div>
+    </div>
+  );
+};
+
+export default Chat;
