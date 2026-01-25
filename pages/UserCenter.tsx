@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { GAMES, TRADE_ITEMS } from '../services/mockData';
 import GameCard from '../components/GameCard';
+import { userApi } from '../services/api/user';
 
 // Sub-page Component
 const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'default' }> = ({ title, type }) => {
@@ -61,12 +62,31 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
 
 const UserCenterMain: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const handleThemeChange = async (nextTheme: string) => {
+    if (theme === nextTheme) {
+      return;
+    }
+    const previousTheme = theme;
+    setTheme(nextTheme as any);
+    if (!user) {
+      return;
+    }
+    updateUser({ theme: nextTheme });
+    try {
+      await userApi.updateTheme(nextTheme);
+    } catch (err: any) {
+      updateUser({ theme: previousTheme });
+      setTheme(previousTheme as any);
+      window.alert(err?.message || '主题保存失败');
+    }
   };
 
   if (!user) return null;
@@ -113,7 +133,7 @@ const UserCenterMain: React.FC = () => {
                ].map((t) => (
                  <button 
                    key={t.id}
-                   onClick={() => setTheme(t.id as any)}
+                   onClick={() => handleThemeChange(t.id)}
                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center space-x-1 ${
                      theme === t.id 
                      ? 'bg-accent-gradient text-black shadow-sm' 

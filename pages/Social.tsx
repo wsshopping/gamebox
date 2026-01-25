@@ -1,11 +1,27 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Trade from './Trade';
 import MessageList from './MessageList';
-import Agency from './Agency';
+import Agency, { SuperAdminPage } from './Agency';
+import { useAuth } from '../context/AuthContext';
 
 const Social: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency'>('trade');
+  const { user } = useAuth();
+  const isSuperAdmin = Number(user?.role?.id ?? user?.roleId) === 1;
+  const tabs = useMemo(() => {
+    const base = ['trade', 'message', 'agency'];
+    return isSuperAdmin ? [...base, 'superadmin'] : base;
+  }, [isSuperAdmin]);
+  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency' | 'superadmin'>(tabs[0] as any);
+  const tabCount = tabs.length;
+  const activeIndex = tabs.indexOf(activeTab);
+  useEffect(() => {
+    if (activeIndex === -1) {
+      setActiveTab(tabs[0] as any);
+    }
+  }, [activeIndex, tabs]);
+  const sliderWidth = `calc(${(100 / tabCount).toFixed(2)}% - 4px)`;
+  const sliderLeft = `calc(${(100 / tabCount).toFixed(2)}% * ${activeIndex} + 2px)`;
 
   return (
     <div className="app-bg min-h-full flex flex-col transition-colors duration-500">
@@ -15,14 +31,11 @@ const Social: React.FC = () => {
            <div className="relative flex w-full max-w-sm bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
              {/* Slider Background - Adaptive color */}
              <div 
-               className={`absolute top-1 bottom-1 w-[calc(33.33%-4px)] bg-accent-color/20 rounded-xl shadow-sm border border-accent/20 transition-all duration-300 ease-out ${
-                 activeTab === 'trade' ? 'left-1' : 
-                 activeTab === 'message' ? 'left-[calc(33.33%+2px)]' : 
-                 'left-[calc(66.66%+2px)]'
-               }`}
+               className="absolute top-1 bottom-1 bg-accent-color/20 rounded-xl shadow-sm border border-accent/20 transition-all duration-300 ease-out"
+               style={{ width: sliderWidth, left: sliderLeft }}
              ></div>
              
-             {['trade', 'message', 'agency'].map(tab => (
+             {tabs.map(tab => (
                  <button 
                    key={tab}
                    onClick={() => setActiveTab(tab as any)}
@@ -32,7 +45,7 @@ const Social: React.FC = () => {
                      : 'text-slate-500 hover:text-[var(--text-primary)]'
                    }`}
                  >
-                   {tab === 'trade' ? '市场交易' : tab === 'message' ? '消息中心' : '代理中心'}
+                   {tab === 'trade' ? '市场交易' : tab === 'message' ? '消息中心' : tab === 'agency' ? '代理中心' : '超管中心'}
                  </button>
              ))}
            </div>
@@ -44,6 +57,7 @@ const Social: React.FC = () => {
         {activeTab === 'trade' && <Trade isEmbedded={true} />}
         {activeTab === 'message' && <MessageList isEmbedded={true} />}
         {activeTab === 'agency' && <Agency />}
+        {activeTab === 'superadmin' && <SuperAdminPage />}
       </div>
     </div>
   );

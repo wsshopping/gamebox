@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Game } from '../types';
 
 // --- Types ---
-type TabMode = '代理管理' | '全部代理' | '老板管理' | '玩家列表' | '业绩详情' | '结算中心' | '手游排序' | '审批列表';
+type TabMode = '代理管理' | '玩家列表' | '订单查询' | '业绩详情' | '结算中心' | '手游排序';
 
 type AgencyStats = {
   role: string;
@@ -43,6 +43,16 @@ type PlayerItem = {
   inviteCode: string;
   recharge: string;
   registeredAt: string;
+};
+
+type OrderItem = {
+  orderNo: string;
+  gameId: string;
+  gameName: string;
+  account: string;
+  amount: string;
+  payTime: string;
+  status: string;
 };
 
 type BossItem = {
@@ -794,6 +804,52 @@ const AgentManagement = ({ roleOptions }: { roleOptions: { id: number; name: str
   );
 };
 
+const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
+  const [subTab, setSubTab] = useState<'allAgents' | 'boss' | 'approval'>('allAgents');
+  if (!isSuperAdmin) {
+    return <EmptyState title="无权限" />;
+  }
+  const menuItems = [
+    { id: 'allAgents', icon: '📋', label: '全部代理' },
+    { id: 'boss', icon: '👔', label: '老板管理' },
+    { id: 'approval', icon: '📝', label: '审批管理' }
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme mb-2">
+        <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setSubTab(item.id as 'allAgents' | 'boss' | 'approval')}
+              className="flex flex-col items-center group transition-all duration-300 relative"
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-2 transition-all duration-300 shadow-sm border ${
+                subTab === item.id
+                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] border-transparent scale-110 shadow-lg'
+                  : 'bg-[var(--bg-primary)] text-slate-500 border-theme group-hover:border-accent/30 group-hover:text-accent'
+              }`}>
+                {item.icon}
+              </div>
+              <span className={`text-[11px] font-bold tracking-wide transition-colors ${
+                subTab === item.id ? 'text-[var(--text-primary)]' : 'text-slate-500'
+              }`}>
+                {item.label}
+              </span>
+              {subTab === item.id && (
+                <div className="absolute -bottom-2 w-1 h-1 bg-accent rounded-full shadow-[0_0_5px_rgba(245,158,11,0.8)]"></div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      {subTab === 'allAgents' && <AgentList />}
+      {subTab === 'boss' && <BossManagement isSuperAdmin={isSuperAdmin} />}
+      {subTab === 'approval' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
+    </div>
+  );
+};
+
 const Pagination = ({ page, total, pageSize, onChange }: { page: number; total: number; pageSize?: number; onChange: (next: number) => void }) => {
   const size = pageSize || PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(total / size));
@@ -983,6 +1039,87 @@ const PlayerList = () => {
                       重置密码
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+  <Pagination page={page} total={total} onChange={load} />
+</div>
+);
+};
+
+const OrderQuery = () => {
+  const [keyword, setKeyword] = useState('');
+  const [list, setList] = useState<OrderItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async (nextPage = 1) => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.agency.getOrders({ keyword: keyword.trim(), page: nextPage, pageSize: PAGE_SIZE });
+      setList(data.list || []);
+      setTotal(data.total || 0);
+      setPage(nextPage);
+    } catch (err: any) {
+      setError(err.message || '查询失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load(1);
+  }, []);
+
+  return (
+    <div className="space-y-4 animate-fade-in-up">
+      <div className="card-bg rounded-[20px] p-4 border border-theme flex items-center space-x-2">
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="手机号/订单号"
+          className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+        />
+        <button onClick={() => load(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 card-bg rounded-2xl border border-theme animate-pulse"></div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <EmptyState title="暂无订单" />
+      ) : (
+        <div className="space-y-3">
+          {list.map((item) => (
+            <div key={item.orderNo} className="card-bg rounded-2xl border border-theme p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>
+                    {item.gameName || item.gameId}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">订单号 {item.orderNo}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">玩家 {item.account || '--'}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-amber-500">¥ {item.amount}</div>
+                  <div className="text-[10px] text-slate-500">{item.payTime || '--'}</div>
+                  <div className="text-[10px] text-slate-400 mt-1">{item.status || '--'}</div>
                 </div>
               </div>
             </div>
@@ -1468,13 +1605,13 @@ const PerformanceDetail = () => {
                     <p className="text-[11px] text-slate-500 font-bold">{label}</p>
                     <p className="text-xl font-black text-amber-500 mt-2">￥{card.totalAmount}</p>
                     <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
-                      <span>订单数：{card.orderCount || 0}</span>
+                      <span>订单：{card.orderCount || 0}</span>
                       <button
                         type="button"
                         onClick={() => setDetailCard(card)}
                         className="flex items-center gap-1 text-slate-400 hover:text-white transition"
                       >
-                        <span>预计利润</span>
+                        <span>利润</span>
                         <span className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-slate-500 text-[10px]">
                           i
                         </span>
@@ -2095,18 +2232,15 @@ const Agency: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabMode>('结算中心');
   const [stats, setStats] = useState<AgencyStats | null>(null);
   const roleOptions = ROLE_OPTIONS[user?.role?.id || user?.roleId || 0] || [];
-  const isSuperAdmin = (user?.role?.id || user?.roleId) === ROLE_SUPER_ADMIN;
 
   // Menu Configuration - Unified Gold/Black Theme
   const menuItems: { id: TabMode; icon: string }[] = [
     { id: '代理管理', icon: '👥' },
-    { id: '全部代理', icon: '📋' },
-    { id: '老板管理', icon: '👔' },
     { id: '玩家列表', icon: '🎮' },
+    { id: '订单查询', icon: '🧾' },
     { id: '业绩详情', icon: '📈' },
     { id: '结算中心', icon: '💰' },
-    { id: '手游排序', icon: '🔝' },
-    { id: '审批列表', icon: '📝' },
+    { id: '手游排序', icon: '🔝' }
   ];
 
   const loadStats = async () => {
@@ -2164,17 +2298,43 @@ const Agency: React.FC = () => {
           {/* Main Content Render */}
           <div className="min-h-[300px]">
             {activeTab === '代理管理' && (
-              <AgentManagement roleOptions={roleOptions} />
+             <AgentManagement roleOptions={roleOptions} />
             )}
-             {activeTab === '全部代理' && <AgentList />}
-             {activeTab === '老板管理' && <BossManagement isSuperAdmin={isSuperAdmin} />}
              {activeTab === '玩家列表' && <PlayerList />}
+             {activeTab === '订单查询' && <OrderQuery />}
              {activeTab === '业绩详情' && <PerformanceDetail />}
              {activeTab === '结算中心' && <SettlementCenter stats={stats} onRefreshStats={loadStats} />}
              {activeTab === '手游排序' && <GameSort />}
-             {activeTab === '审批列表' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
           </div>
        </div>
+    </div>
+  );
+};
+
+export const SuperAdminPage: React.FC = () => {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<AgencyStats | null>(null);
+  const isSuperAdmin = Number(user?.role?.id ?? user?.roleId) === ROLE_SUPER_ADMIN;
+
+  const loadStats = async () => {
+    try {
+      const data = await api.agency.getStats();
+      setStats(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  return (
+    <div className="flex flex-col min-h-full app-bg pb-24 transition-colors duration-500">
+      <div className="px-5 pt-6">
+        <UserInfoCard stats={stats} userId={user?.ID} />
+        <SuperAdminCenter isSuperAdmin={isSuperAdmin} />
+      </div>
     </div>
   );
 };

@@ -6,6 +6,7 @@ import { messageApi } from './message'
 import { agencyApi } from './agency'
 import { bannerApi } from './banner'
 import { searchApi } from './search'
+import { userApi } from './user'
 
 export const api = {
   game: gameApi,
@@ -15,5 +16,6 @@ export const api = {
   message: messageApi,
   agency: agencyApi,
   banner: bannerApi,
-  search: searchApi
+  search: searchApi,
+  user: userApi
 }

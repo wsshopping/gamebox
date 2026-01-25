@@ -1,8 +1,8 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Home from './pages/Home';
 import GameCenter from './pages/GameCenter';
 import Trade from './pages/Trade';
@@ -26,8 +26,17 @@ const LazyAIAssistant = React.lazy(() => import('./components/AIAssistant'));
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showAssistant, setShowAssistant] = useState(false);
+  const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
+
+  useEffect(() => {
+    const validThemes = ['black-gold', 'quiet-luxury', 'light'];
+    if (user?.theme && validThemes.includes(user.theme)) {
+      setTheme(user.theme as any);
+    }
+  }, [user?.theme, setTheme]);
 
   useEffect(() => {
     let timeoutId: number | undefined;

@@ -8,6 +8,7 @@ export interface User {
   roleId: number
   referrerAgentId?: number
   avatar?: string
+  theme?: string
   vipLevel?: number
   assets?: number
   status?: number
