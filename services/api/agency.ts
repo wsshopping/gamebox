@@ -1,60 +1,126 @@
 
-import { delay, DELAY } from './core';
-import { request } from '../http';
+import { request } from '../http'
 
-// Mock Data for Agency
-const MOCK_AGENTS = [
-  { id: 1, account: '16666666633', role: '总代', inviteCode: 'QPHS', upline: '18812567888', status: '正常', time: '2026-01-20 17:50' },
-  { id: 2, account: '13636363636', role: '总推', inviteCode: 'EMGP', upline: '13999999438', status: '正常', time: '2026-01-20 17:31' },
-  { id: 3, account: '15347705566', role: '总代', inviteCode: '9TDD', upline: '18812567888', status: '正常', time: '2026-01-20 17:03' },
-];
+type PageResult<T> = {
+  list: T[]
+  total: number
+  page: number
+  pageSize: number
+}
 
-const MOCK_BOSSES = [
-  { id: 1, account: '13777776662', nickname: 'Boss_Wang', status: '正常', game: '天龙八部怀旧版', time: '17:54' },
-];
-
-const MOCK_PLAYERS = [
-  { id: 1, account: '13636363636', inviteCode: 'GNN7BE73', recharge: '648.00', time: '01-20' },
-  { id: 2, account: '13000000009', inviteCode: 'GNN7BE73', recharge: '30.00', time: '01-13' },
-  { id: 3, account: '19988998899', inviteCode: 'GNN7BE73', recharge: '0.00', time: '01-11' },
-];
-
-// Updated to match the screenshot numbers
-const MOCK_STATS = {
-  role: '超级管理员',
-  code: 'GNN7BE73',
-  level: '总推',
-  creatable: '总推', // Added based on screenshot
-  registerCount: 30, // "总注册数"
-  
-  // Finance Data
-  totalFlow: '5060.00',
-  totalProfit: '101.20',
-  withdrawn: '0.00',
-  withdrawable: '81.20'
-};
+const buildQuery = (params?: Record<string, string | number | undefined>) => {
+  if (!params) return ''
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === '' || value === null) return
+    search.set(key, String(value))
+  })
+  const qs = search.toString()
+  return qs ? `?${qs}` : ''
+}
 
 export const agencyApi = {
   getStats: async () => {
-    await delay(DELAY);
-    return MOCK_STATS;
+    return request('/portal/agency/stats')
   },
-  getAgents: async (filter?: any) => {
-    await delay(DELAY);
-    return MOCK_AGENTS;
+  getAgents: async (params?: { scope?: string; roleId?: number; keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/agents${buildQuery(params)}`)
   },
   createAgent: async (data: any) => {
     return request('/portal/agency/agents', {
       method: 'POST',
       body: JSON.stringify(data)
-    });
+    })
   },
-  getBosses: async () => {
-    await delay(DELAY);
-    return MOCK_BOSSES;
+  updateAgent: async (
+    id: number,
+    data: {
+      phone?: string
+      password?: string
+      status?: number
+      gameRebates?: { gameId: number; rebateRatePct: number }[]
+    }
+  ) => {
+    return request(`/portal/agency/agents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
   },
-  getPlayers: async (query?: string) => {
-    await delay(DELAY);
-    return MOCK_PLAYERS;
+  deleteAgent: async (id: number) => {
+    return request(`/portal/agency/agents/${id}`, {
+      method: 'DELETE'
+    })
+  },
+  getPlayers: async (params?: { keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/players${buildQuery(params)}`)
+  },
+  resetPlayerPassword: async (id: number, password: string) => {
+    return request(`/portal/agency/players/${id}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    })
+  },
+  getBosses: async (params?: { page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/bosses${buildQuery(params)}`)
+  },
+  createBoss: async (data: any) => {
+    return request('/portal/agency/bosses', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  },
+  updateBossGames: async (bossId: number, gameIds: number[]) => {
+    return request(`/portal/agency/bosses/${bossId}/games`, {
+      method: 'PUT',
+      body: JSON.stringify({ gameIds })
+    })
+  },
+  updateBoss: async (bossId: number, data: { username?: string; phone?: string; password?: string; status?: number }) => {
+    return request(`/portal/agency/bosses/${bossId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
+  getPerformance: async (params?: { startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
+    return request(`/portal/agency/performance${buildQuery(params)}`)
+  },
+  getPerformanceOverview: async () => {
+    return request('/portal/agency/performance/overview')
+  },
+  getPayoutAddress: async () => {
+    return request('/portal/agency/payout-address')
+  },
+  savePayoutAddress: async (address: string) => {
+    return request('/portal/agency/payout-address', {
+      method: 'POST',
+      body: JSON.stringify({ address })
+    })
+  },
+  getWithdraws: async (params?: { status?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/withdraws${buildQuery(params)}`)
+  },
+  createWithdraw: async (amount: string, remark?: string) => {
+    return request('/portal/agency/withdraws', {
+      method: 'POST',
+      body: JSON.stringify({ amount, remark })
+    })
+  },
+  getGameOrder: async () => {
+    return request(`/portal/agency/game-order`)
+  },
+  updateGameOrder: async (gameIds: number[]) => {
+    return request('/portal/agency/game-order', {
+      method: 'PUT',
+      body: JSON.stringify({ gameIds })
+    })
+  },
+  getApprovals: async (params?: { status?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/approvals${buildQuery(params)}`)
+  },
+  updateApproval: async (id: number, status: string, remark?: string) => {
+    return request(`/portal/agency/approvals/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ status, remark })
+    })
   }
-};
+}
