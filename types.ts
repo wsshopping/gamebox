@@ -90,6 +90,13 @@ export interface GroupRecommendation {
   tags: string[];
 }
 
+export interface Banner {
+  id: number;
+  title: string;
+  imageUrl: string;
+  linkUrl?: string;
+}
+
 export enum TabType {
   HOME = 'home',
   GAME = 'game',

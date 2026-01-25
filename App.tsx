@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -20,13 +20,31 @@ import GroupDetail from './pages/GroupDetail';
 import Rank from './pages/Rank';
 import Feedback from './pages/Feedback';
 import BottomNav from './components/BottomNav';
-import AIAssistant from './components/AIAssistant';
+const LazyAIAssistant = React.lazy(() => import('./components/AIAssistant'));
 
 // Layout wrapper to conditionally show BottomNav
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const [showAssistant, setShowAssistant] = useState(false);
   const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
+
+  useEffect(() => {
+    let timeoutId: number | undefined;
+    const show = () => setShowAssistant(true);
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(show);
+      } else {
+        timeoutId = window.setTimeout(show, 300);
+      }
+    }
+    return () => {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
 
   return (
     // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation
@@ -36,7 +54,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
       
       {/* Global AI Assistant - Persistent across pages */}
-      <AIAssistant />
+      {showAssistant && (
+        <Suspense fallback={null}>
+          <LazyAIAssistant />
+        </Suspense>
+      )}
       
       {showNav && <BottomNav />}
     </div>

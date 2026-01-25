@@ -1,89 +1,80 @@
+import { authStorage, request } from './http'
 
 export interface User {
-  id: string;
-  username: string;
-  phone: string;
-  avatar: string;
-  vipLevel: number;
-  assets: number;
-  token: string;
+  ID: number
+  uuid: string
+  username: string
+  phone: string
+  roleId: number
+  referrerAgentId?: number
+  avatar?: string
+  vipLevel?: number
+  assets?: number
+  status?: number
+  role?: RoleInfo
+  inviteCode?: string
 }
 
-const STORAGE_KEY = 'gamebox_users';
-const SESSION_KEY = 'gamebox_current_user';
+export interface RoleInfo {
+  id: number
+  name: string
+}
 
-// Helper to delay response to simulate network request
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export interface LoginResponse {
+  user: User
+  token: string
+  expiresAt: number
+  role: RoleInfo
+  inviteCode?: string
+}
+
+export interface CaptchaResponse {
+  captchaId: string
+  picPath: string
+  captchaLength: number
+  openCaptcha: boolean
+}
 
 export const authService = {
-  // Login
-  async login(account: string, password: string): Promise<User> {
-    await delay(800); // Simulate network latency
+  async login(phone: string, password: string, captcha: string, captchaId: string): Promise<User> {
+    const data = await request<LoginResponse>('/portal/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ phone, password, captcha, captchaId }),
+      skipAuth: true
+    })
 
-    const usersStr = localStorage.getItem(STORAGE_KEY);
-    const users = usersStr ? JSON.parse(usersStr) : [];
-    
-    // Simple check: simulate finding user by phone or username
-    const user = users.find((u: any) => (u.username === account || u.phone === account) && u.password === password);
-
-    if (user) {
-      // Create a session user object (exclude password)
-      // Fix: Rename destructured password to avoid conflict with argument 'password'
-      const { password: _dbPassword, ...safeUser } = user;
-      const sessionUser = { ...safeUser, token: 'mock-jwt-token-' + Date.now() };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-      return sessionUser;
-    }
-
-    throw new Error('账号或密码错误');
+    authStorage.setToken(data.token)
+    const userWithRole = { ...data.user, role: data.role, inviteCode: data.inviteCode }
+    authStorage.setUser(userWithRole)
+    return userWithRole
   },
 
-  // Register
-  async register(username: string, phone: string, password: string): Promise<User> {
-    await delay(1000);
+  async register(username: string, phone: string, password: string, inviteCode: string): Promise<User> {
+    const data = await request<LoginResponse>('/portal/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, phone, password, inviteCode }),
+      skipAuth: true
+    })
 
-    const usersStr = localStorage.getItem(STORAGE_KEY);
-    const users = usersStr ? JSON.parse(usersStr) : [];
-
-    // Check duplicate
-    if (users.some((u: any) => u.username === username)) {
-      throw new Error('用户名已被注册');
-    }
-    if (users.some((u: any) => u.phone === phone)) {
-      throw new Error('手机号已被注册');
-    }
-
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
-      username,
-      phone,
-      password, // In real app, never store plain text password!
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-      vipLevel: 0,
-      assets: 0
-    };
-
-    users.push(newUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-
-    // Auto login after register
-    const { password: _, ...safeUser } = newUser;
-    const sessionUser = { ...safeUser, token: 'mock-jwt-token-' + Date.now() };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-    
-    return sessionUser;
+    authStorage.setToken(data.token)
+    const userWithRole = { ...data.user, role: data.role, inviteCode: data.inviteCode }
+    authStorage.setUser(userWithRole)
+    return userWithRole
   },
 
-  // Logout
   async logout(): Promise<void> {
-    await delay(200);
-    localStorage.removeItem(SESSION_KEY);
+    authStorage.clearToken()
+    authStorage.clearUser()
   },
 
-  // Get current session
   getCurrentUser(): User | null {
-    const userStr = localStorage.getItem(SESSION_KEY);
-    return userStr ? JSON.parse(userStr) : null;
+    return authStorage.getUser()
+  },
+
+  async getCaptcha(): Promise<CaptchaResponse> {
+    return request<CaptchaResponse>('/base/captcha', {
+      method: 'POST',
+      skipAuth: true
+    })
   }
-};
+}

@@ -82,7 +82,11 @@ const UserCenterMain: React.FC = () => {
           <div className="relative group cursor-pointer">
              <div className="absolute -inset-1 bg-accent-gradient rounded-full opacity-70 blur group-hover:opacity-100 transition duration-500"></div>
              <div className="relative w-20 h-20 rounded-full p-[3px] bg-[var(--bg-primary)]">
-                <img src={user.avatar} alt="avatar" className="w-full h-full rounded-full object-cover border-2 border-theme" />
+                <img
+                  src={user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`}
+                  alt="avatar"
+                  className="w-full h-full rounded-full object-cover border-2 border-theme"
+                />
              </div>
              <div className="absolute bottom-0 right-0 bg-accent-gradient text-black text-[10px] font-bold px-1.5 py-0.5 rounded-md border-2 border-[var(--bg-primary)]">
                Lv.{Math.floor((user.assets || 0) / 100) + 1}
@@ -92,12 +96,12 @@ const UserCenterMain: React.FC = () => {
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-black tracking-tight mb-1" style={{color: 'var(--text-primary)'}}>{user.username}</h2>
             <div className="flex items-center space-x-2">
-               <p className="text-slate-500 text-xs font-mono tracking-wider truncate">ID: {user.id.slice(-8)}</p>
+               <p className="text-slate-500 text-xs font-mono tracking-wider truncate">ID: {String(user.ID).slice(-8)}</p>
             </div>
             
             <div className="inline-flex items-center space-x-2 bg-[var(--bg-glass)] border border-theme px-3 py-1 rounded-full backdrop-blur-md mt-2">
                <span className="text-accent text-xs drop-shadow-md">♛</span>
-               <span className="text-accent-gradient text-[10px] font-bold tracking-widest uppercase">VIP {user.vipLevel} Platinum</span>
+               <span className="text-accent-gradient text-[10px] font-bold tracking-widest uppercase">VIP {user.vipLevel || 0} Platinum</span>
             </div>
 
             {/* Theme Switcher Segmented Control */}
@@ -154,7 +158,7 @@ const UserCenterMain: React.FC = () => {
               </p>
               <div className="flex items-baseline">
                 <span className="text-xl font-medium text-accent mr-1">¥</span>
-                <span className="text-3xl font-black tracking-tight" style={{color: 'var(--text-primary)'}}>{user.assets.toLocaleString()}</span>
+                <span className="text-3xl font-black tracking-tight" style={{color: 'var(--text-primary)'}}>{(user.assets || 0).toLocaleString()}</span>
                 <span className="text-lg font-medium text-slate-500">.00</span>
               </div>
             </div>

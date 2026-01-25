@@ -89,7 +89,7 @@ const Feedback: React.FC = () => {
                 <div className="space-y-2">
                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] ml-1">账号 ID</label>
                    <div className="card-bg px-4 py-3.5 rounded-2xl border border-theme flex items-center shadow-sm opacity-70 cursor-not-allowed">
-                      <span className="text-sm font-mono font-medium opacity-60" style={{color: 'var(--text-primary)'}}>{user?.id.slice(-8) || 'Unknown'}</span>
+                      <span className="text-sm font-mono font-medium opacity-60" style={{color: 'var(--text-primary)'}}>{user?.ID ? String(user.ID).slice(-8) : 'Unknown'}</span>
                       <svg className="w-4 h-4 ml-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                    </div>
                 </div>

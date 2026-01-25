@@ -1,20 +1,37 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/auth';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   
-  const [formData, setFormData] = useState({ account: '', password: '' });
+  const [formData, setFormData] = useState({ phone: '', password: '', captcha: '' });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaImg, setCaptchaImg] = useState('');
+
+  const loadCaptcha = async () => {
+    try {
+      const data = await authService.getCaptcha();
+      setCaptchaId(data.captchaId);
+      setCaptchaImg(data.picPath);
+    } catch (err: any) {
+      setError(err.message || '验证码加载失败');
+    }
+  };
+
+  useEffect(() => {
+    loadCaptcha();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.account || !formData.password) {
-      setError('请输入账号和密码');
+    if (!formData.phone || !formData.password || !formData.captcha) {
+      setError('请输入手机号、密码和验证码');
       return;
     }
     
@@ -22,10 +39,11 @@ const Login: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await login(formData.account, formData.password);
+      await login(formData.phone, formData.password, formData.captcha, captchaId);
       navigate('/user'); // Redirect to user center on success
     } catch (err: any) {
       setError(err.message || '登录失败，请重试');
+      loadCaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -61,14 +79,14 @@ const Login: React.FC = () => {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">账号 / 手机号</label>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">手机号</label>
             <div className="bg-[#0f172a] rounded-2xl px-4 py-3 border border-white/5 focus-within:border-amber-500/50 focus-within:bg-[#1e293b] focus-within:ring-4 focus-within:ring-amber-500/10 transition-all">
               <input 
-                type="text" 
-                value={formData.account}
-                onChange={(e) => setFormData({...formData, account: e.target.value})}
+                type="tel" 
+                value={formData.phone}
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
                 className="w-full bg-transparent border-none outline-none text-sm text-white placeholder-slate-600 font-medium" 
-                placeholder="请输入用户名或手机号" 
+                placeholder="请输入11位手机号" 
               />
             </div>
           </div>
@@ -82,6 +100,31 @@ const Login: React.FC = () => {
                 className="w-full bg-transparent border-none outline-none text-sm text-white placeholder-slate-600 font-medium" 
                 placeholder="••••••••" 
               />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1">验证码</label>
+            <div className="flex items-center gap-3">
+              <div className="bg-[#0f172a] rounded-2xl px-4 py-3 border border-white/5 focus-within:border-amber-500/50 focus-within:bg-[#1e293b] focus-within:ring-4 focus-within:ring-amber-500/10 transition-all flex-1">
+                <input
+                  type="text"
+                  value={formData.captcha}
+                  onChange={(e) => setFormData({ ...formData, captcha: e.target.value })}
+                  className="w-full bg-transparent border-none outline-none text-sm text-white placeholder-slate-600 font-medium"
+                  placeholder="请输入验证码"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={loadCaptcha}
+                className="h-[52px] w-24 rounded-xl overflow-hidden border border-white/10 bg-[#0f172a] flex items-center justify-center text-xs text-slate-400"
+              >
+                {captchaImg ? (
+                  <img src={captchaImg} alt="captcha" className="w-full h-full object-cover" />
+                ) : (
+                  '刷新'
+                )}
+              </button>
             </div>
           </div>
         </div>

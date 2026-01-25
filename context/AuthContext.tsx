@@ -4,8 +4,8 @@ import { User, authService } from '../services/auth';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (account: string, password: string) => Promise<void>;
-  register: (username: string, phone: string, password: string) => Promise<void>;
+  login: (phone: string, password: string, captcha: string, captchaId: string) => Promise<void>;
+  register: (username: string, phone: string, password: string, inviteCode: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -24,20 +24,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (account: string, password: string) => {
+  const login = async (phone: string, password: string, captcha: string, captchaId: string) => {
     setIsLoading(true);
     try {
-      const user = await authService.login(account, password);
+      const user = await authService.login(phone, password, captcha, captchaId);
       setUser(user);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (username: string, phone: string, password: string) => {
+  const register = async (username: string, phone: string, password: string, inviteCode: string) => {
     setIsLoading(true);
     try {
-      const user = await authService.register(username, phone, password);
+      const user = await authService.register(username, phone, password, inviteCode);
       setUser(user);
     } finally {
       setIsLoading(false);

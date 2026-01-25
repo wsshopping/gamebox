@@ -1,9 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 // --- Types ---
 type TabMode = '代理管理' | '全部代理' | '老板管理' | '玩家列表' | '业绩详情' | '结算中心' | '手游排序' | '审批列表';
+
+const ROLE_SUPER_ADMIN = 1;
+const ROLE_TOP_PROMOTER = 2;
+const ROLE_GENERAL_AGENT = 3;
+const ROLE_SUB_AGENT = 4;
+const ROLE_STREAMER = 5;
+const ROLE_BOSS = 7;
+
+const ROLE_OPTIONS: Record<number, { id: number; name: string }[]> = {
+  [ROLE_SUPER_ADMIN]: [
+    { id: ROLE_TOP_PROMOTER, name: '总推' },
+    { id: ROLE_BOSS, name: '老板' }
+  ],
+  [ROLE_TOP_PROMOTER]: [{ id: ROLE_GENERAL_AGENT, name: '总代' }],
+  [ROLE_GENERAL_AGENT]: [{ id: ROLE_SUB_AGENT, name: '子代' }],
+  [ROLE_SUB_AGENT]: [{ id: ROLE_STREAMER, name: '主播' }]
+};
 
 // --- Components ---
 
@@ -61,29 +79,134 @@ const UserInfoCard = ({ stats }: { stats: any }) => {
 
 // --- Functional Components ---
 
-const CreateAgent = () => (
-  <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme space-y-5 animate-fade-in-up">
-     <div className="flex items-center space-x-2 mb-2">
+const CreateAgent = ({ roleOptions }: { roleOptions: { id: number; name: string }[] }) => {
+  const [formData, setFormData] = useState({
+    username: '',
+    phone: '',
+    password: '',
+    roleId: roleOptions[0]?.id || 0,
+    inviteCode: ''
+  });
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    setError('');
+    setResult(null);
+    if (!formData.phone) {
+      setError('请输入手机号');
+      return;
+    }
+    if (!formData.roleId) {
+      setError('请选择角色');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await api.agency.createAgent({
+        username: formData.username,
+        phone: formData.phone,
+        password: formData.password,
+        roleId: formData.roleId,
+        inviteCode: formData.inviteCode
+      });
+      setResult(res);
+      setFormData({ username: '', phone: '', password: '', roleId: formData.roleId, inviteCode: '' });
+    } catch (err: any) {
+      setError(err.message || '创建失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme space-y-5 animate-fade-in-up">
+      <div className="flex items-center space-x-2 mb-2">
         <div className="w-1 h-5 bg-accent-gradient rounded-full"></div>
         <h3 className="font-bold text-lg" style={{color: 'var(--text-primary)'}}>创建下级代理</h3>
-     </div>
-     
-     <div className="space-y-4">
-        <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 ml-1">手机号</label>
-            <input type="tel" className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500" placeholder="请输入11位手机号" />
-        </div>
-        <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-400 ml-1">初始密码</label>
-            <input type="password" className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500" placeholder="设置登录密码" />
-        </div>
-     </div>
+      </div>
 
-     <button className="w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg mt-6 active:scale-[0.98] transition-all hover:bg-slate-700 border border-theme hover:text-amber-400">
-       立即创建
-     </button>
-  </div>
-);
+      {error && (
+        <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 ml-1">角色</label>
+          <select
+            value={formData.roleId}
+            onChange={(e) => setFormData({ ...formData, roleId: Number(e.target.value) })}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium"
+          >
+            {roleOptions.map((role) => (
+              <option key={role.id} value={role.id}>{role.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 ml-1">用户名</label>
+          <input
+            type="text"
+            value={formData.username}
+            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500"
+            placeholder="不填默认使用手机号"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 ml-1">手机号</label>
+          <input
+            type="tel"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500"
+            placeholder="请输入11位手机号"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 ml-1">初始密码</label>
+          <input
+            type="password"
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500"
+            placeholder="不填自动生成"
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 ml-1">代理码</label>
+          <input
+            type="text"
+            value={formData.inviteCode}
+            onChange={(e) => setFormData({ ...formData, inviteCode: e.target.value.toUpperCase() })}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all font-medium placeholder:text-slate-500"
+            placeholder="4位大写字母或数字（可选）"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={submit}
+        disabled={submitting}
+        className="w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg mt-6 active:scale-[0.98] transition-all hover:bg-slate-700 border border-theme hover:text-amber-400 disabled:opacity-60"
+      >
+        {submitting ? '创建中...' : '立即创建'}
+      </button>
+
+      {result && (
+        <div className="bg-emerald-500/10 text-emerald-500 text-xs px-4 py-3 rounded-xl border border-emerald-500/20 space-y-1">
+          <div>账号：{result.username}</div>
+          <div>手机号：{result.phone}</div>
+          <div>密码：{result.password}</div>
+          <div>代理码：{result.inviteCode}</div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SettlementCenter = ({ stats }: { stats: any }) => {
   const [subTab, setSubTab] = useState<'address' | 'withdraw' | 'record'>('address');
@@ -241,8 +364,10 @@ const EmptyState = ({ title }: { title: string }) => (
 
 
 const Agency: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabMode>('结算中心');
   const [stats, setStats] = useState<any>(null);
+  const roleOptions = ROLE_OPTIONS[user?.role?.id || user?.roleId || 0] || [];
 
   // Menu Configuration - Unified Gold/Black Theme
   const menuItems: { id: TabMode; icon: string }[] = [
@@ -305,7 +430,13 @@ const Agency: React.FC = () => {
 
           {/* Main Content Render */}
           <div className="min-h-[300px]">
-             {activeTab === '代理管理' && <CreateAgent />}
+             {activeTab === '代理管理' && (
+               roleOptions.length > 0 ? (
+                 <CreateAgent roleOptions={roleOptions} />
+               ) : (
+                 <EmptyState title="无创建权限" />
+               )
+             )}
              {activeTab === '全部代理' && <EmptyState title="全部代理" />}
              {activeTab === '结算中心' && <SettlementCenter stats={stats} />}
              {activeTab === '手游排序' && <GameSort />}

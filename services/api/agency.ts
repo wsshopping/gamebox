@@ -1,5 +1,6 @@
 
 import { delay, DELAY } from './core';
+import { request } from '../http';
 
 // Mock Data for Agency
 const MOCK_AGENTS = [
@@ -43,8 +44,10 @@ export const agencyApi = {
     return MOCK_AGENTS;
   },
   createAgent: async (data: any) => {
-    await delay(1000);
-    return true;
+    return request('/portal/agency/agents', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   },
   getBosses: async () => {
     await delay(DELAY);

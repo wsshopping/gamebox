@@ -1,48 +1,91 @@
+import { request } from '../http'
+import { Game } from '../../types'
 
-import { delay, DELAY } from './core';
-import { GAMES } from '../mockData';
-import { Game } from '../../types';
+type PageResult<T> = {
+  list: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+type PortalGameItem = {
+  id: number
+  name: string
+  subtitle?: string
+  description?: string
+  categoryId?: number
+  categoryName?: string
+  tags?: string[] | string
+  iconUrl?: string
+  bannerUrl?: string
+  galleryUrls?: string[]
+  downloadUrl?: string
+  packageSize?: string
+  version?: string
+  developer?: string
+  rating?: number
+  downloads?: number
+}
+
+const formatDownloads = (value?: number): string => {
+  const downloads = value || 0
+  if (downloads >= 100000000) {
+    return `${(downloads / 100000000).toFixed(1)}亿`
+  }
+  if (downloads >= 10000) {
+    return `${(downloads / 10000).toFixed(1)}万`
+  }
+  return `${downloads}`
+}
+
+const normalizeTags = (tags?: string[] | string): string[] => {
+  if (!tags) return []
+  if (Array.isArray(tags)) return tags
+  return tags
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+export const normalizeGame = (game: PortalGameItem): Game => ({
+  id: String(game.id),
+  title: game.name,
+  category: game.categoryName || '',
+  icon: game.iconUrl || '',
+  rating: game.rating || 0,
+  downloads: formatDownloads(game.downloads),
+  tags: normalizeTags(game.tags),
+  description: game.description,
+  intro: game.description,
+  images: game.galleryUrls || [],
+  banner: game.bannerUrl || '',
+  downloadUrl: game.downloadUrl,
+  size: game.packageSize,
+  version: game.version,
+  developer: game.developer
+})
 
 export const gameApi = {
-  getList: async (filter?: string): Promise<Game[]> => {
-    await delay(DELAY);
-    if (!GAMES) return [];
-    if (filter === 'new') return [...GAMES].reverse();
-    if (filter === 'reserve') return GAMES.slice(2, 5);
-    return [...GAMES];
+  getList: async (filter?: string, page = 1, pageSize = 10): Promise<Game[]> => {
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('pageSize', String(pageSize))
+    if (filter && filter !== 'all') {
+      params.set('type', filter)
+    }
+    const data = await request<PageResult<PortalGameItem>>(`/portal/game/list?${params.toString()}`)
+    return data.list.map(normalizeGame)
   },
   getById: async (id: string): Promise<Game | undefined> => {
-    await delay(DELAY);
-    if (!GAMES) return undefined;
-    return GAMES.find(g => g.id === id);
+    const data = await request<PortalGameItem>(`/portal/game/${id}`)
+    return data ? normalizeGame(data) : undefined
   },
   getHot: async (): Promise<Game[]> => {
-    await delay(DELAY);
-    if (!GAMES) return [];
-    return GAMES.slice(0, 3);
+    const data = await request<PortalGameItem[]>(`/portal/game/hot?limit=3`)
+    return data.map(normalizeGame)
   },
   getRankings: async (type: 'hot' | 'new' | 'soaring'): Promise<Game[]> => {
-    await delay(DELAY);
-    if (!GAMES) return [];
-    const sorted = [...GAMES];
-    
-    if (type === 'new') {
-        // Sort by ID reverse (mocking newness)
-        return sorted.sort((a, b) => {
-            if (a.id < b.id) return 1;
-            if (a.id > b.id) return -1;
-            return 0;
-        });
-    }
-    if (type === 'soaring') {
-        // Shift mock
-        if (sorted.length > 0) {
-            const first = sorted.shift();
-            if (first) sorted.push(first);
-        }
-        return sorted;
-    }
-    // hot: sort by rating descending
-    return sorted.sort((a, b) => b.rating - a.rating);
+    const data = await request<PortalGameItem[]>(`/portal/game/rank?type=${type}`)
+    return data.map(normalizeGame)
   }
-};
+}
