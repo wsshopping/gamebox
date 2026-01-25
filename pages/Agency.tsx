@@ -162,7 +162,19 @@ const formatRatePct = (value: number) => {
 
 // --- Components ---
 
-const UserInfoCard = ({ stats, userId }: { stats: AgencyStats | null; userId?: number }) => {
+const UserInfoCard = ({
+  stats,
+  userId,
+  showRegisterCount = true,
+  showCreatable = true,
+  title = '代理中心'
+}: {
+  stats: AgencyStats | null;
+  userId?: number;
+  showRegisterCount?: boolean;
+  showCreatable?: boolean;
+  title?: string;
+}) => {
   const [copied, setCopied] = useState(false);
   if (!stats) return <div className="h-32 bg-slate-900 rounded-[24px] animate-pulse mb-6 border border-white/5"></div>;
 
@@ -204,7 +216,7 @@ const UserInfoCard = ({ stats, userId }: { stats: AgencyStats | null; userId?: n
                     👑
                  </div>
                  <div>
-                    <h2 className="text-xl font-black text-white leading-tight">代理中心</h2>
+                    <h2 className="text-xl font-black text-white leading-tight">{title}</h2>
                     <div className="flex items-center mt-1.5">
                         <span className="text-[10px] font-bold bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded border border-amber-500/30 mr-2 uppercase tracking-wider">
                            {stats.role}
@@ -227,17 +239,23 @@ const UserInfoCard = ({ stats, userId }: { stats: AgencyStats | null; userId?: n
               </div>
            </div>
 
-           <div className="flex items-center justify-between bg-white/5 rounded-2xl p-4 border border-white/10 backdrop-blur-sm">
-              <div className="flex items-center space-x-3">
-                 <span className="text-xs text-slate-400">当前可创建</span>
-                 <span className="text-base font-bold text-white">{stats.creatable || '无'}</span>
-              </div>
-              <div className="w-px h-4 bg-white/10"></div>
-              <div className="flex items-center space-x-3">
-                 <span className="text-xs text-slate-400">总注册数</span>
-                 <span className="text-base font-bold text-white">{stats.registerCount ?? 0}</span>
-              </div>
-           </div>
+           {(showCreatable || showRegisterCount) && (
+             <div className={`flex items-center ${showCreatable && showRegisterCount ? 'justify-between' : 'justify-start'} bg-white/5 rounded-2xl p-4 border border-white/10 backdrop-blur-sm`}>
+                {showCreatable && (
+                  <div className="flex items-center space-x-3">
+                     <span className="text-xs text-slate-400">当前可创建</span>
+                     <span className="text-base font-bold text-white">{stats.creatable || '无'}</span>
+                  </div>
+                )}
+                {showCreatable && showRegisterCount && <div className="w-px h-4 bg-white/10"></div>}
+                {showRegisterCount && (
+                  <div className="flex items-center space-x-3">
+                     <span className="text-xs text-slate-400">总注册数</span>
+                     <span className="text-base font-bold text-white">{stats.registerCount ?? 0}</span>
+                  </div>
+                )}
+             </div>
+           )}
        </div>
     </div>
   );
@@ -2332,7 +2350,7 @@ export const SuperAdminPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-full app-bg pb-24 transition-colors duration-500">
       <div className="px-5 pt-6">
-        <UserInfoCard stats={stats} userId={user?.ID} />
+        <UserInfoCard stats={stats} userId={user?.ID} showRegisterCount={false} showCreatable={false} title="超管中心" />
         <SuperAdminCenter isSuperAdmin={isSuperAdmin} />
       </div>
     </div>
