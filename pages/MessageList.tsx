@@ -44,6 +44,8 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         const data = await api.message.getRecommendedGroups(groupCategory);
         setRecommendedGroups(data);
       }
+    } catch (error) {
+      console.error('Failed to load messages', error);
     } finally {
       setIsLoading(false);
     }
@@ -67,8 +69,36 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   };
 
   const handleMessageClick = (type: string, id: string) => {
+    if (type === 'system') {
+      setViewMode('system');
+      return;
+    }
+    if (type === 'activity') {
+      setViewMode('interactions');
+      return;
+    }
     if (type === 'social' || type === 'group') {
       navigate(`/chat/${id}`);
+    }
+  };
+
+  const handleSystemRead = async (note: SystemNotification) => {
+    if (note.read) return;
+    try {
+      await api.message.markSystemRead([note.id]);
+      setSystemNotes(prev => prev.map(item => (item.id === note.id ? { ...item, read: true } : item)));
+    } catch (error) {
+      console.error('Failed to mark system notification read', error);
+    }
+  };
+
+  const handleInteractionRead = async (item: Interaction) => {
+    if (item.read) return;
+    try {
+      await api.message.markInteractionRead([item.id]);
+      setInteractions(prev => prev.map(entry => (entry.id === item.id ? { ...entry, read: true } : entry)));
+    } catch (error) {
+      console.error('Failed to mark interaction notification read', error);
     }
   };
 
@@ -101,7 +131,11 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
          [1,2].map(i => <div key={i} className="h-24 card-bg rounded-xl animate-pulse border border-theme"></div>)
       ) : (
         systemNotes.map(note => (
-          <div key={note.id} className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-start space-x-3">
+          <div
+            key={note.id}
+            onClick={() => handleSystemRead(note)}
+            className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-start space-x-3 cursor-pointer hover:border-accent/30 transition-colors"
+          >
              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                note.level === 'warning' ? 'bg-red-500/10 text-red-500' : 
                note.level === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'
@@ -128,7 +162,11 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         [1,2,3].map(i => <div key={i} className="h-16 card-bg rounded-xl animate-pulse border border-theme"></div>)
       ) : (
         interactions.map(item => (
-          <div key={item.id} className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-center space-x-3 hover:border-accent/30 transition-colors">
+          <div
+            key={item.id}
+            onClick={() => handleInteractionRead(item)}
+            className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-center space-x-3 hover:border-accent/30 transition-colors cursor-pointer"
+          >
              <div className="relative">
                <img src={item.userAvatar} alt={item.userName} className="w-10 h-10 rounded-full object-cover border border-theme" />
                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] text-[10px] ${
@@ -345,7 +383,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                    <div key={i} className="card-bg p-4 rounded-xl border border-theme shadow-sm flex space-x-3 animate-pulse h-20"></div>
                  ))
               ) : (
-                messages.filter(m => !['system', 'activity'].includes(m.type)).map(msg => (
+                messages.map(msg => (
                   <div 
                     key={msg.id} 
                     onClick={() => handleMessageClick(msg.type, msg.id)}

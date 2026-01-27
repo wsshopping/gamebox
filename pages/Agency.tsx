@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { gameApi } from '../services/api/game';
 import { useAuth } from '../context/AuthContext';
 import type { Game } from '../types';
+import type { SystemNotificationAdminItem, SystemNotificationUpsert } from '../services/api/messageAdmin';
 
 // --- Types ---
 type TabMode = '代理管理' | '玩家列表' | '订单查询' | '业绩详情' | '结算中心' | '手游排序';
@@ -53,6 +54,15 @@ type OrderItem = {
   amount: string;
   payTime: string;
   status: string;
+};
+
+type SystemNotificationFormState = {
+  title: string;
+  content: string;
+  category: string;
+  level: 'info' | 'warning' | 'success';
+  targetType: 'all' | 'user';
+  targetUserId: string;
 };
 
 type BossItem = {
@@ -823,14 +833,15 @@ const AgentManagement = ({ roleOptions }: { roleOptions: { id: number; name: str
 };
 
 const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
-  const [subTab, setSubTab] = useState<'allAgents' | 'boss' | 'approval'>('allAgents');
+  const [subTab, setSubTab] = useState<'allAgents' | 'boss' | 'approval' | 'notifications'>('allAgents');
   if (!isSuperAdmin) {
     return <EmptyState title="无权限" />;
   }
   const menuItems = [
     { id: 'allAgents', icon: '📋', label: '全部代理' },
     { id: 'boss', icon: '👔', label: '老板管理' },
-    { id: 'approval', icon: '📝', label: '审批管理' }
+    { id: 'approval', icon: '📝', label: '审批管理' },
+    { id: 'notifications', icon: '📣', label: '系统通知' }
   ];
   return (
     <div className="space-y-4">
@@ -864,6 +875,7 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
       {subTab === 'allAgents' && <AgentList />}
       {subTab === 'boss' && <BossManagement isSuperAdmin={isSuperAdmin} />}
       {subTab === 'approval' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
+      {subTab === 'notifications' && <SystemNotificationAdmin />}
     </div>
   );
 };
@@ -889,6 +901,279 @@ const Pagination = ({ page, total, pageSize, onChange }: { page: number; total: 
       >
         下一页
       </button>
+    </div>
+  );
+};
+
+const SystemNotificationAdmin = () => {
+  const [list, setList] = useState<SystemNotificationAdminItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [levelFilter, setLevelFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState<SystemNotificationFormState>({
+    title: '',
+    content: '',
+    category: 'system',
+    level: 'info',
+    targetType: 'all',
+    targetUserId: ''
+  });
+
+  const load = async (nextPage = 1) => {
+    setLoading(true);
+    try {
+      const data = await api.messageAdmin.listSystemNotifications({
+        page: nextPage,
+        pageSize: PAGE_SIZE,
+        keyword: keyword.trim() || undefined,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        level: levelFilter === 'all' ? undefined : levelFilter,
+        category: categoryFilter.trim() || undefined
+      });
+      setList(data.list || []);
+      setTotal(data.total || 0);
+      setPage(nextPage);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load(1);
+  }, []);
+
+  const resetForm = () => {
+    setSelectedId(null);
+    setFormError('');
+    setForm({
+      title: '',
+      content: '',
+      category: 'system',
+      level: 'info',
+      targetType: 'all',
+      targetUserId: ''
+    });
+  };
+
+  const handleEdit = (item: SystemNotificationAdminItem) => {
+    setSelectedId(item.id);
+    setFormError('');
+    setForm({
+      title: item.title || '',
+      content: item.content || '',
+      category: item.category || 'system',
+      level: item.level || 'info',
+      targetType: item.targetType || 'all',
+      targetUserId: item.targetUserId ? String(item.targetUserId) : ''
+    });
+  };
+
+  const handleSave = async () => {
+    setFormError('');
+
+    if (!form.title.trim() || !form.content.trim()) {
+      setFormError('标题和内容不能为空');
+      return;
+    }
+    if (form.targetType === 'user' && !form.targetUserId.trim()) {
+      setFormError('目标用户不能为空');
+      return;
+    }
+
+    const payload: SystemNotificationUpsert = {
+      title: form.title.trim(),
+      content: form.content.trim(),
+      category: form.category.trim() || 'system',
+      level: form.level,
+      targetType: form.targetType,
+      targetUserId: form.targetType === 'user' ? Number(form.targetUserId) : undefined
+    };
+    if (selectedId) {
+      payload.id = selectedId;
+    }
+
+    setSaving(true);
+    try {
+      if (selectedId) {
+        await api.messageAdmin.updateSystemNotification(payload);
+      } else {
+        await api.messageAdmin.createSystemNotification(payload);
+      }
+      resetForm();
+      load(1);
+    } catch (err) {
+      console.error(err);
+      setFormError('保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRevoke = async (id: number) => {
+    try {
+      await api.messageAdmin.revokeSystemNotification(id);
+      load(page);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="space-y-4 animate-fade-in-up">
+      <div className="card-bg rounded-[20px] p-4 border border-theme space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="标题关键词"
+            className="flex-1 min-w-[120px] bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+          />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          >
+            <option value="all">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="published">已发布</option>
+            <option value="revoked">已撤销</option>
+          </select>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          >
+            <option value="all">全部等级</option>
+            <option value="info">普通</option>
+            <option value="warning">警告</option>
+            <option value="success">成功</option>
+          </select>
+          <input
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            placeholder="分类"
+            className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+          />
+          <button onClick={() => load(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">
+            查询
+          </button>
+          <button onClick={resetForm} className="px-3 py-2 rounded-xl text-xs font-bold border border-theme text-slate-500">
+            新增
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {loading ? (
+          [1, 2, 3].map((i) => <div key={i} className="h-24 card-bg rounded-2xl border border-theme animate-pulse"></div>)
+        ) : list.length === 0 ? (
+          <EmptyState title="暂无通知" />
+        ) : (
+          list.map((item) => (
+            <div key={item.id} className="card-bg rounded-2xl border border-theme p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate" style={{color: 'var(--text-primary)'}}>{item.title}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {item.category} · {item.level} · {item.status}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    发布 {item.publishAt ? new Date(item.publishAt).toLocaleString() : '--'}
+                    {item.expireAt ? ` · 失效 ${new Date(item.expireAt).toLocaleString()}` : ''}
+                  </div>
+                </div>
+                <div className="flex flex-col space-y-2">
+                  <button onClick={() => handleEdit(item)} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-theme text-slate-500 hover:text-[var(--text-primary)]">
+                    编辑
+                  </button>
+                  <button
+                    onClick={() => handleRevoke(item.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold border border-theme text-red-400 hover:text-red-300"
+                    disabled={item.status === 'revoked'}
+                  >
+                    撤回
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        <Pagination page={page} total={total} onChange={load} />
+      </div>
+
+      <div className="card-bg rounded-[20px] p-4 border border-theme space-y-3">
+        <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>
+          {selectedId ? `编辑通知 #${selectedId}` : '新建通知'}
+        </div>
+        {formError && <div className="text-xs text-red-400">{formError}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="标题"
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          />
+          <input
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            placeholder="分类"
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          />
+          <select
+            value={form.level}
+            onChange={(e) => setForm({ ...form, level: e.target.value as SystemNotificationFormState['level'] })}
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          >
+            <option value="info">普通</option>
+            <option value="warning">警告</option>
+            <option value="success">成功</option>
+          </select>
+          <select
+            value={form.targetType}
+            onChange={(e) => setForm({ ...form, targetType: e.target.value as SystemNotificationFormState['targetType'] })}
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+          >
+            <option value="all">全体</option>
+            <option value="user">指定用户</option>
+          </select>
+          <input
+            value={form.targetUserId}
+            onChange={(e) => setForm({ ...form, targetUserId: e.target.value })}
+            placeholder="目标用户ID"
+            disabled={form.targetType !== 'user'}
+            className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)] disabled:opacity-50"
+          />
+        </div>
+        <textarea
+          value={form.content}
+          onChange={(e) => setForm({ ...form, content: e.target.value })}
+          placeholder="通知内容"
+          className="w-full min-h-[90px] bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+        />
+        <div className="flex items-center justify-end space-x-2">
+          {selectedId && (
+            <button onClick={resetForm} className="px-3 py-2 rounded-xl text-xs font-bold border border-theme text-slate-500">
+              取消编辑
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-accent-gradient text-black hover:brightness-110 disabled:opacity-60"
+          >
+            {saving ? '发布中...' : '发布通知'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1869,20 +2154,20 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
           </div>
           <div className="grid grid-cols-2 gap-4">
              <div className="bg-[var(--bg-primary)] p-4 rounded-2xl border border-theme">
-                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">Total Flow</p>
+                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">总流水</p>
                 <p className="text-lg font-black" style={{color: 'var(--text-primary)'}}>¥ {stats.totalFlow || '0.00'}</p>
              </div>
              <div className="bg-[var(--bg-primary)] p-4 rounded-2xl border border-theme">
-                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">Profit</p>
+                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">利润</p>
                 <p className="text-lg font-black text-emerald-500">¥ {stats.totalProfit || '0.00'}</p>
              </div>
              <div className="bg-[var(--bg-primary)] p-4 rounded-2xl border border-theme">
-                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">Withdrawn</p>
+                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">已提现</p>
                 <p className="text-lg font-black" style={{color: 'var(--text-primary)'}}>¥ {stats.withdrawn || '0.00'}</p>
              </div>
              <div className="bg-slate-800 p-4 rounded-2xl border border-theme relative overflow-hidden group">
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-accent-color/20 rounded-full blur-xl"></div>
-                <p className="text-[10px] text-amber-500/70 font-bold mb-1 uppercase tracking-wider relative z-10">Balance</p>
+                <p className="text-[10px] text-amber-500/70 font-bold mb-1 uppercase tracking-wider relative z-10">可提现</p>
                 <p className="text-xl font-black text-amber-500 relative z-10">¥ {stats.withdrawable || '0.00'}</p>
              </div>
           </div>
@@ -2071,9 +2356,14 @@ const GameSort = () => {
   const saveOrder = async () => {
     setSaving(true);
     try {
-      await api.agency.updateGameOrder(games.map((item) => item.gameId));
-    } catch (err) {
+      await Promise.race([
+        api.agency.updateGameOrder(games.map((item) => item.gameId)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('保存超时')), 12000))
+      ]);
+      await loadOrder();
+    } catch (err: any) {
       console.error(err);
+      window.alert(err?.message || '保存失败');
     } finally {
       setSaving(false);
     }

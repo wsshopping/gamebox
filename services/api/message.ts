@@ -1,19 +1,85 @@
 import { delay, DELAY } from './core';
-import { MESSAGES, SYSTEM_NOTIFICATIONS, INTERACTIONS, GROUPS } from '../mockData';
+import { request } from '../http';
+import { GROUPS } from '../mockData';
 import { Message, SystemNotification, Interaction, GroupRecommendation } from '../../types';
+
+type PageResult<T> = {
+  list: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type UnreadCountResponse = {
+  system: number;
+  interactions: number;
+};
 
 export const messageApi = {
   getList: async (): Promise<Message[]> => {
-    await delay(DELAY);
-    return [...MESSAGES];
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    params.set('pageSize', '5');
+    const [systemData, interactionData] = await Promise.all([
+      request<PageResult<SystemNotification>>(`/portal/message/system?${params.toString()}`),
+      request<PageResult<Interaction>>(`/portal/message/interactions?${params.toString()}`)
+    ]);
+
+    const systemMessages: Message[] = (systemData.list || []).map(item => ({
+      id: `system-${item.id}`,
+      title: item.title,
+      content: item.content,
+      time: item.time,
+      type: 'system',
+      read: item.read
+    }));
+
+    const interactionMessages: Message[] = (interactionData.list || []).map(item => ({
+      id: `interaction-${item.id}`,
+      title: item.userName,
+      content: buildInteractionContent(item),
+      time: item.time,
+      type: 'activity',
+      read: item.read,
+      avatar: item.userAvatar
+    }));
+
+    return [...systemMessages, ...interactionMessages].sort((a, b) => parseMessageTime(b.time) - parseMessageTime(a.time));
   },
-  getSystemNotifications: async (): Promise<SystemNotification[]> => {
-    await delay(DELAY);
-    return [...SYSTEM_NOTIFICATIONS];
+  getSystemNotifications: async (status: 'all' | 'unread' = 'all'): Promise<SystemNotification[]> => {
+    const params = new URLSearchParams();
+    params.set('status', status);
+    const data = await request<PageResult<SystemNotification>>(`/portal/message/system?${params.toString()}`);
+    return data.list || [];
   },
-  getInteractions: async (): Promise<Interaction[]> => {
-    await delay(DELAY);
-    return [...INTERACTIONS];
+  getInteractions: async (status: 'all' | 'unread' = 'all'): Promise<Interaction[]> => {
+    const params = new URLSearchParams();
+    params.set('status', status);
+    const data = await request<PageResult<Interaction>>(`/portal/message/interactions?${params.toString()}`);
+    return data.list || [];
+  },
+  markSystemRead: async (ids: number[]): Promise<boolean> => {
+    await request('/portal/message/system/read', {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+    return true;
+  },
+  markSystemReadAll: async (): Promise<boolean> => {
+    await request('/portal/message/system/read-all', {
+      method: 'POST'
+    });
+    return true;
+  },
+  markInteractionRead: async (ids: number[]): Promise<boolean> => {
+    await request('/portal/message/interactions/read', {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+    return true;
+  },
+  getUnreadCount: async (): Promise<UnreadCountResponse> => {
+    return request<UnreadCountResponse>('/portal/message/unread-count');
   },
   getRecommendedGroups: async (category?: string): Promise<GroupRecommendation[]> => {
     await delay(DELAY);
@@ -65,4 +131,27 @@ export const messageApi = {
     console.log(`Applying to join group ${groupId} with message: ${message}`);
     return true;
   }
+};
+
+const buildInteractionContent = (item: Interaction) => {
+  switch (item.type) {
+    case 'like':
+      return `赞了你的${item.targetContent || '内容'}`;
+    case 'comment':
+      return `评论: "${item.targetContent || ''}"`;
+    case 'follow':
+      return '关注了你';
+    case 'mention':
+      return '在评论中提到了你';
+    default:
+      return item.targetContent || '';
+  }
+};
+
+const parseMessageTime = (value: string) => {
+  if (!value) return 0;
+  const normalized = value.replace(' ', 'T');
+  const date = new Date(normalized);
+  const ts = date.getTime();
+  return Number.isNaN(ts) ? 0 : ts;
 };

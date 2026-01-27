@@ -211,16 +211,16 @@ export const MESSAGES: Message[] = [
 ];
 
 export const SYSTEM_NOTIFICATIONS: SystemNotification[] = [
-  { id: 's1', title: '版本更新完成', content: '贪玩盒子 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
-  { id: 's2', title: '安全警告', content: '检测到您的异地登录尝试，请确认是否为本人操作。', time: '昨天', level: 'warning', read: true },
-  { id: 's3', title: '充值成功', content: '您充值的 6480 钻石已到账。', time: '3天前', level: 'success', read: true }
+  { id: 1, title: '版本更新完成', content: '贪玩盒子 2.1 版本已上线，优化了交易体验。', time: '10:00', level: 'info', read: false },
+  { id: 2, title: '安全警告', content: '检测到您的异地登录尝试，请确认是否为本人操作。', time: '昨天', level: 'warning', read: true },
+  { id: 3, title: '充值成功', content: '您充值的 6480 钻石已到账。', time: '3天前', level: 'success', read: true }
 ];
 
 export const INTERACTIONS: Interaction[] = [
-  { id: 'i1', userAvatar: 'https://picsum.photos/50/50?random=u1', userName: '快乐风男', type: 'like', targetContent: '你的评论', time: '5分钟前', read: false },
-  { id: 'i2', userAvatar: 'https://picsum.photos/50/50?random=u2', userName: '暴走萝莉', type: 'comment', targetContent: '这篇文章写的太好了！', time: '1小时前', read: false },
-  { id: 'i3', userAvatar: 'https://picsum.photos/50/50?random=u3', userName: 'Faker001', type: 'follow', time: '2小时前', read: true },
-  { id: 'i4', userAvatar: 'https://picsum.photos/50/50?random=u4', userName: '官方小助手', type: 'mention', targetContent: '恭喜你中奖了！', time: '昨天', read: true }
+  { id: 1, userAvatar: 'https://picsum.photos/50/50?random=u1', userName: '快乐风男', type: 'like', targetContent: '你的评论', time: '5分钟前', read: false },
+  { id: 2, userAvatar: 'https://picsum.photos/50/50?random=u2', userName: '暴走萝莉', type: 'comment', targetContent: '这篇文章写的太好了！', time: '1小时前', read: false },
+  { id: 3, userAvatar: 'https://picsum.photos/50/50?random=u3', userName: 'Faker001', type: 'follow', time: '2小时前', read: true },
+  { id: 4, userAvatar: 'https://picsum.photos/50/50?random=u4', userName: '官方小助手', type: 'mention', targetContent: '恭喜你中奖了！', time: '昨天', read: true }
 ];
 
 export const GROUPS: GroupRecommendation[] = [

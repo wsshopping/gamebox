@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -55,6 +55,99 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
               <p className="text-sm">暂无记录</p>
            </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const PasswordChangePage: React.FC = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    setError('');
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setError('请完整填写密码信息');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('两次输入的新密码不一致');
+      return;
+    }
+    setSaving(true);
+    try {
+      await userApi.changePassword(oldPassword, newPassword);
+      window.alert('修改成功，请重新登录');
+      await logout();
+      navigate('/login');
+    } catch (err: any) {
+      setError(err.message || '修改失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen app-bg pb-20">
+      <div className="glass-bg px-4 py-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme">
+         <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
+           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+         </button>
+         <h1 className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>修改密码</h1>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div className="card-bg rounded-[24px] p-5 border border-theme">
+          <label className="block text-xs text-slate-500 mb-2">旧密码</label>
+          <input
+            type="password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all"
+            placeholder="请输入旧密码"
+          />
+        </div>
+
+        <div className="card-bg rounded-[24px] p-5 border border-theme">
+          <label className="block text-xs text-slate-500 mb-2">新密码</label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all"
+            placeholder="请输入新密码"
+          />
+        </div>
+
+        <div className="card-bg rounded-[24px] p-5 border border-theme">
+          <label className="block text-xs text-slate-500 mb-2">确认新密码</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all"
+            placeholder="请再次输入新密码"
+          />
+        </div>
+
+        {error && (
+          <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={saving}
+          className="w-full bg-gradient-to-r from-slate-800 to-slate-900 text-amber-500 py-4 rounded-2xl font-bold shadow-lg shadow-black/20 transition-all disabled:opacity-60"
+        >
+          {saving ? '提交中...' : '确认修改'}
+        </button>
       </div>
     </div>
   );
@@ -213,7 +306,7 @@ const UserCenterMain: React.FC = () => {
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Settings & Support</h4>
             <div className="card-bg rounded-[24px] border border-theme overflow-hidden shadow-sm">
                {[
-                 { name: '代金券', icon: '🎟', path: '/user/voucher' },
+                 { name: '修改密码', icon: '🔒', path: '/user/password' },
                  { name: '实名认证', icon: '🆔', path: '/user/realname' },
                  // Update the link to the new Feedback page
                  { name: '客服帮助', icon: '🎧', path: '/user/feedback' },
@@ -261,6 +354,7 @@ const UserCenter: React.FC = () => {
        <Route path="game" element={<UserSubPage title="我的游戏" type="game" />} />
        <Route path="trade_record" element={<UserSubPage title="交易记录" type="trade" />} />
        <Route path="gift" element={<UserSubPage title="我的礼包" type="gift" />} />
+       <Route path="password" element={<PasswordChangePage />} />
        <Route path="feedback" element={<UserSubPage title="反馈" type="default" />} /> 
        <Route path="*" element={<UserSubPage title="功能开发中" type="default" />} />
     </Routes>

@@ -6,5 +6,11 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify({ theme })
     })
+  },
+  changePassword: async (oldPassword: string, newPassword: string): Promise<void> => {
+    await request('/portal/user/password', {
+      method: 'PUT',
+      body: JSON.stringify({ oldPassword, newPassword })
+    })
   }
 }

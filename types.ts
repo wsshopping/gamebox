@@ -62,7 +62,7 @@ export interface Message {
 
 // New Types
 export interface SystemNotification {
-  id: string;
+  id: number;
   title: string;
   content: string;
   time: string;
@@ -71,7 +71,7 @@ export interface SystemNotification {
 }
 
 export interface Interaction {
-  id: string;
+  id: number;
   userAvatar: string;
   userName: string;
   type: 'like' | 'comment' | 'follow' | 'mention';
