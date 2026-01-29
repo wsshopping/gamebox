@@ -2,6 +2,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ImProvider } from './context/ImContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Home from './pages/Home';
 import GameCenter from './pages/GameCenter';
@@ -17,10 +18,46 @@ import MessageList from './pages/MessageList';
 import Social from './pages/Social';
 import Chat from './pages/Chat';
 import GroupDetail from './pages/GroupDetail';
+import GroupDiscover from './pages/GroupDiscover';
 import Rank from './pages/Rank';
 import Feedback from './pages/Feedback';
 import BottomNav from './components/BottomNav';
 const LazyAIAssistant = React.lazy(() => import('./components/AIAssistant'));
+
+const tabRoutes = [
+  { path: '/', element: <Home /> },
+  { path: '/game', element: <GameCenter /> },
+  { path: '/social', element: <Social /> },
+  { path: '/screen-welfare', element: <Welfare /> },
+  { path: '/user', element: <UserCenter /> }
+];
+
+const tabPathSet = new Set(tabRoutes.map(route => route.path));
+const tabRouteMap = new Map(tabRoutes.map(route => [route.path, route.element]));
+
+const TabKeepAlive: React.FC<{ activePath: string }> = ({ activePath }) => {
+  const [aliveTabs, setAliveTabs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!activePath || !tabPathSet.has(activePath)) return;
+    setAliveTabs(prev => (prev.includes(activePath) ? prev : [...prev, activePath]));
+  }, [activePath]);
+
+  return (
+    <>
+      {aliveTabs.map(path => {
+        const element = tabRouteMap.get(path);
+        if (!element) return null;
+        const isActive = path === activePath;
+        return (
+          <div key={path} style={{ display: isActive ? 'block' : 'none' }} aria-hidden={!isActive}>
+            {element}
+          </div>
+        );
+      })}
+    </>
+  );
+};
 
 // Layout wrapper to conditionally show BottomNav
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -28,7 +65,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showAssistant, setShowAssistant] = useState(false);
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/groups/discover'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   useEffect(() => {
@@ -74,64 +111,75 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
+const AppRoutes: React.FC = () => {
+  const location = useLocation();
+  const activeTabPath = tabPathSet.has(location.pathname) ? location.pathname : '';
+  const showNonTabRoutes = !activeTabPath;
+
+  return (
+    <Layout>
+      <TabKeepAlive activePath={activeTabPath} />
+      {showNonTabRoutes && (
+        <Routes>
+          {/* Game Routes */}
+          <Route path="/game/:id" element={<GameDetail />} />
+          <Route path="/screen-game" element={<Navigate to="/game" replace />} />
+        
+          {/* Rank Route */}
+          <Route path="/newrank" element={<Rank />} />
+        
+          {/* Social/Trade/Message Routes */}
+          <Route path="/trade" element={<Trade />} /> 
+          <Route path="/message/list" element={<MessageList />} />
+          <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
+
+          {/* Group Discovery */}
+          <Route path="/groups/discover" element={<GroupDiscover />} />
+        
+          {/* Welfare/Task Routes */}
+          <Route path="/task" element={<Navigate to="/screen-welfare" replace />} />
+          <Route path="/signgift" element={<Navigate to="/screen-welfare" replace />} />
+        
+          {/* Community Routes */}
+          <Route path="/article" element={<Community />} />
+          <Route path="/topic" element={<Community />} />
+          <Route path="/index/video" element={<Navigate to="/article" replace />} />
+        
+          {/* User Routes */}
+          <Route path="/user/feedback" element={<Feedback />} />
+          <Route path="/screen-user" element={<Navigate to="/user" replace />} />
+          <Route path="/user/*" element={<UserCenter />} />
+        
+          {/* Search */}
+          <Route path="/search" element={<Search />} />
+        
+          {/* Chat & Group Detail */}
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:id" element={<Chat />} />
+          <Route path="/group/:id" element={<GroupDetail />} />
+        
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      )}
+    </Layout>
+  );
+};
+
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <HashRouter>
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              
-              {/* Game Routes */}
-              <Route path="/game" element={<GameCenter />} />
-              <Route path="/game/:id" element={<GameDetail />} />
-              <Route path="/screen-game" element={<Navigate to="/game" replace />} />
-              
-              {/* Rank Route */}
-              <Route path="/newrank" element={<Rank />} />
-              
-              {/* Social/Trade/Message Routes */}
-              <Route path="/social" element={<Social />} />
-              {/* Keep old routes for compatibility, or redirect */}
-              <Route path="/trade" element={<Trade />} /> 
-              <Route path="/message/list" element={<MessageList />} />
-              <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
-              
-              {/* Welfare/Task Routes */}
-              <Route path="/screen-welfare" element={<Welfare />} />
-              <Route path="/task" element={<Welfare />} />
-              <Route path="/signgift" element={<Welfare />} />
-              
-              {/* Community Routes */}
-              <Route path="/article" element={<Community />} />
-              <Route path="/topic" element={<Community />} />
-              <Route path="/index/video" element={<Navigate to="/article" replace />} />
-              
-              {/* User Routes */}
-              <Route path="/user" element={<UserCenter />} />
-              <Route path="/user/feedback" element={<Feedback />} />
-              <Route path="/screen-user" element={<Navigate to="/user" replace />} />
-              <Route path="/user/*" element={<UserCenter />} />
-              
-              {/* Search */}
-              <Route path="/search" element={<Search />} />
-              
-              {/* Chat & Group Detail */}
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/chat/:id" element={<Chat />} />
-              <Route path="/group/:id" element={<GroupDetail />} />
-              
-              {/* Auth */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Layout>
-        </HashRouter>
-      </ThemeProvider>
+      <ImProvider>
+        <ThemeProvider>
+          <HashRouter>
+            <AppRoutes />
+          </HashRouter>
+        </ThemeProvider>
+      </ImProvider>
     </AuthProvider>
   );
 };

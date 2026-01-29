@@ -1,47 +1,127 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { GroupRecommendation } from '../types';
+import { useIm } from '../context/ImContext';
+import { IMConversationType } from '../services/im/client';
 
 const GroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [group, setGroup] = useState<GroupRecommendation | undefined>(undefined);
+  const [group, setGroup] = useState<{
+    id: string;
+    name: string;
+    avatar: string;
+    desc: string;
+    category: string;
+    tags: string[];
+    members: number;
+    level: string;
+  } | null>(null);
+  const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string }>>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  const { conversations, refreshConversations, getGroupInfo, getGroupMembers, ensureConnected } = useIm();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [applicationStatus, setApplicationStatus] = useState<'none' | 'joined'>('none');
+  const [loadError, setLoadError] = useState('');
+
+  const isJoined = useMemo(() => {
+    if (!id) return false;
+    return conversations.some((conv: any) => (
+      conv.conversationId === id && conv.conversationType === IMConversationType.GROUP
+    ));
+  }, [conversations, id]);
 
   useEffect(() => {
+    if (!id) return;
+    let active = true;
+    setIsLoading(true);
+    setLoadError('');
+    setMembersLoaded(false);
+
     const loadGroup = async () => {
-      if (!id) return;
-      setIsLoading(true);
-      try {
-        const data = await api.message.getGroupDetail(id);
-        setGroup(data);
-        
-        // MOCK LOGIC: automatically mark 'g1' as joined for demonstration
-        if (id === 'g1') {
-          setApplicationStatus('joined');
-        } else {
-          setApplicationStatus('none');
-        }
-      } finally {
-        setIsLoading(false);
+      const [infoResult, membersResult] = await Promise.allSettled([
+        getGroupInfo(id),
+        getGroupMembers(id)
+      ]);
+      if (!active) return;
+
+      const info = infoResult.status === 'fulfilled' ? infoResult.value : null;
+      const memberResp = membersResult.status === 'fulfilled' ? membersResult.value : null;
+
+      if (!info || !info.groupId) {
+        const reason = infoResult.status === 'rejected' ? (infoResult.reason as any) : null;
+        setGroup(null);
+        setMembers([]);
+        setMembersLoaded(false);
+        setLoadError(reason?.message || '群组不存在');
+        return;
       }
+
+      const ext = info.extFields || {};
+      const settings = info.settings || {};
+      const rawTags = ext.tags || settings.tags || '';
+      const tags = rawTags
+        ? rawTags.split(/[, ]+/).map(tag => tag.trim()).filter(Boolean)
+        : [];
+      const desc = ext.desc || ext.description || ext.intro || ext.introduction || '';
+      const category = ext.category || settings.category || '群聊';
+      const levelValue = ext.level || settings.level;
+      const levelLabel = levelValue ? `Lv.${levelValue}` : 'Lv.1';
+      const memberItems = memberResp?.items || [];
+
+      setMembers(memberItems.map(item => ({
+        memberId: item.memberId,
+        displayName: item.grpDisplayName
+      })));
+      setMembersLoaded(membersResult.status === 'fulfilled');
+      setGroup({
+        id: info.groupId,
+        name: info.groupName || info.groupId,
+        avatar: info.groupPortrait || `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(info.groupId)}`,
+        desc: desc || '暂无介绍',
+        category,
+        tags,
+        members: memberItems.length,
+        level: levelLabel
+      });
     };
-    loadGroup();
-  }, [id]);
+
+    loadGroup()
+      .catch((err: any) => {
+        if (!active) return;
+        setGroup(null);
+        setMembers([]);
+        setMembersLoaded(false);
+        setLoadError(err?.message || '加载失败');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [getGroupInfo, getGroupMembers, id]);
 
   const handleJoin = async () => {
     if (!id) return;
     setIsSubmitting(true);
     try {
-      // Direct join, no message needed
-      await api.message.joinGroup(id, ''); 
-      setApplicationStatus('joined');
+      const ok = await ensureConnected();
+      if (!ok) {
+        window.alert('IM连接超时，请稍后重试')
+        return
+      }
+      await api.im.joinGroup({
+        groupId: id,
+        groupName: group?.name,
+        groupPortrait: group?.avatar
+      });
+      await refreshConversations().catch(() => null);
+      navigate(`/chat/${id}`);
     } catch (e) {
-      console.error(e);
+      window.alert((e as any)?.message || '加入失败');
     } finally {
       setIsSubmitting(false);
     }
@@ -58,7 +138,7 @@ const GroupDetail: React.FC = () => {
   if (!group) {
     return (
       <div className="app-bg min-h-screen flex flex-col items-center justify-center">
-         <p className="text-slate-500">群组不存在</p>
+         <p className="text-slate-500">{loadError || '群组不存在'}</p>
          <button onClick={() => navigate(-1)} className="mt-4 text-indigo-600">返回</button>
       </div>
     );
@@ -88,7 +168,7 @@ const GroupDetail: React.FC = () => {
              <div className="flex flex-col items-center -mt-16 mb-4">
                 <img src={group.avatar} alt="avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-md object-cover" />
                 <h1 className="text-xl font-black mt-3 text-center" style={{color: 'var(--text-primary)'}}>{group.name}</h1>
-                <p className="text-xs text-slate-400 mt-1">ID: {group.id.toUpperCase()}</p>
+                <p className="text-xs text-slate-400 mt-1">ID: {String(group.id).toUpperCase()}</p>
              </div>
 
              <div className="flex justify-center space-x-8 py-4 border-b border-theme mb-4">
@@ -97,11 +177,11 @@ const GroupDetail: React.FC = () => {
                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">成员</p>
                 </div>
                 <div className="text-center">
-                   <p className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>482</p>
+                   <p className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>{membersLoaded ? members.length : '--'}</p>
                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">在线</p>
                 </div>
                 <div className="text-center">
-                   <p className="text-lg font-bold text-emerald-500">Lv.5</p>
+                   <p className="text-lg font-bold text-emerald-500">{group.level}</p>
                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">等级</p>
                 </div>
              </div>
@@ -116,9 +196,13 @@ const GroupDetail: React.FC = () => {
                    <h3 className="text-sm font-bold mb-2" style={{color: 'var(--text-primary)'}}>群标签</h3>
                    <div className="flex flex-wrap gap-2">
                       <span className="px-3 py-1 bg-indigo-500/10 text-indigo-500 rounded-full text-xs font-medium border border-indigo-500/20">{group.category}</span>
-                      {group.tags.map(tag => (
-                        <span key={tag} className="px-3 py-1 bg-[var(--bg-primary)] text-slate-500 rounded-full text-xs font-medium border border-theme">#{tag}</span>
-                      ))}
+                      {group.tags.length > 0 ? (
+                        group.tags.map(tag => (
+                          <span key={tag} className="px-3 py-1 bg-[var(--bg-primary)] text-slate-500 rounded-full text-xs font-medium border border-theme">#{tag}</span>
+                        ))
+                      ) : (
+                        <span className="px-3 py-1 bg-[var(--bg-primary)] text-slate-500 rounded-full text-xs font-medium border border-theme">暂无标签</span>
+                      )}
                    </div>
                 </div>
 
@@ -128,11 +212,16 @@ const GroupDetail: React.FC = () => {
                       <span className="text-xs text-slate-400 font-normal">查看全部 &gt;</span>
                    </h3>
                    <div className="flex -space-x-2 overflow-hidden py-1">
-                      {[1,2,3,4,5].map(i => (
-                         <img key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-[var(--bg-card)] object-cover" src={`https://picsum.photos/50/50?random=${i+10}`} alt=""/>
+                      {members.slice(0, 5).map((member) => (
+                         <img
+                           key={member.memberId}
+                           className="inline-block h-8 w-8 rounded-full ring-2 ring-[var(--bg-card)] object-cover"
+                           src={`https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(member.memberId)}`}
+                           alt={member.displayName || member.memberId}
+                         />
                       ))}
                       <div className="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-[var(--bg-card)] bg-[var(--bg-primary)] text-[10px] text-slate-500 font-bold border border-theme">
-                        +99
+                        {membersLoaded ? (members.length > 5 ? `+${members.length - 5}` : '+0') : '--'}
                       </div>
                    </div>
                 </div>
@@ -143,7 +232,7 @@ const GroupDetail: React.FC = () => {
        {/* Bottom Action Bar */}
        <div className="fixed bottom-0 left-0 right-0 card-bg border-t border-theme p-4 pb-8 z-30">
           <div className="max-w-md mx-auto">
-             {applicationStatus === 'joined' ? (
+             {isJoined ? (
                 <button 
                   onClick={() => navigate(`/chat/${group.id}`)}
                   className="w-full bg-[var(--text-primary)] text-[var(--bg-primary)] font-bold py-3.5 rounded-xl shadow-lg"

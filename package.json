@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:im-sdk": "npm --prefix ../im/imsdk-web install && PACKAGE_NAME=juggleim npm --prefix ../im/imsdk-web run release && cp ../im/imsdk-web/dist/juggleim-es-1.9.6.js ./vendor/",
+    "build:with-im-sdk": "npm run build:im-sdk && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -2,17 +2,20 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { Message, SystemNotification, Interaction, GroupRecommendation } from '../types';
+import { Message, SystemNotification, Interaction } from '../types';
+import { useIm } from '../context/ImContext';
+import { IMConversationType, IMMessageType } from '../services/im/client';
 
 interface MessageListProps {
   isEmbedded?: boolean;
 }
 
 // Define the available views for this page
-type ViewMode = 'main' | 'system' | 'interactions' | 'groups';
+type ViewMode = 'main' | 'system' | 'interactions';
 
 const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const navigate = useNavigate();
+  const { conversations: imConversations, ready: imReady, refreshConversations } = useIm();
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -20,51 +23,72 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [systemNotes, setSystemNotes] = useState<SystemNotification[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
-  const [recommendedGroups, setRecommendedGroups] = useState<GroupRecommendation[]>([]);
-  const [groupCategory, setGroupCategory] = useState('全部');
-  const [joiningGroupId, setJoiningGroupId] = useState<string | null>(null);
+
+  const formatImTime = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatImPreview = (message: any) => {
+    if (!message) return '';
+    if (message.name === IMMessageType.TEXT) {
+      return message.content?.text || message.content?.content || '';
+    }
+    if (message.name === IMMessageType.IMAGE) return '[图片]';
+    if (message.name === IMMessageType.FILE) return '[文件]';
+    if (message.name === IMMessageType.VIDEO) return '[视频]';
+    if (message.name === IMMessageType.VOICE) return '[语音]';
+    return '[新消息]';
+  };
+
+
+  const mapImConversations = () => {
+    return imConversations.map((conv: any) => {
+      const isGroup = conv.conversationType === IMConversationType.GROUP;
+      const latest = conv.latestMessage;
+      return {
+        id: conv.conversationId,
+        title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
+        content: formatImPreview(latest),
+        time: formatImTime(latest?.sentTime || conv.sortTime),
+        type: isGroup ? 'group' : 'social',
+        read: !conv.unreadCount || conv.unreadCount === 0,
+        avatar: conv.conversationPortrait,
+        members: conv.unreadCount
+      } as Message;
+    });
+  };
 
   useEffect(() => {
     fetchData();
-  }, [viewMode, groupCategory]);
+  }, [viewMode, imConversations, imReady]);
+
+  useEffect(() => {
+    if (viewMode === 'main' && imReady) {
+      refreshConversations().catch(() => null);
+    }
+  }, [viewMode, imReady, refreshConversations]);
 
   const fetchData = async () => {
+    if (viewMode === 'main') {
+      setIsLoading(!imReady);
+      setMessages(imReady ? mapImConversations() : []);
+      return;
+    }
     setIsLoading(true);
     try {
-      if (viewMode === 'main') {
-        const data = await api.message.getList();
-        setMessages(data);
-      } else if (viewMode === 'system') {
+      if (viewMode === 'system') {
         const data = await api.message.getSystemNotifications();
         setSystemNotes(data);
       } else if (viewMode === 'interactions') {
         const data = await api.message.getInteractions();
         setInteractions(data);
-      } else if (viewMode === 'groups') {
-        const data = await api.message.getRecommendedGroups(groupCategory);
-        setRecommendedGroups(data);
       }
     } catch (error) {
       console.error('Failed to load messages', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleGroupClick = (groupId: string) => {
-    navigate(`/group/${groupId}`);
-  };
-
-  const handleQuickJoin = async (groupId: string) => {
-    if (joiningGroupId) return;
-    setJoiningGroupId(groupId);
-    try {
-      await api.message.joinGroup(groupId, '');
-      navigate(`/chat/${groupId}`);
-    } catch (error) {
-      console.error("Failed to join group", error);
-    } finally {
-      setJoiningGroupId(null);
     }
   };
 
@@ -195,106 +219,6 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     </div>
   );
 
-  const renderGroupsView = () => (
-    <div className="min-h-full pb-20">
-      {/* Search & Banner - Themed */}
-      <div className="bg-gradient-to-r from-slate-900 via-[#1e1b4b] to-indigo-900 p-6 text-white pb-12 relative overflow-hidden border-b border-white/10">
-         <div className="absolute right-0 top-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
-         
-         {/* Back Button for Embedded Mode */}
-         {isEmbedded && (
-            <div className="absolute top-6 left-4 z-20">
-               <button 
-                 onClick={() => setViewMode('main')} 
-                 className="text-slate-300 hover:text-white p-1.5 bg-white/10 backdrop-blur-md rounded-full shadow-sm border border-white/10 transition-all active:scale-95"
-               >
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-               </button>
-            </div>
-         )}
-         
-         <div className={isEmbedded ? "mt-8" : ""}>
-             <h2 className="text-xl font-black mb-1 relative z-10 text-white">发现精彩群聊</h2>
-             <p className="text-slate-400 text-xs relative z-10">找到志同道合的玩伴，一起开黑！</p>
-             
-             <div className="mt-4 bg-black/20 backdrop-blur-md rounded-full flex items-center px-4 py-3 border border-white/10 relative z-10 focus-within:border-accent/50 transition-colors">
-                <svg className="w-4 h-4 text-slate-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input type="text" placeholder="搜索群号/关键词" className="bg-transparent border-none outline-none text-sm text-white placeholder-slate-400 flex-1" />
-             </div>
-         </div>
-      </div>
-
-      <div className="-mt-6 app-bg rounded-t-[24px] relative px-4 pt-6 border-t border-theme">
-        {/* Categories */}
-        <div className="flex overflow-x-auto space-x-2 pb-4 no-scrollbar">
-           {['全部', '开放世界', '竞技射击', 'MOBA', '休闲模拟'].map(cat => (
-             <button 
-               key={cat}
-               onClick={() => setGroupCategory(cat)}
-               className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${
-                 groupCategory === cat 
-                 ? 'bg-accent-gradient text-black shadow-lg shadow-amber-500/20' 
-                 : 'card-bg text-slate-500 border border-theme hover:text-[var(--text-primary)]'
-               }`}
-             >
-               {cat}
-             </button>
-           ))}
-        </div>
-
-        {/* Group List */}
-        <div className="space-y-3">
-          {isLoading ? (
-             [1,2,3].map(i => <div key={i} className="h-24 card-bg rounded-xl animate-pulse border border-theme"></div>)
-          ) : (
-            recommendedGroups.map(group => (
-              <div 
-                key={group.id} 
-                onClick={() => handleGroupClick(group.id)}
-                className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-start space-x-4 cursor-pointer hover:border-accent/30 transition-all active:scale-[0.99]"
-              >
-                 <img src={group.avatar} alt={group.name} className="w-14 h-14 rounded-xl object-cover border border-theme" />
-                 <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                       <h4 className="font-bold text-sm truncate" style={{color: 'var(--text-primary)'}}>{group.name}</h4>
-                       <span className="text-[10px] text-slate-500 card-bg px-1.5 py-0.5 rounded border border-theme">{group.category}</span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-1">{group.desc}</p>
-                    <div className="mt-2 flex items-center justify-between">
-                       <div className="flex space-x-1">
-                          {group.tags.map(tag => (
-                            <span key={tag} className="text-[9px] text-indigo-400 bg-indigo-500/10 px-1 rounded border border-indigo-500/10">{tag}</span>
-                          ))}
-                       </div>
-                       <button 
-                         onClick={(e) => {
-                             e.stopPropagation();
-                             if(group.id === 'g1') {
-                                navigate(`/chat/${group.id}`);
-                             } else {
-                                handleQuickJoin(group.id);
-                             }
-                         }}
-                         disabled={joiningGroupId === group.id}
-                         className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                           group.id === 'g1' 
-                           ? 'bg-slate-700 text-slate-300 hover:bg-slate-600 border border-white/10'
-                           : 'bg-accent-gradient text-black hover:brightness-110 shadow-md'
-                         } ${joiningGroupId === group.id ? 'opacity-70 cursor-not-allowed' : ''}`}
-                       >
-                         {group.id === 'g1' ? '进入' : (joiningGroupId === group.id ? '加入中...' : '加入')}
-                       </button>
-                    </div>
-                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-
   // --- Main Render ---
 
   return (
@@ -312,7 +236,6 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                {viewMode === 'main' && '消息中心'}
                {viewMode === 'system' && '系统通知'}
                {viewMode === 'interactions' && '互动消息'}
-               {viewMode === 'groups' && '发现群聊'}
              </h1>
            </div>
            {viewMode === 'main' && (
@@ -321,7 +244,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         </div>
       )}
 
-      {/* Header for Embedded Mode (System & Interactions only, Groups handles itself) */}
+      {/* Header for Embedded Mode (System & Interactions only) */}
       {isEmbedded && (viewMode === 'system' || viewMode === 'interactions') && (
         <div className="glass-bg p-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
            <button 
@@ -365,7 +288,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               </div>
               
               <div 
-                onClick={() => setViewMode('groups')}
+                onClick={() => navigate('/groups/discover')}
                 className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
               >
                  <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
@@ -429,7 +352,6 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
       {/* Conditional Rendering of Sub-Views */}
       {viewMode === 'system' && renderSystemView()}
       {viewMode === 'interactions' && renderInteractionsView()}
-      {viewMode === 'groups' && renderGroupsView()}
 
     </div>
   );
