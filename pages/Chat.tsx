@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useIm } from '../context/ImContext';
+import { imApi, IMGroupAnnouncementResponse } from '../services/api/im';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 
 interface ChatMessage {
@@ -26,23 +27,40 @@ const ACTION_ITEMS = [
   { name: '名片', icon: '🎫' },
   { name: '语音', icon: '🎤' }
 ];
+const MAX_ANNOUNCEMENT_LENGTH = 100;
 
 const Chat: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const cutoffTimeRef = useRef(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const enableImDebug = false;
+  const logIm = (...args: any[]) => {
+    if (!enableImDebug) return;
+    console.log('[IM Chat]', ...args);
+  };
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [announcement, setAnnouncement] = useState<IMGroupAnnouncementResponse | null>(null);
+  const [isAnnouncementLoading, setIsAnnouncementLoading] = useState(false);
+  const [isAnnouncementEditorOpen, setIsAnnouncementEditorOpen] = useState(false);
+  const [announcementDraft, setAnnouncementDraft] = useState('');
+  const [announcementError, setAnnouncementError] = useState('');
+  const [isAnnouncementSaving, setIsAnnouncementSaving] = useState(false);
   const {
     ready,
     conversations,
     messagesByConversation,
     loadMessages,
+    loadMoreMessages,
     sendTextMessage,
     getGroupInfo,
     getGroupMembers
@@ -69,9 +87,21 @@ const Chat: React.FC = () => {
     return msg.content?.text || msg.content?.content || '[新消息]';
   };
 
+  const formatAnnouncementTime = (value?: number) => {
+    if (!value) return '';
+    return new Date(value).toLocaleString();
+  };
+
+  const countAnnouncementChars = (value: string) => Array.from(value || '').length;
+  const announcementLength = countAnnouncementChars(announcementDraft);
+  const announcementRemaining = MAX_ANNOUNCEMENT_LENGTH - announcementLength;
+
   useEffect(() => {
     if (!id || !ready) return;
     setIsLoading(true);
+    setHasMore(true);
+    setIsLoadingMore(false);
+    cutoffTimeRef.current = Date.now() - 3 * 24 * 60 * 60 * 1000;
     loadMessages(id, conversationType)
       .catch(() => null)
       .finally(() => setIsLoading(false));
@@ -99,7 +129,44 @@ const Chat: React.FC = () => {
   }, [getGroupInfo, getGroupMembers, id, isGroup]);
 
   useEffect(() => {
-    const mapped = imMessages.map((msg: any) => ({
+    if (!id || !isGroup) {
+      setAnnouncement(null);
+      return;
+    }
+    let active = true;
+    setIsAnnouncementLoading(true);
+    setAnnouncementError('');
+    imApi.getGroupAnnouncement(id)
+      .then((res) => {
+        if (!active) return;
+        setAnnouncement(res);
+        setAnnouncementDraft(res.content || '');
+      })
+      .catch(() => {
+        if (!active) return;
+        setAnnouncement(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsAnnouncementLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, isGroup]);
+
+  useEffect(() => {
+    const cutoffTime = cutoffTimeRef.current;
+    const filtered = imMessages.filter((msg: any) => {
+      const sentTime = msg?.sentTime || 0;
+      return sentTime === 0 || sentTime >= cutoffTime;
+    });
+    logIm('messages updated', {
+      total: imMessages.length,
+      filtered: filtered.length,
+      cutoffTime
+    });
+    const mapped = filtered.map((msg: any) => ({
       id: msg.messageId || msg.tid || String(msg.sentTime || Date.now()),
       text: formatMessageText(msg),
       sender: msg.isSender ? 'me' : 'other',
@@ -113,10 +180,73 @@ const Chat: React.FC = () => {
   }, [imMessages]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !isLoadingMore) {
       endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isLoading, showActionMenu, showEmojiPicker]);
+  }, [messages, isLoading, isLoadingMore, showActionMenu, showEmojiPicker]);
+
+  const getOldestTimeInWindow = (list: any[], cutoffTime: number) => {
+    let oldest = 0;
+    list.forEach((msg) => {
+      const sentTime = msg?.sentTime || 0;
+      if (sentTime <= 0 || sentTime < cutoffTime) return;
+      if (!oldest || sentTime < oldest) {
+        oldest = sentTime;
+      }
+    });
+    return oldest;
+  };
+
+  const handleLoadMore = async () => {
+    if (!id || isLoadingMore || !hasMore) return;
+    const cutoffTime = cutoffTimeRef.current;
+    const oldestTime = getOldestTimeInWindow(imMessages, cutoffTime);
+    if (!oldestTime || oldestTime <= cutoffTime) {
+      logIm('loadMore blocked', { reason: 'no older time in window', oldestTime, cutoffTime });
+      setHasMore(false);
+      return;
+    }
+
+    const container = scrollRef.current;
+    const prevHeight = container?.scrollHeight || 0;
+    const prevScrollTop = container?.scrollTop || 0;
+    setIsLoadingMore(true);
+    try {
+      const beforeTime = Math.max(oldestTime - 1, 0);
+      logIm('loadMore start', { beforeTime, oldestTime, cutoffTime, count: 30 });
+      const { messages: moreMessages, isFinished } = await loadMoreMessages(id, conversationType, beforeTime, 30);
+      logIm('loadMore done', { received: moreMessages?.length || 0, isFinished });
+      if (!moreMessages || moreMessages.length === 0 || isFinished) {
+        setHasMore(false);
+      }
+      const allTimes = [...imMessages, ...(moreMessages || [])]
+        .map((msg: any) => msg?.sentTime || 0)
+        .filter((value: number) => value >= cutoffTime);
+      if (allTimes.length > 0) {
+        const nextOldest = Math.min(...allTimes);
+        if (nextOldest <= cutoffTime) {
+          setHasMore(false);
+        }
+      }
+    } finally {
+      setIsLoadingMore(false);
+      requestAnimationFrame(() => {
+        if (!container) return;
+        const newHeight = container.scrollHeight;
+        const delta = newHeight - prevHeight;
+        container.scrollTop = prevScrollTop + delta;
+      });
+    }
+  };
+
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    if (!container || isLoadingMore || !hasMore) return;
+    if (container.scrollTop <= 60) {
+      logIm('scroll top reached', { scrollTop: container.scrollTop });
+      handleLoadMore();
+    }
+  };
 
   const handleSend = async () => {
     if (!inputText.trim() || !id) return;
@@ -146,6 +276,48 @@ const Chat: React.FC = () => {
   const handleAvatarClick = (msg: ChatMessage) => {
     if (msg.sender === 'me') return;
     window.alert('暂不支持查看资料');
+  };
+
+  const handleHeaderDoubleClick = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: 0, behavior: 'smooth' });
+    window.setTimeout(() => {
+      handleLoadMore().catch(() => null);
+    }, 120);
+  };
+
+  const openAnnouncementEditor = () => {
+    setAnnouncementDraft(announcement?.content || '');
+    setAnnouncementError('');
+    setIsAnnouncementEditorOpen(true);
+  };
+
+  const closeAnnouncementEditor = () => {
+    setIsAnnouncementEditorOpen(false);
+    setAnnouncementError('');
+  };
+
+  const handleAnnouncementSave = async () => {
+    if (!id || isAnnouncementSaving) return;
+    const trimmed = announcementDraft.trim();
+    if (countAnnouncementChars(trimmed) > MAX_ANNOUNCEMENT_LENGTH) {
+      setAnnouncementError(`公告最多 ${MAX_ANNOUNCEMENT_LENGTH} 字`);
+      return;
+    }
+    setIsAnnouncementSaving(true);
+    setAnnouncementError('');
+    try {
+      const res = await imApi.setGroupAnnouncement({ groupId: id, content: trimmed });
+      setAnnouncement(res);
+      setAnnouncementDraft(res.content || '');
+      setIsAnnouncementEditorOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '公告更新失败';
+      setAnnouncementError(message);
+    } finally {
+      setIsAnnouncementSaving(false);
+    }
   };
 
   const toggleActionMenu = () => {
@@ -179,7 +351,10 @@ const Chat: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[50] app-bg flex flex-col transition-colors duration-500">
       {/* Header */}
-      <div className="flex-none glass-bg p-4 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500 relative z-20">
+      <div
+        className="flex-none glass-bg p-4 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500 relative z-20"
+        onDoubleClick={handleHeaderDoubleClick}
+      >
          <div className="flex items-center">
             <button
               onClick={() => navigate(-1)}
@@ -212,8 +387,42 @@ const Chat: React.FC = () => {
          </button>
       </div>
 
+      {isGroup && (
+        <div className="flex-none border-b border-theme bg-[var(--bg-card)]/80 backdrop-blur">
+          <div className="px-4 py-2.5 flex items-start gap-3">
+            <span className="text-[10px] uppercase tracking-wide text-slate-500 mt-1">公告</span>
+            <div className="flex-1">
+              {isAnnouncementLoading ? (
+                <div className="text-xs text-slate-500">公告加载中...</div>
+              ) : (
+                <>
+                  <div className={`text-sm leading-relaxed ${announcement?.content ? 'text-[var(--text-primary)]' : 'text-slate-500 italic'}`}>
+                    {announcement?.content || '暂无公告'}
+                  </div>
+                  {announcement?.updatedAt ? (
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      更新于 {formatAnnouncementTime(announcement.updatedAt)}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+            {announcement?.canEdit && !isAnnouncementLoading ? (
+              <button
+                onClick={openAnnouncementEditor}
+                className="text-xs text-emerald-500 hover:text-emerald-400 transition-colors"
+              >
+                编辑
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* Message Area */}
       <div
+        ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4 bg-transparent overscroll-contain"
         onClick={() => { setShowActionMenu(false); setShowEmojiPicker(false); }}
       >
@@ -223,6 +432,12 @@ const Chat: React.FC = () => {
             </div>
          ) : (
            <>
+             {isLoadingMore && (
+               <div className="text-center text-xs text-slate-500">加载中...</div>
+             )}
+             {!hasMore && (
+               <div className="text-center text-xs text-slate-500">仅显示最近3天消息</div>
+             )}
              <div className="text-center text-xs text-slate-500 my-4">昨天 10:00</div>
              {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in-up`}>
@@ -363,6 +578,55 @@ const Chat: React.FC = () => {
           </div>
         )}
       </div>
+
+      {isAnnouncementEditorOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center">
+          <div className="w-full sm:max-w-md bg-[var(--bg-card)] border border-theme rounded-t-2xl sm:rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">编辑群公告</h2>
+              <button
+                onClick={closeAnnouncementEditor}
+                className="text-slate-500 hover:text-[var(--text-primary)] transition-colors"
+              >
+                关闭
+              </button>
+            </div>
+            <textarea
+              value={announcementDraft}
+              onChange={(e) => setAnnouncementDraft(e.target.value)}
+              maxLength={MAX_ANNOUNCEMENT_LENGTH}
+              rows={4}
+              className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl p-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 resize-none"
+              placeholder="填写群公告（最多100字）"
+            />
+            <div className="flex items-center justify-between mt-2 text-[10px] text-slate-500">
+              <span>{announcementError || '仅群主/管理员可修改公告'}</span>
+              <span className={announcementRemaining < 0 ? 'text-rose-400' : ''}>
+                {announcementRemaining} 字剩余
+              </span>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={closeAnnouncementEditor}
+                className="flex-1 py-2 rounded-full border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAnnouncementSave}
+                disabled={announcementRemaining < 0 || isAnnouncementSaving}
+                className={`flex-1 py-2 rounded-full text-sm font-semibold transition-all ${
+                  announcementRemaining < 0 || isAnnouncementSaving
+                    ? 'bg-slate-700/60 text-slate-400'
+                    : 'bg-emerald-400 text-black hover:brightness-105'
+                }`}
+              >
+                {isAnnouncementSaving ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

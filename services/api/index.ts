@@ -9,6 +9,7 @@ import { bannerApi } from './banner'
 import { searchApi } from './search'
 import { userApi } from './user'
 import { imApi } from './im'
+import { friendApi } from './friend'
 
 export const api = {
   game: gameApi,
@@ -21,5 +22,6 @@ export const api = {
   banner: bannerApi,
   search: searchApi,
   user: userApi,
-  im: imApi
+  im: imApi,
+  friend: friendApi
 }

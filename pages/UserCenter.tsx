@@ -332,13 +332,17 @@ const UserCenterMain: React.FC = () => {
 
 const UserCenter: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
+    if (!location.pathname.startsWith('/user')) {
+      return;
+    }
     if (!isLoading && !user) {
       navigate('/login');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isLoading, navigate, location.pathname]);
 
   if (isLoading || !user) {
     return (
@@ -350,13 +354,13 @@ const UserCenter: React.FC = () => {
 
   return (
     <Routes>
-       <Route path="/" element={<UserCenterMain />} />
-       <Route path="game" element={<UserSubPage title="我的游戏" type="game" />} />
-       <Route path="trade_record" element={<UserSubPage title="交易记录" type="trade" />} />
-       <Route path="gift" element={<UserSubPage title="我的礼包" type="gift" />} />
-       <Route path="password" element={<PasswordChangePage />} />
-       <Route path="feedback" element={<UserSubPage title="反馈" type="default" />} /> 
-       <Route path="*" element={<UserSubPage title="功能开发中" type="default" />} />
+       <Route path="/user" element={<UserCenterMain />} />
+       <Route path="/user/game" element={<UserSubPage title="我的游戏" type="game" />} />
+       <Route path="/user/trade_record" element={<UserSubPage title="交易记录" type="trade" />} />
+       <Route path="/user/gift" element={<UserSubPage title="我的礼包" type="gift" />} />
+       <Route path="/user/password" element={<PasswordChangePage />} />
+       <Route path="/user/feedback" element={<UserSubPage title="反馈" type="default" />} /> 
+       <Route path="/user/*" element={<UserSubPage title="功能开发中" type="default" />} />
     </Routes>
   );
 };

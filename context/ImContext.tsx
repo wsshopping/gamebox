@@ -83,6 +83,10 @@ interface ImContextValue {
   ensureConnected: (timeoutMs?: number) => Promise<boolean>
   refreshConversations: () => Promise<void>
   loadMessages: (conversationId: string, conversationType: number) => Promise<ImMessage[]>
+  loadMoreMessages: (conversationId: string, conversationType: number, beforeTime: number, count?: number) => Promise<{
+    messages: ImMessage[]
+    isFinished: boolean
+  }>
   sendTextMessage: (conversationId: string, conversationType: number, text: string) => Promise<ImMessage | null>
   getGroupInfo: (groupId: string) => Promise<ImGroupInfo | null>
   getGroupMembers: (groupId: string) => Promise<ImGroupMembers | null>
@@ -96,6 +100,8 @@ const connectTimeoutMs = 15000
 const ensureReconnectAfterMs = 3000
 const autoReconnectLimit = 2
 const debugLogLimit = 50
+const enableImDebug = true
+const messageOrderBackward = 0
 
 const sortMessages = (messages: ImMessage[]) => {
   return [...messages].sort((a, b) => (a?.sentTime || 0) - (b?.sentTime || 0))
@@ -108,6 +114,41 @@ const mergeMessage = (messages: ImMessage[], message: ImMessage) => {
     return messages
   }
   return sortMessages([...messages, message])
+}
+
+const mergeMessages = (existing: ImMessage[], incoming: ImMessage[]) => {
+  const map = new Map<string, ImMessage>()
+  const buildId = (msg: ImMessage) => {
+    const messageId = msg?.messageId || msg?.tid
+    if (messageId) return String(messageId)
+    const sender = (msg as any)?.sender?.id || (msg as any)?.senderId || ''
+    const sentTime = msg?.sentTime || 0
+    return `${sender}-${sentTime}`
+  }
+  existing.forEach(msg => {
+    map.set(buildId(msg), msg)
+  })
+  incoming.forEach(msg => {
+    map.set(buildId(msg), msg)
+  })
+  return sortMessages(Array.from(map.values()))
+}
+
+const getSentTimeRange = (messages: ImMessage[]) => {
+  let min = 0
+  let max = 0
+  messages.forEach(msg => {
+    const sentTime = msg?.sentTime || 0
+    if (!sentTime) return
+    if (!min || sentTime < min) min = sentTime
+    if (sentTime > max) max = sentTime
+  })
+  return { min, max }
+}
+
+const logIm = (...args: any[]) => {
+  if (!enableImDebug) return
+  console.log('[IM]', ...args)
 }
 
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => {
@@ -254,11 +295,36 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     if (!client) return []
     const { messages } = await client.getMessages({ conversationId, conversationType })
     const sorted = sortMessages(messages || [])
+    const range = getSentTimeRange(sorted)
+    logIm('loadMessages', { conversationId, conversationType, count: sorted.length, range })
     setMessagesByConversation(prev => ({
       ...prev,
       [buildKey(conversationId, conversationType)]: sorted
     }))
     return sorted
+  }, [])
+
+  const loadMoreMessages = useCallback(async (conversationId: string, conversationType: number, beforeTime: number, count = 20) => {
+    const client = clientRef.current
+    if (!client) return { messages: [], isFinished: true }
+    logIm('loadMoreMessages:start', { conversationId, conversationType, beforeTime, count })
+    const { messages, isFinished } = await client.getMessages({
+      conversationId,
+      conversationType,
+      time: beforeTime,
+      count,
+      order: messageOrderBackward
+    })
+    const sorted = sortMessages(messages || [])
+    const range = getSentTimeRange(sorted)
+    logIm('loadMoreMessages:done', { conversationId, conversationType, count: sorted.length, isFinished, range })
+    const key = buildKey(conversationId, conversationType)
+    setMessagesByConversation(prev => {
+      const existing = prev[key] || []
+      const merged = mergeMessages(existing, sorted)
+      return { ...prev, [key]: merged }
+    })
+    return { messages: sorted, isFinished: Boolean(isFinished) }
   }, [])
 
   const sendTextMessage = useCallback(async (conversationId: string, conversationType: number, text: string) => {
@@ -315,7 +381,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         setDebugInfo(prev => ({ ...prev, lastDisconnectedAt: Date.now() }))
       }
     })
-    client.on(IMEvent.MESSAGE_RECEIVED, ({ message }: { message: ImMessage }) => {
+    client.on(IMEvent.MESSAGE_RECEIVED, (message: ImMessage) => {
       if (!message) return
       const key = buildKey(message.conversationId, message.conversationType)
       setMessagesByConversation(prev => {
@@ -601,6 +667,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     ensureConnected,
     refreshConversations,
     loadMessages,
+    loadMoreMessages,
     sendTextMessage,
     getGroupInfo,
     getGroupMembers,

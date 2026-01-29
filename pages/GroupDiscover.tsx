@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIm } from '../context/ImContext';
 import { useAuth } from '../context/AuthContext';
 import { IMConversationType, IMMessageType } from '../services/im/client';
+import { friendApi, FriendItem, FriendProfile, FriendRequestItem } from '../services/api/friend';
 
 type ChatItem = {
   id: string;
@@ -24,9 +25,24 @@ const GroupDiscover: React.FC = () => {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [headerSearch, setHeaderSearch] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [friendKeyword, setFriendKeyword] = useState('');
+  const [friendError, setFriendError] = useState('');
+  const [friendSuccess, setFriendSuccess] = useState('');
+  const [friendResults, setFriendResults] = useState<FriendProfile[]>([]);
+  const [friendSearchDone, setFriendSearchDone] = useState(false);
+  const [friendSearchLoading, setFriendSearchLoading] = useState(false);
+  const [friendRequestingId, setFriendRequestingId] = useState<number | null>(null);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactsError, setContactsError] = useState('');
+  const [incomingRequests, setIncomingRequests] = useState<FriendRequestItem[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestItem[]>([]);
+  const [friendList, setFriendList] = useState<FriendItem[]>([]);
+  const [requestActionId, setRequestActionId] = useState<number | null>(null);
   const [createError, setCreateError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -46,6 +62,35 @@ const GroupDiscover: React.FC = () => {
       .catch(() => null)
       .finally(() => setIsLoading(false));
   }, [ready, refreshConversations]);
+
+  const loadContacts = useCallback(async () => {
+    if (!user?.ID) {
+      setContactsError('请先登录');
+      setContactsLoading(false);
+      return;
+    }
+    setContactsLoading(true);
+    setContactsError('');
+    try {
+      const [incomingRes, outgoingRes, friendsRes] = await Promise.all([
+        friendApi.listRequests('incoming', 'pending', 1, 20),
+        friendApi.listRequests('outgoing', 'pending', 1, 20),
+        friendApi.listFriends(200)
+      ]);
+      setIncomingRequests(incomingRes.list || []);
+      setOutgoingRequests(outgoingRes.list || []);
+      setFriendList(friendsRes.items || []);
+    } catch (e: any) {
+      setContactsError(e?.message || '加载失败');
+    } finally {
+      setContactsLoading(false);
+    }
+  }, [user?.ID]);
+
+  useEffect(() => {
+    if (activeTab !== 'contacts') return;
+    loadContacts();
+  }, [activeTab, loadContacts]);
 
   const formatImTime = (timestamp?: number) => {
     if (!timestamp) return '';
@@ -67,7 +112,7 @@ const GroupDiscover: React.FC = () => {
 
 
   const chatList = useMemo<ChatItem[]>(() => {
-    return conversations.map((conv: any) => {
+    const list = conversations.map((conv: any) => {
       const isGroup = conv.conversationType === IMConversationType.GROUP;
       const latest = conv.latestMessage;
       return {
@@ -81,7 +126,15 @@ const GroupDiscover: React.FC = () => {
         unreadCount: conv.unreadCount || 0
       };
     });
-  }, [conversations]);
+
+    const keyword = headerSearch.trim().toLowerCase();
+    if (!keyword) return list;
+    return list.filter(item => {
+      const title = (item.title || '').toLowerCase();
+      const id = (item.id || '').toLowerCase();
+      return title.includes(keyword) || id.includes(keyword);
+    });
+  }, [conversations, headerSearch]);
 
   const handleChatClick = (chatId: string) => {
     navigate(`/chat/${chatId}`);
@@ -92,6 +145,18 @@ const GroupDiscover: React.FC = () => {
     setSearchKeyword('');
     setSearchError('');
     setShowSearchModal(true);
+  };
+
+  const handleOpenAddFriend = () => {
+    setShowAddMenu(false);
+    setFriendKeyword('');
+    setFriendError('');
+    setFriendSuccess('');
+    setFriendResults([]);
+    setFriendSearchDone(false);
+    setFriendSearchLoading(false);
+    setFriendRequestingId(null);
+    setShowAddFriendModal(true);
   };
 
   const handleOpenCreateGroup = () => {
@@ -126,6 +191,86 @@ const GroupDiscover: React.FC = () => {
       setSearchError(e?.message || '查询失败');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleFriendSearch = async () => {
+    const trimmed = friendKeyword.trim();
+    if (!trimmed) {
+      setFriendError('请输入手机号或用户ID');
+      return;
+    }
+    setFriendSearchLoading(true);
+    setFriendError('');
+    setFriendSuccess('');
+    setFriendSearchDone(false);
+    setFriendResults([]);
+    try {
+      const items = await friendApi.search(trimmed);
+      setFriendResults(items);
+      setFriendSearchDone(true);
+      if (!items.length) {
+        setFriendError('未找到用户');
+      }
+    } catch (e: any) {
+      setFriendError(e?.message || '搜索失败');
+    } finally {
+      setFriendSearchLoading(false);
+    }
+  };
+
+  const handleSendFriendRequest = async (targetId: number) => {
+    setFriendRequestingId(targetId);
+    setFriendError('');
+    setFriendSuccess('');
+    try {
+      await friendApi.createRequest(targetId);
+      setFriendSuccess('好友申请已发送');
+      await loadContacts();
+    } catch (e: any) {
+      setFriendError(e?.message || '发送失败');
+    } finally {
+      setFriendRequestingId(null);
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: number) => {
+    setRequestActionId(requestId);
+    setContactsError('');
+    try {
+      await friendApi.acceptRequest(requestId);
+      await loadContacts();
+      await refreshConversations().catch(() => null);
+    } catch (e: any) {
+      setContactsError(e?.message || '操作失败');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: number) => {
+    setRequestActionId(requestId);
+    setContactsError('');
+    try {
+      await friendApi.rejectRequest(requestId);
+      await loadContacts();
+    } catch (e: any) {
+      setContactsError(e?.message || '操作失败');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleCancelRequest = async (requestId: number) => {
+    setRequestActionId(requestId);
+    setContactsError('');
+    try {
+      await friendApi.cancelRequest(requestId);
+      await loadContacts();
+    } catch (e: any) {
+      setContactsError(e?.message || '操作失败');
+    } finally {
+      setRequestActionId(null);
     }
   };
 
@@ -189,8 +334,10 @@ const GroupDiscover: React.FC = () => {
             </div>
             <input
               type="text"
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
               placeholder="搜索"
-              className="w-full bg-[#0f172a] text-[var(--text-primary)] border border-theme rounded-xl pl-10 pr-4 py-1.5 text-sm outline-none focus:border-accent/50 transition-all placeholder-slate-500"
+              className="w-full bg-[#0f172a] text-slate-100 border border-theme rounded-xl pl-10 pr-4 py-1.5 text-sm outline-none focus:border-accent/50 transition-all placeholder-slate-500"
             />
           </div>
 
@@ -209,10 +356,7 @@ const GroupDiscover: React.FC = () => {
                 <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)}></div>
                 <div className="absolute right-0 top-12 w-40 card-bg border border-theme rounded-xl shadow-xl z-50 overflow-hidden py-1 animate-fade-in-up">
                   <button
-                    onClick={() => {
-                      setShowAddMenu(false);
-                      window.alert('暂不支持添加好友');
-                    }}
+                    onClick={handleOpenAddFriend}
                     className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center space-x-3 transition-colors"
                   >
                     <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>加好友</span>
@@ -291,8 +435,145 @@ const GroupDiscover: React.FC = () => {
         )}
 
         {activeTab === 'contacts' && (
-          <div className="px-6 py-12 text-center text-slate-500">
-            功能开发中
+          <div className="px-4 py-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>通讯录</h3>
+                <p className="text-[10px] text-slate-500 mt-1">新朋友与好友列表</p>
+              </div>
+              <button
+                onClick={() => loadContacts()}
+                className="text-xs font-bold text-slate-200 px-3 py-1.5 rounded-full border border-theme hover:bg-white/5"
+              >
+                刷新
+              </button>
+            </div>
+
+            {contactsError && (
+              <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2">
+                {contactsError}
+              </div>
+            )}
+
+            {contactsLoading && (
+              <div className="text-center text-slate-500 text-sm">加载中...</div>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">新朋友</h4>
+                <span className="text-[10px] text-slate-500">{incomingRequests.length} 位</span>
+              </div>
+              {incomingRequests.length === 0 ? (
+                <div className="text-sm text-slate-500 px-2">暂无新朋友</div>
+              ) : (
+                incomingRequests.map(item => {
+                  const profile = item.requester;
+                  const name = profile.username || `用户${profile.id}`;
+                  return (
+                    <div key={item.id} className="card-bg border border-theme rounded-xl p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`}
+                          className="w-12 h-12 rounded-full border border-theme object-cover"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
+                          <div className="text-[10px] text-slate-500 truncate">手机号: {profile.phone || '-'}</div>
+                          <div className="text-[10px] text-slate-500">ID: {profile.id}</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-[10px] text-slate-500">{item.time}</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAcceptRequest(item.id)}
+                            disabled={requestActionId === item.id}
+                            className={`text-[10px] font-bold px-3 py-1.5 rounded-full bg-accent-gradient text-black ${requestActionId === item.id ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                          >
+                            通过
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(item.id)}
+                            disabled={requestActionId === item.id}
+                            className={`text-[10px] font-bold px-3 py-1.5 rounded-full border border-theme text-slate-200 ${requestActionId === item.id ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                          >
+                            拒绝
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">我的申请</h4>
+                <span className="text-[10px] text-slate-500">{outgoingRequests.length} 条</span>
+              </div>
+              {outgoingRequests.length === 0 ? (
+                <div className="text-sm text-slate-500 px-2">暂无待处理申请</div>
+              ) : (
+                outgoingRequests.map(item => {
+                  const profile = item.target;
+                  const name = profile.username || `用户${profile.id}`;
+                  return (
+                    <div key={item.id} className="card-bg border border-theme rounded-xl p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`}
+                          className="w-12 h-12 rounded-full border border-theme object-cover"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
+                          <div className="text-[10px] text-slate-500 truncate">手机号: {profile.phone || '-'}</div>
+                          <div className="text-[10px] text-slate-500">ID: {profile.id}</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-[10px] text-slate-500">等待通过</span>
+                        <button
+                          onClick={() => handleCancelRequest(item.id)}
+                          disabled={requestActionId === item.id}
+                          className={`text-[10px] font-bold px-3 py-1.5 rounded-full border border-theme text-slate-200 ${requestActionId === item.id ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">好友列表</h4>
+                <span className="text-[10px] text-slate-500">{friendList.length} 位</span>
+              </div>
+              {friendList.length === 0 ? (
+                <div className="text-sm text-slate-500 px-2">暂无好友</div>
+              ) : (
+                friendList.map(item => {
+                  const name = item.displayName || item.username || item.phone || `用户${item.id}`;
+                  return (
+                    <div key={item.id} className="card-bg border border-theme rounded-xl p-3 flex items-center gap-3">
+                      <img
+                        src={item.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.id}`}
+                        className="w-12 h-12 rounded-full border border-theme object-cover"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
+                        <div className="text-[10px] text-slate-500 truncate">手机号: {item.phone || '-'}</div>
+                        <div className="text-[10px] text-slate-500">ID: {item.id}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 
@@ -351,6 +632,102 @@ const GroupDiscover: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Add Friend Modal */}
+      {showAddFriendModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowAddFriendModal(false)}
+          ></div>
+
+          <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>添加好友</h3>
+              <button onClick={() => setShowAddFriendModal(false)} className="text-slate-500 hover:text-slate-300 p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">手机号 / 用户ID</label>
+                <input
+                  type="text"
+                  value={friendKeyword}
+                  onChange={(e) => {
+                    setFriendKeyword(e.target.value);
+                    setFriendError('');
+                    setFriendSuccess('');
+                    setFriendSearchDone(false);
+                    setFriendResults([]);
+                  }}
+                  placeholder="请输入手机号或用户ID"
+                  className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:border-accent/50 transition-colors"
+                  autoFocus
+                />
+              </div>
+
+              <button
+                onClick={handleFriendSearch}
+                disabled={friendSearchLoading || !friendKeyword.trim()}
+                className={`w-full bg-accent-gradient text-black font-bold py-3.5 rounded-xl shadow-lg mt-2 flex items-center justify-center ${friendSearchLoading || !friendKeyword.trim() ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+              >
+                {friendSearchLoading ? '搜索中...' : '搜索用户'}
+              </button>
+
+              {friendError && (
+                <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2">
+                  {friendError}
+                </div>
+              )}
+
+              {friendSuccess && (
+                <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">
+                  {friendSuccess}
+                </div>
+              )}
+
+              {friendResults.length > 0 && (
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">搜索结果</div>
+                  {friendResults.map(profile => {
+                    const name = profile.username || `用户${profile.id}`;
+                    return (
+                      <div key={profile.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-theme bg-[var(--bg-primary)]">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.id}`}
+                            className="w-12 h-12 rounded-full border border-theme object-cover"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
+                            <div className="text-[10px] text-slate-500 truncate">手机号: {profile.phone || '-'}</div>
+                            <div className="text-[10px] text-slate-500">ID: {profile.id}</div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleSendFriendRequest(profile.id)}
+                          disabled={friendRequestingId === profile.id}
+                          className={`text-[10px] font-bold px-3 py-1.5 rounded-full bg-accent-gradient text-black ${friendRequestingId === profile.id ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                        >
+                          {friendRequestingId === profile.id ? '发送中...' : '添加'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {friendSearchDone && friendResults.length === 0 && !friendError && (
+                <div className="text-xs text-slate-500 text-center">未找到匹配用户</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Join Group Modal */}
       {showSearchModal && (
