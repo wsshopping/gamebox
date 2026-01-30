@@ -1,6 +1,7 @@
 const API_BASE = import.meta.env.VITE_BASE_API || '/api/v1'
 const TOKEN_KEY = 'portal_token'
 const USER_KEY = 'portal_user'
+let authRedirected = false
 
 export const authStorage = {
   getToken: () => localStorage.getItem(TOKEN_KEY) || '',
@@ -52,6 +53,18 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!res.ok) {
+    if (res.status === 401 && !authRedirected) {
+      authRedirected = true
+      authStorage.clearToken()
+      authStorage.clearUser()
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash || ''
+        if (!hash.startsWith('#/login')) {
+          window.alert(data?.msg || '登录已失效，请重新登录')
+          window.location.hash = '#/login'
+        }
+      }
+    }
     throw new Error(data?.msg || res.statusText || '请求失败')
   }
 

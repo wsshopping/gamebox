@@ -112,7 +112,7 @@ const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="absolute bottom-0 left-0 w-full z-50">
+    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50">
       {/* 
         Premium Aesthetics: Dark Glass
       */}

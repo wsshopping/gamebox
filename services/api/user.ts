@@ -1,4 +1,5 @@
 import { request } from '../http'
+import type { User } from '../auth'
 
 export const userApi = {
   updateTheme: async (theme: string): Promise<void> => {
@@ -11,6 +12,12 @@ export const userApi = {
     await request('/portal/user/password', {
       method: 'PUT',
       body: JSON.stringify({ oldPassword, newPassword })
+    })
+  },
+  updateUsername: async (username: string): Promise<User> => {
+    return request<User>('/portal/user/username', {
+      method: 'PUT',
+      body: JSON.stringify({ username })
     })
   }
 }
