@@ -308,7 +308,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               ) : (
                 messages.map(msg => (
                   <div 
-                    key={msg.id} 
+                    key={`${msg.type}-${msg.id}`} 
                     onClick={() => handleMessageClick(msg.type, msg.id)}
                     className="card-bg p-4 rounded-xl border border-theme shadow-sm flex space-x-3 cursor-pointer active:scale-[0.98] transition-all hover:border-accent/30"
                   >

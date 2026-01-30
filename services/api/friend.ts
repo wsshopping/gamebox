@@ -97,5 +97,12 @@ export const friendApi = {
       params.set('offset', offset)
     }
     return request<FriendListResponse>(`/portal/friends/list?${params.toString()}`)
+  },
+  removeFriend: async (targetId: number): Promise<boolean> => {
+    await request('/portal/friends/remove', {
+      method: 'POST',
+      body: JSON.stringify({ targetId })
+    })
+    return true
   }
 }

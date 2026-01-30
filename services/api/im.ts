@@ -13,6 +13,10 @@ export interface IMJoinGroupRequest {
   groupPortrait?: string
 }
 
+export interface IMGroupActionRequest {
+  groupId: string
+}
+
 export interface IMGroupAnnouncementResponse {
   groupId: string
   content: string
@@ -32,6 +36,20 @@ export const imApi = {
   },
   joinGroup: async (payload: IMJoinGroupRequest): Promise<boolean> => {
     await request('/portal/im/groups/join', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    return true
+  },
+  leaveGroup: async (payload: IMGroupActionRequest): Promise<boolean> => {
+    await request('/portal/im/groups/leave', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    return true
+  },
+  disbandGroup: async (payload: IMGroupActionRequest): Promise<boolean> => {
+    await request('/portal/im/groups/disband', {
       method: 'POST',
       body: JSON.stringify(payload)
     })

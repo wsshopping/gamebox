@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useIm } from '../context/ImContext';
+import { friendApi, FriendItem, FriendProfile } from '../services/api/friend';
 import { imApi, IMGroupAnnouncementResponse } from '../services/api/im';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 
@@ -40,6 +42,7 @@ const Chat: React.FC = () => {
     if (!enableImDebug) return;
     console.log('[IM Chat]', ...args);
   };
+  const { user } = useAuth();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +58,23 @@ const Chat: React.FC = () => {
   const [announcementDraft, setAnnouncementDraft] = useState('');
   const [announcementError, setAnnouncementError] = useState('');
   const [isAnnouncementSaving, setIsAnnouncementSaving] = useState(false);
+  const [showFriendMenu, setShowFriendMenu] = useState(false);
+  const [showFriendProfile, setShowFriendProfile] = useState(false);
+  const [friendProfile, setFriendProfile] = useState<FriendItem | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isRemovingFriend, setIsRemovingFriend] = useState(false);
+  const [friendActionError, setFriendActionError] = useState('');
+  const [showMemberMenu, setShowMemberMenu] = useState(false);
+  const [showMemberProfile, setShowMemberProfile] = useState(false);
+  const [memberProfile, setMemberProfile] = useState<FriendProfile | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{ id: string; name?: string } | null>(null);
+  const [memberIsFriend, setMemberIsFriend] = useState(false);
+  const [memberActionError, setMemberActionError] = useState('');
+  const [memberActionSuccess, setMemberActionSuccess] = useState('');
+  const [isMemberLoading, setIsMemberLoading] = useState(false);
+  const [isMemberRequesting, setIsMemberRequesting] = useState(false);
+  const [groupOwnerId, setGroupOwnerId] = useState('');
+  const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
   const {
     ready,
     conversations,
@@ -62,6 +82,8 @@ const Chat: React.FC = () => {
     loadMessages,
     loadMoreMessages,
     sendTextMessage,
+    clearConversationUnread,
+    refreshConversations,
     getGroupInfo,
     getGroupMembers
   } = useIm();
@@ -74,6 +96,24 @@ const Chat: React.FC = () => {
   const conversationKey = id ? `${conversationType}:${id}` : '';
   const imMessages = conversationKey ? (messagesByConversation[conversationKey] || []) : [];
   const chatTitle = conversation?.conversationTitle || groupTitle || (isGroup ? '群聊' : '私聊');
+  const friendId = !isGroup && id ? Number(id) : 0;
+  const hasFriendId = Number.isFinite(friendId) && friendId > 0;
+  const currentUserId = user?.ID ? String(user.ID) : '';
+  const selectedMemberId = selectedMember?.id || '';
+  const selectedMemberNumericId = /^[0-9]+$/.test(selectedMemberId) ? Number(selectedMemberId) : 0;
+  const isGroupOwnerOrAdmin = Boolean(
+    isGroup
+      && currentUserId
+      && (groupOwnerId === currentUserId || groupAdminIds.includes(currentUserId))
+  );
+  const canStartPrivateChat = isGroupOwnerOrAdmin && selectedMemberNumericId > 0;
+  const friendDisplayName = friendProfile?.displayName
+    || friendProfile?.username
+    || friendProfile?.phone
+    || (hasFriendId ? `用户${friendId}` : chatTitle);
+  const memberDisplayName = memberProfile?.username
+    || selectedMember?.name
+    || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
 
   const formatMessageText = (msg: any) => {
     if (!msg) return '';
@@ -95,6 +135,63 @@ const Chat: React.FC = () => {
   const countAnnouncementChars = (value: string) => Array.from(value || '').length;
   const announcementLength = countAnnouncementChars(announcementDraft);
   const announcementRemaining = MAX_ANNOUNCEMENT_LENGTH - announcementLength;
+  const parseGroupAdminIds = (value?: string) => {
+    if (!value) return [];
+    return value
+      .split(/[,\s;|]+/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  };
+
+  const loadFriendProfile = useCallback(async () => {
+    if (!hasFriendId) {
+      setFriendProfile(null);
+      return;
+    }
+    setIsProfileLoading(true);
+    setFriendActionError('');
+    try {
+      const res = await friendApi.listFriends(500);
+      const match = (res.items || []).find((item) => item.id === friendId) || null;
+      setFriendProfile(match);
+    } catch (err: any) {
+      setFriendProfile(null);
+      setFriendActionError(err?.message || '好友信息获取失败');
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [friendId, hasFriendId]);
+
+  const loadMemberProfile = useCallback(async () => {
+    if (!selectedMember) {
+      setMemberProfile(null);
+      setMemberIsFriend(false);
+      return;
+    }
+    setIsMemberLoading(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      let profile: FriendProfile | null = null;
+      if (selectedMemberNumericId) {
+        const res = await friendApi.search(String(selectedMemberNumericId));
+        profile = res?.[0] || null;
+      }
+      let isFriend = false;
+      if (selectedMemberNumericId) {
+        const friendsRes = await friendApi.listFriends(500);
+        isFriend = (friendsRes.items || []).some(item => item.id === selectedMemberNumericId);
+      }
+      setMemberProfile(profile);
+      setMemberIsFriend(isFriend);
+    } catch (err: any) {
+      setMemberProfile(null);
+      setMemberIsFriend(false);
+      setMemberActionError(err?.message || '好友信息获取失败');
+    } finally {
+      setIsMemberLoading(false);
+    }
+  }, [selectedMember, selectedMemberNumericId]);
 
   useEffect(() => {
     if (!id || !ready) return;
@@ -108,9 +205,30 @@ const Chat: React.FC = () => {
   }, [id, ready, conversationType, loadMessages]);
 
   useEffect(() => {
+    if (!id || !ready) return;
+    if (!conversation?.unreadCount) return;
+    const latestUnread = Number(conversation?.latestUnreadIndex || 0);
+    const latestRead = Number(conversation?.latestReadIndex || 0);
+    const unreadCount = Number(conversation?.unreadCount || 0);
+    const unreadIndex = latestUnread > 0 ? latestUnread : (latestRead > 0 && unreadCount > 0 ? latestRead + unreadCount : 0);
+    if (!unreadIndex) return;
+    clearConversationUnread(id, conversationType, unreadIndex).catch(() => null);
+  }, [
+    id,
+    ready,
+    conversationType,
+    conversation?.unreadCount,
+    conversation?.latestUnreadIndex,
+    conversation?.latestReadIndex,
+    clearConversationUnread
+  ]);
+
+  useEffect(() => {
     if (!id || !isGroup) {
       setGroupTitle('');
       setMemberCount(null);
+      setGroupOwnerId('');
+      setGroupAdminIds([]);
       return;
     }
     let active = true;
@@ -121,6 +239,12 @@ const Chat: React.FC = () => {
       if (!active) return;
       if (info?.groupName) setGroupTitle(info.groupName);
       if (members?.items) setMemberCount(members.items.length);
+      const ext = info?.extFields || {};
+      const settings = info?.settings || {};
+      const ownerId = (ext.grp_creator || settings.grp_creator || '').trim();
+      const adminRaw = ext.grp_administrators || settings.grp_administrators || '';
+      setGroupOwnerId(ownerId);
+      setGroupAdminIds(parseGroupAdminIds(adminRaw));
     }).catch(() => null);
 
     return () => {
@@ -154,6 +278,30 @@ const Chat: React.FC = () => {
       active = false;
     };
   }, [id, isGroup]);
+
+  useEffect(() => {
+    setFriendProfile(null);
+    setFriendActionError('');
+    setShowFriendMenu(false);
+    setShowFriendProfile(false);
+    setSelectedMember(null);
+    setMemberProfile(null);
+    setMemberIsFriend(false);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    setShowMemberMenu(false);
+    setShowMemberProfile(false);
+  }, [id]);
+
+  useEffect(() => {
+    if (!showFriendMenu && !showFriendProfile) return;
+    loadFriendProfile().catch(() => null);
+  }, [showFriendMenu, showFriendProfile, loadFriendProfile]);
+
+  useEffect(() => {
+    if (!showMemberMenu && !showMemberProfile) return;
+    loadMemberProfile().catch(() => null);
+  }, [showMemberMenu, showMemberProfile, loadMemberProfile]);
 
   useEffect(() => {
     const cutoffTime = cutoffTimeRef.current;
@@ -270,12 +418,91 @@ const Chat: React.FC = () => {
       navigate(`/group/${id}`);
       return;
     }
-    window.alert('暂不支持查看资料');
+    setFriendActionError('');
+    setShowFriendMenu(true);
+  };
+
+  const handleViewFriendProfile = () => {
+    setShowFriendMenu(false);
+    setShowFriendProfile(true);
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!hasFriendId) {
+      setFriendActionError('无法识别好友信息');
+      return;
+    }
+    if (!window.confirm('确定删除好友？')) return;
+    setIsRemovingFriend(true);
+    setFriendActionError('');
+    try {
+      await friendApi.removeFriend(friendId);
+      await refreshConversations().catch(() => null);
+      setShowFriendMenu(false);
+      setShowFriendProfile(false);
+      navigate(-1);
+    } catch (err: any) {
+      setFriendActionError(err?.message || '删除失败');
+    } finally {
+      setIsRemovingFriend(false);
+    }
   };
 
   const handleAvatarClick = (msg: ChatMessage) => {
     if (msg.sender === 'me') return;
-    window.alert('暂不支持查看资料');
+    if (!isGroup) {
+      window.alert('暂不支持查看资料');
+      return;
+    }
+    const senderId = String(msg.senderId || '');
+    setSelectedMember({
+      id: senderId,
+      name: msg.senderName || '群友'
+    });
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    setShowMemberMenu(true);
+  };
+
+  const handleViewMemberProfile = () => {
+    setShowMemberMenu(false);
+    setShowMemberProfile(true);
+  };
+
+  const handleStartPrivateChat = () => {
+    if (!canStartPrivateChat) {
+      setMemberActionError('暂无权限发起对话');
+      return;
+    }
+    if (!selectedMemberNumericId) {
+      setMemberActionError('无法识别用户');
+      return;
+    }
+    setShowMemberMenu(false);
+    setShowMemberProfile(false);
+    navigate(`/chat/${selectedMemberNumericId}`);
+  };
+
+  const handleSendFriendRequest = async () => {
+    if (!selectedMemberNumericId) {
+      setMemberActionError('无法识别用户');
+      return;
+    }
+    if (memberIsFriend) {
+      setMemberActionSuccess('对方已经是好友');
+      return;
+    }
+    setIsMemberRequesting(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      await friendApi.createRequest(selectedMemberNumericId);
+      setMemberActionSuccess('好友申请已发送');
+    } catch (err: any) {
+      setMemberActionError(err?.message || '发送失败');
+    } finally {
+      setIsMemberRequesting(false);
+    }
   };
 
   const handleHeaderDoubleClick = () => {
@@ -578,6 +805,198 @@ const Chat: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showMemberMenu && isGroup && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowMemberMenu(false)}
+          ></div>
+          <div className="relative w-full sm:max-w-sm card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">成员操作</h3>
+                <p className="text-xs text-slate-500 mt-1">{memberDisplayName}</p>
+              </div>
+              {isMemberLoading && (
+                <span className="text-[10px] text-slate-500">资料加载中...</span>
+              )}
+            </div>
+
+            {memberActionError && (
+              <div className="mt-3 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                {memberActionError}
+              </div>
+            )}
+
+            {memberActionSuccess && (
+              <div className="mt-3 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                {memberActionSuccess}
+              </div>
+            )}
+
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={handleViewMemberProfile}
+                className="w-full bg-accent-gradient text-black font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
+              >
+                查看资料
+              </button>
+              {canStartPrivateChat && (
+                <button
+                  onClick={handleStartPrivateChat}
+                  className="w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors"
+                >
+                  发起对话
+                </button>
+              )}
+              <button
+                onClick={handleSendFriendRequest}
+                disabled={isMemberRequesting || memberIsFriend || !selectedMemberNumericId}
+                className={`w-full text-white font-bold py-3 rounded-xl bg-emerald-500/90 ${isMemberRequesting || memberIsFriend || !selectedMemberNumericId ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+              >
+                {memberIsFriend ? '已是好友' : (isMemberRequesting ? '发送中...' : '加好友')}
+              </button>
+              <button
+                onClick={() => setShowMemberMenu(false)}
+                className="w-full py-2.5 rounded-xl border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMemberProfile && isGroup && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-6">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowMemberProfile(false)}
+          ></div>
+          <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>成员资料</h3>
+              <button
+                onClick={() => setShowMemberProfile(false)}
+                className="text-slate-500 hover:text-slate-300 p-1"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full overflow-hidden border border-theme">
+                <img
+                  src={memberProfile?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${selectedMemberNumericId || 'member'}`}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <div className="text-base font-bold text-[var(--text-primary)]">{memberDisplayName}</div>
+                <div className="text-xs text-slate-500">ID: {selectedMemberNumericId || '-'}</div>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2 text-xs text-slate-500">
+              <div className="flex items-center justify-between">
+                <span>用户名</span>
+                <span className="text-[var(--text-primary)]">{memberProfile?.username || memberDisplayName}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFriendMenu && !isGroup && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowFriendMenu(false)}
+          ></div>
+          <div className="relative w-full sm:max-w-sm card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">好友操作</h3>
+                <p className="text-xs text-slate-500 mt-1">{friendDisplayName}</p>
+              </div>
+              {isProfileLoading && (
+                <span className="text-[10px] text-slate-500">资料加载中...</span>
+              )}
+            </div>
+
+            {friendActionError && (
+              <div className="mt-3 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                {friendActionError}
+              </div>
+            )}
+
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={handleViewFriendProfile}
+                className="w-full bg-accent-gradient text-black font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
+              >
+                查看资料
+              </button>
+              <button
+                onClick={handleRemoveFriend}
+                disabled={isRemovingFriend || !hasFriendId}
+                className={`w-full text-white font-bold py-3 rounded-xl bg-rose-500/90 ${isRemovingFriend || !hasFriendId ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+              >
+                {isRemovingFriend ? '删除中...' : '删除好友'}
+              </button>
+              <button
+                onClick={() => setShowFriendMenu(false)}
+                className="w-full py-2.5 rounded-xl border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFriendProfile && !isGroup && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center px-6">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowFriendProfile(false)}
+          ></div>
+          <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>好友资料</h3>
+              <button
+                onClick={() => setShowFriendProfile(false)}
+                className="text-slate-500 hover:text-slate-300 p-1"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-full overflow-hidden border border-theme">
+                <img
+                  src={friendProfile?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${friendId || 'friend'}`}
+                  alt="avatar"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div>
+                <div className="text-base font-bold text-[var(--text-primary)]">{friendDisplayName}</div>
+                <div className="text-xs text-slate-500">ID: {hasFriendId ? friendId : '-'}</div>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2 text-xs text-slate-500">
+              <div className="flex items-center justify-between">
+                <span>用户名</span>
+                <span className="text-[var(--text-primary)]">{friendProfile?.username || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>手机号</span>
+                <span className="text-[var(--text-primary)]">{friendProfile?.phone || '-'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAnnouncementEditorOpen && (
         <div className="fixed inset-0 z-[70] bg-black/40 flex items-end sm:items-center justify-center">

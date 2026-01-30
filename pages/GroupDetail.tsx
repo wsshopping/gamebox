@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useIm } from '../context/ImContext';
 import { IMConversationType } from '../services/im/client';
+import { useAuth } from '../context/AuthContext';
 
 const GroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,13 +18,19 @@ const GroupDetail: React.FC = () => {
     tags: string[];
     members: number;
     level: string;
+    ownerId?: string;
   } | null>(null);
   const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string }>>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
   const { conversations, refreshConversations, getGroupInfo, getGroupMembers, ensureConnected } = useIm();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isActionSubmitting, setIsActionSubmitting] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [showActions, setShowActions] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'leave' | 'disband' | null>(null);
+  const [actionError, setActionError] = useState('');
+  const { user } = useAuth();
 
   const isJoined = useMemo(() => {
     if (!id) return false;
@@ -31,6 +38,11 @@ const GroupDetail: React.FC = () => {
       conv.conversationId === id && conv.conversationType === IMConversationType.GROUP
     ));
   }, [conversations, id]);
+
+  const isOwner = useMemo(() => {
+    if (!group?.ownerId || !user?.ID) return false;
+    return String(user.ID) === String(group.ownerId);
+  }, [group?.ownerId, user?.ID]);
 
   useEffect(() => {
     if (!id) return;
@@ -60,6 +72,7 @@ const GroupDetail: React.FC = () => {
 
       const ext = info.extFields || {};
       const settings = info.settings || {};
+      const ownerId = ext.grp_creator || settings.grp_creator || '';
       const rawTags = ext.tags || settings.tags || '';
       const tags = rawTags
         ? rawTags.split(/[, ]+/).map(tag => tag.trim()).filter(Boolean)
@@ -83,7 +96,8 @@ const GroupDetail: React.FC = () => {
         category,
         tags,
         members: memberItems.length,
-        level: levelLabel
+        level: levelLabel,
+        ownerId
       });
     };
 
@@ -127,6 +141,32 @@ const GroupDetail: React.FC = () => {
     }
   };
 
+  const handleActionSelect = (action: 'leave' | 'disband') => {
+    setShowActions(false);
+    setActionError('');
+    setConfirmAction(action);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!group || !confirmAction) return;
+    setActionError('');
+    setIsActionSubmitting(true);
+    try {
+      if (confirmAction === 'leave') {
+        await api.im.leaveGroup({ groupId: group.id });
+      } else {
+        await api.im.disbandGroup({ groupId: group.id });
+      }
+      await refreshConversations().catch(() => null);
+      setConfirmAction(null);
+      navigate(-1);
+    } catch (e: any) {
+      setActionError(e?.message || '操作失败');
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
        <div className="app-bg min-h-screen flex items-center justify-center">
@@ -151,7 +191,14 @@ const GroupDetail: React.FC = () => {
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/30 transition-colors border border-white/10">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <button className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/30 transition-colors border border-white/10">
+          <button
+            onClick={() => {
+              if (isJoined) {
+                setShowActions(true);
+              }
+            }}
+            className={`w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white transition-colors border border-white/10 ${isJoined ? 'hover:bg-black/30' : 'opacity-50 cursor-not-allowed'}`}
+          >
              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
           </button>
        </div>
@@ -250,6 +297,70 @@ const GroupDetail: React.FC = () => {
              )}
           </div>
        </div>
+
+       {showActions && (
+         <>
+           <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)}></div>
+           <div className="fixed top-16 right-4 z-50 card-bg border border-theme rounded-xl shadow-xl overflow-hidden w-40">
+             <button
+               onClick={() => handleActionSelect('leave')}
+               className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
+               style={{ color: 'var(--text-primary)' }}
+             >
+               退出群
+             </button>
+             <div className="h-px bg-white/5 mx-2"></div>
+             <button
+               onClick={() => handleActionSelect('disband')}
+               disabled={!isOwner}
+               className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${isOwner ? 'hover:bg-white/5 text-rose-400' : 'text-slate-500 cursor-not-allowed'}`}
+             >
+               解散群
+             </button>
+           </div>
+         </>
+       )}
+
+       {confirmAction && (
+         <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+           <div
+             className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+             onClick={() => !isActionSubmitting && setConfirmAction(null)}
+           ></div>
+
+           <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+             <div className="mb-4">
+               <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>确认操作</h3>
+               <p className="text-xs text-slate-500 mt-1">
+                 {confirmAction === 'leave' ? '确定退出该群聊吗？' : '确定解散该群聊吗？'}
+               </p>
+             </div>
+
+             {actionError && (
+               <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2 mb-4">
+                 {actionError}
+               </div>
+             )}
+
+             <div className="grid grid-cols-2 gap-3">
+               <button
+                 onClick={() => setConfirmAction(null)}
+                 disabled={isActionSubmitting}
+                 className="w-full py-3 rounded-xl border border-theme text-sm font-bold text-slate-200 hover:bg-white/5 disabled:opacity-60"
+               >
+                 取消
+               </button>
+               <button
+                 onClick={handleConfirmAction}
+                 disabled={isActionSubmitting || (confirmAction === 'disband' && !isOwner)}
+                 className={`w-full py-3 rounded-xl text-sm font-bold text-black bg-accent-gradient ${isActionSubmitting ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+               >
+                 {isActionSubmitting ? '处理中...' : '确认'}
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 };

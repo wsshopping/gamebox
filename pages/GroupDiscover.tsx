@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIm } from '../context/ImContext';
 import { useAuth } from '../context/AuthContext';
@@ -14,12 +14,22 @@ type ChatItem = {
   read: boolean;
   avatar?: string;
   unreadCount?: number;
+  conversationType: number;
+  isTop?: boolean;
 };
 
 const GroupDiscover: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { ready, conversations, refreshConversations, getGroupInfo, createGroup } = useIm();
+  const {
+    ready,
+    conversations,
+    refreshConversations,
+    removeConversation,
+    setTopConversation,
+    getGroupInfo,
+    createGroup
+  } = useIm();
 
   const [activeTab, setActiveTab] = useState<'chats' | 'contacts' | 'me'>('chats');
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -37,6 +47,8 @@ const GroupDiscover: React.FC = () => {
   const [friendSearchDone, setFriendSearchDone] = useState(false);
   const [friendSearchLoading, setFriendSearchLoading] = useState(false);
   const [friendRequestingId, setFriendRequestingId] = useState<number | null>(null);
+  const [friendRemovingId, setFriendRemovingId] = useState<number | null>(null);
+  const [selectedFriend, setSelectedFriend] = useState<FriendItem | null>(null);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState('');
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestItem[]>([]);
@@ -46,6 +58,9 @@ const GroupDiscover: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
+  const [swipeActionId, setSwipeActionId] = useState<string | null>(null);
+  const swipeRef = useRef({ id: '', startX: 0, startY: 0, active: false });
   const [createFormData, setCreateFormData] = useState({
     name: '',
     category: '游戏交流',
@@ -123,7 +138,9 @@ const GroupDiscover: React.FC = () => {
         type: isGroup ? 'group' : 'social',
         read: !conv.unreadCount || conv.unreadCount === 0,
         avatar: conv.conversationPortrait,
-        unreadCount: conv.unreadCount || 0
+        unreadCount: conv.unreadCount || 0,
+        conversationType: conv.conversationType,
+        isTop: Boolean(conv.isTop)
       };
     });
 
@@ -137,6 +154,10 @@ const GroupDiscover: React.FC = () => {
   }, [conversations, headerSearch]);
 
   const handleChatClick = (chatId: string) => {
+    if (openSwipeId === chatId) {
+      setOpenSwipeId(null);
+      return;
+    }
     navigate(`/chat/${chatId}`);
   };
 
@@ -192,6 +213,43 @@ const GroupDiscover: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleSwipeStart = (chatId: string, event: React.TouchEvent | React.MouseEvent) => {
+    const point = 'touches' in event ? event.touches[0] : event;
+    if (openSwipeId && openSwipeId !== chatId) {
+      setOpenSwipeId(null);
+    }
+    swipeRef.current = {
+      id: chatId,
+      startX: point.clientX,
+      startY: point.clientY,
+      active: true
+    };
+  };
+
+  const handleSwipeMove = (chatId: string, event: React.TouchEvent | React.MouseEvent) => {
+    if (!swipeRef.current.active || swipeRef.current.id !== chatId) return;
+    const point = 'touches' in event ? event.touches[0] : event;
+    const deltaX = point.clientX - swipeRef.current.startX;
+    const deltaY = point.clientY - swipeRef.current.startY;
+    if (Math.abs(deltaY) > 28 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      swipeRef.current.active = false;
+      return;
+    }
+    if (deltaX < -40) {
+      setOpenSwipeId(chatId);
+      swipeRef.current.active = false;
+      return;
+    }
+    if (deltaX > 40 && openSwipeId === chatId) {
+      setOpenSwipeId(null);
+      swipeRef.current.active = false;
+    }
+  };
+
+  const handleSwipeEnd = () => {
+    swipeRef.current.active = false;
   };
 
   const handleFriendSearch = async () => {
@@ -274,6 +332,34 @@ const GroupDiscover: React.FC = () => {
     }
   };
 
+  const handleRemoveFriend = async (friendId: number): Promise<boolean> => {
+    setFriendRemovingId(friendId);
+    setContactsError('');
+    try {
+      await friendApi.removeFriend(friendId);
+      await loadContacts();
+      await refreshConversations().catch(() => null);
+      return true;
+    } catch (e: any) {
+      setContactsError(e?.message || '删除失败');
+      return false;
+    } finally {
+      setFriendRemovingId(null);
+    }
+  };
+
+  const handleFriendActionChat = (friend: FriendItem) => {
+    setSelectedFriend(null);
+    navigate(`/chat/${friend.id}`);
+  };
+
+  const handleFriendActionRemove = async (friend: FriendItem) => {
+    const ok = await handleRemoveFriend(friend.id);
+    if (ok) {
+      setSelectedFriend(null);
+    }
+  };
+
   const handleCreateGroup = async () => {
     const name = createFormData.name.trim();
     if (!name) {
@@ -311,6 +397,29 @@ const GroupDiscover: React.FC = () => {
 
   const userName = user?.username || '游客';
   const userId = user?.ID ? String(user.ID) : '';
+  const swipeOffset = 128;
+
+  const handlePinToggle = async (chat: ChatItem) => {
+    setSwipeActionId(chat.id);
+    try {
+      await setTopConversation(chat.id, chat.conversationType, !chat.isTop);
+      await refreshConversations().catch(() => null);
+    } finally {
+      setSwipeActionId(null);
+      setOpenSwipeId(null);
+    }
+  };
+
+  const handleRemoveChat = async (chat: ChatItem) => {
+    setSwipeActionId(chat.id);
+    try {
+      await removeConversation(chat.id, chat.conversationType);
+      await refreshConversations().catch(() => null);
+    } finally {
+      setSwipeActionId(null);
+      setOpenSwipeId(null);
+    }
+  };
 
   return (
     <div className="app-bg min-h-screen flex flex-col transition-colors duration-500 relative">
@@ -393,43 +502,81 @@ const GroupDiscover: React.FC = () => {
             </div>
           ) : (
             <div className="flex flex-col">
-              {chatList.map((chat) => (
-                <div
-                  key={chat.id}
-                  onClick={() => handleChatClick(chat.id)}
-                  className="flex items-center px-4 py-3 cursor-pointer transition-colors active:bg-white/5 hover:bg-white/5 relative group"
-                >
-                  <div className="relative mr-4">
-                    <img
-                      src={chat.avatar || `https://picsum.photos/100/100?random=${chat.id}`}
-                      alt={chat.title}
-                      className="w-14 h-14 rounded-full object-cover bg-slate-800 border border-theme/50"
-                    />
-                    {chat.type === 'group' && (
-                      <div className="absolute bottom-0 right-0 bg-purple-500/80 text-white rounded-full p-0.5 border-2 border-[var(--bg-primary)] scale-75">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
+              {chatList.map((chat) => {
+                const isOpen = openSwipeId === chat.id;
+                return (
+                  <div key={chat.id} className="relative overflow-hidden">
+                  <div
+                    className={`absolute inset-y-0 right-0 w-32 flex items-center justify-end gap-2 pr-2 transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  >
+                      <button
+                        onClick={() => handlePinToggle(chat)}
+                        disabled={swipeActionId === chat.id}
+                        className={`text-[10px] font-bold px-3 py-2 rounded-xl border border-theme text-slate-200 ${swipeActionId === chat.id ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/5'}`}
+                      >
+                        {chat.isTop ? '取消置顶' : '置顶'}
+                      </button>
+                      <button
+                        onClick={() => handleRemoveChat(chat)}
+                        disabled={swipeActionId === chat.id}
+                        className={`text-[10px] font-bold px-3 py-2 rounded-xl bg-rose-500/90 text-white ${swipeActionId === chat.id ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                      >
+                        删除
+                      </button>
+                    </div>
 
-                  <div className="flex-1 min-w-0 pr-2 py-1 border-b border-theme/30 group-last:border-none h-full flex flex-col justify-center">
-                    <div className="flex justify-between items-center mb-1">
-                      <h3 className="text-[16px] font-bold text-[var(--text-primary)] truncate">{chat.title}</h3>
-                      <span className={`text-xs ${!chat.read ? 'text-accent font-bold' : 'text-slate-500'}`}>{chat.time}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500 truncate text-xs max-w-[70%]">{chat.content}</span>
-                      {!chat.read && (
-                        <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center rounded-full">
-                          {chat.unreadCount || 1}
+                    <div
+                      onClick={() => handleChatClick(chat.id)}
+                      onTouchStart={(event) => handleSwipeStart(chat.id, event)}
+                      onTouchMove={(event) => handleSwipeMove(chat.id, event)}
+                      onTouchEnd={handleSwipeEnd}
+                      onMouseDown={(event) => handleSwipeStart(chat.id, event)}
+                      onMouseMove={(event) => handleSwipeMove(chat.id, event)}
+                      onMouseUp={handleSwipeEnd}
+                      onMouseLeave={handleSwipeEnd}
+                      style={{ transform: isOpen ? `translateX(-${swipeOffset}px)` : 'translateX(0px)' }}
+                      className="flex items-center px-4 py-3 cursor-pointer transition-transform duration-200 active:bg-white/5 hover:bg-white/5 relative group"
+                    >
+                      <div className="relative mr-4">
+                        <img
+                          src={chat.avatar || `https://picsum.photos/100/100?random=${chat.id}`}
+                          alt={chat.title}
+                          className="w-14 h-14 rounded-full object-cover bg-slate-800 border border-theme/50"
+                        />
+                        {chat.type === 'group' && (
+                          <div className="absolute bottom-0 right-0 bg-purple-500/80 text-white rounded-full p-0.5 border-2 border-[var(--bg-primary)] scale-75">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0 pr-2 py-1 border-b border-theme/30 group-last:border-none h-full flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="text-[16px] font-bold text-[var(--text-primary)] truncate">{chat.title}</h3>
+                            {chat.isTop && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                                置顶
+                              </span>
+                            )}
+                          </div>
+                          <span className={`text-xs ${!chat.read ? 'text-accent font-bold' : 'text-slate-500'}`}>{chat.time}</span>
                         </div>
-                      )}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500 truncate text-xs max-w-[70%]">{chat.content}</span>
+                          {!chat.read && (
+                            <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center rounded-full">
+                              {chat.unreadCount || 1}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         )}
@@ -559,15 +706,21 @@ const GroupDiscover: React.FC = () => {
                 friendList.map(item => {
                   const name = item.displayName || item.username || item.phone || `用户${item.id}`;
                   return (
-                    <div key={item.id} className="card-bg border border-theme rounded-xl p-3 flex items-center gap-3">
-                      <img
-                        src={item.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.id}`}
-                        className="w-12 h-12 rounded-full border border-theme object-cover"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
-                        <div className="text-[10px] text-slate-500 truncate">手机号: {item.phone || '-'}</div>
-                        <div className="text-[10px] text-slate-500">ID: {item.id}</div>
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedFriend(item)}
+                      className="card-bg border border-theme rounded-xl p-3 flex items-center justify-between gap-3 cursor-pointer hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={item.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.id}`}
+                          className="w-12 h-12 rounded-full border border-theme object-cover"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
+                          <div className="text-[10px] text-slate-500 truncate">手机号: {item.phone || '-'}</div>
+                          <div className="text-[10px] text-slate-500">ID: {item.id}</div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -724,6 +877,41 @@ const GroupDiscover: React.FC = () => {
               {friendSearchDone && friendResults.length === 0 && !friendError && (
                 <div className="text-xs text-slate-500 text-center">未找到匹配用户</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Friend Action Modal */}
+      {selectedFriend && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setSelectedFriend(null)}
+          ></div>
+
+          <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>好友操作</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {selectedFriend.displayName || selectedFriend.username || selectedFriend.phone || `用户${selectedFriend.id}`}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => handleFriendActionChat(selectedFriend)}
+                className="w-full bg-accent-gradient text-black font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-transform"
+              >
+                对话
+              </button>
+              <button
+                onClick={() => handleFriendActionRemove(selectedFriend)}
+                disabled={friendRemovingId === selectedFriend.id}
+                className={`w-full text-white font-bold py-3.5 rounded-xl bg-rose-500/90 ${friendRemovingId === selectedFriend.id ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+              >
+                {friendRemovingId === selectedFriend.id ? '删除中...' : '删除'}
+              </button>
             </div>
           </div>
         </div>

@@ -88,6 +88,9 @@ interface ImContextValue {
     isFinished: boolean
   }>
   sendTextMessage: (conversationId: string, conversationType: number, text: string) => Promise<ImMessage | null>
+  clearConversationUnread: (conversationId: string, conversationType: number, unreadIndex?: number) => Promise<void>
+  removeConversation: (conversationId: string, conversationType: number) => Promise<void>
+  setTopConversation: (conversationId: string, conversationType: number, isTop: boolean) => Promise<void>
   getGroupInfo: (groupId: string) => Promise<ImGroupInfo | null>
   getGroupMembers: (groupId: string) => Promise<ImGroupMembers | null>
   createGroup: (payload: ImCreateGroupPayload) => Promise<ImCreateGroupResponse | null>
@@ -272,7 +275,12 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         count: 50,
         time: 0
       })
-      const sorted = [...(list || [])].sort((a, b) => (b?.sortTime || 0) - (a?.sortTime || 0))
+      const sorted = [...(list || [])].sort((a, b) => {
+        const aTop = a?.isTop ? 1 : 0
+        const bTop = b?.isTop ? 1 : 0
+        if (aTop !== bTop) return bTop - aTop
+        return (b?.sortTime || 0) - (a?.sortTime || 0)
+      })
       setConversations(sorted)
       setDebugInfo(prev => ({ ...prev, lastRefreshAt: Date.now() }))
       appendDebugLog(`refresh conversations ok (${sorted.length})`)
@@ -344,6 +352,44 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     })
     scheduleRefresh()
     return sent
+  }, [scheduleRefresh])
+
+  const clearConversationUnread = useCallback(async (conversationId: string, conversationType: number, unreadIndex?: number) => {
+    const client = clientRef.current as any
+    if (!client?.clearUnreadcount) return
+    let nextIndex = unreadIndex || 0
+    if (!nextIndex) {
+      const current = conversations.find((item: any) => item.conversationId === conversationId && item.conversationType === conversationType)
+      const latestUnread = Number(current?.latestUnreadIndex || 0)
+      const latestRead = Number(current?.latestReadIndex || 0)
+      const unreadCount = Number(current?.unreadCount || 0)
+      if (latestUnread > 0) {
+        nextIndex = latestUnread
+      } else if (latestRead > 0 && unreadCount > 0) {
+        nextIndex = latestRead + unreadCount
+      }
+    }
+    if (!nextIndex) return
+    await client.clearUnreadcount([{
+      conversationId,
+      conversationType,
+      unreadIndex: nextIndex
+    }])
+    scheduleRefresh()
+  }, [conversations, scheduleRefresh])
+
+  const removeConversation = useCallback(async (conversationId: string, conversationType: number) => {
+    const client = clientRef.current as any
+    if (!client?.removeConversation) return
+    await client.removeConversation({ conversationId, conversationType })
+    scheduleRefresh()
+  }, [scheduleRefresh])
+
+  const setTopConversation = useCallback(async (conversationId: string, conversationType: number, isTop: boolean) => {
+    const client = clientRef.current as any
+    if (!client?.setTopConversation) return
+    await client.setTopConversation({ conversationId, conversationType, isTop })
+    scheduleRefresh()
   }, [scheduleRefresh])
 
   const getGroupInfo = useCallback(async (groupId: string) => {
@@ -669,6 +715,9 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     loadMessages,
     loadMoreMessages,
     sendTextMessage,
+    clearConversationUnread,
+    removeConversation,
+    setTopConversation,
     getGroupInfo,
     getGroupMembers,
     createGroup
