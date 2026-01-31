@@ -39,9 +39,9 @@ const Feedback: React.FC = () => {
   };
 
   return (
-    <div className="app-bg min-h-screen flex flex-col transition-colors duration-500">
+    <div className="app-bg min-h-screen pt-20 flex flex-col transition-colors duration-500">
       {/* Header - Minimalist */}
-      <div className="glass-bg sticky top-0 z-40 px-6 py-4 flex items-center justify-between border-b border-theme transition-colors duration-500">
+      <div className="glass-bg fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 px-6 py-4 flex items-center justify-between border-b border-theme transition-colors duration-500">
          <div className="flex items-center">
             <button 
               onClick={() => navigate(-1)} 

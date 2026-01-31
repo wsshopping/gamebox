@@ -37,9 +37,9 @@ const Search: React.FC = () => {
   };
 
   return (
-    <div className="app-bg min-h-screen pb-10 transition-colors duration-500">
+    <div className="app-bg min-h-screen pb-10 pt-20 transition-colors duration-500">
       {/* Search Header */}
-      <div className="flex items-center p-4 border-b border-theme sticky top-0 glass-bg z-20">
+      <div className="flex items-center p-4 border-b border-theme fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md glass-bg z-20">
          <button onClick={() => navigate(-1)} className="mr-3 text-slate-500 hover:text-[var(--text-primary)] p-1">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
          </button>

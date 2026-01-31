@@ -13,8 +13,8 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
   const navigate = useNavigate();
   
   return (
-    <div className="min-h-screen app-bg pb-20">
-      <div className="glass-bg px-4 py-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme">
+    <div className="min-h-screen app-bg pb-20 pt-20">
+      <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
          <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
          </button>
@@ -94,8 +94,8 @@ const PasswordChangePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen app-bg pb-20">
-      <div className="glass-bg px-4 py-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme">
+    <div className="min-h-screen app-bg pb-20 pt-20">
+      <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
          <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
          </button>
@@ -184,8 +184,8 @@ const UsernameChangePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen app-bg pb-20">
-      <div className="glass-bg px-4 py-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme">
+    <div className="min-h-screen app-bg pb-20 pt-20">
+      <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
          <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
          </button>

@@ -28,10 +28,10 @@ const Trade: React.FC<TradeProps> = ({ isEmbedded = false }) => {
   }, [category]);
 
   return (
-    <div className={`app-bg min-h-full transition-colors duration-500 ${isEmbedded ? '' : ''}`}>
+    <div className={`app-bg min-h-full transition-colors duration-500 ${isEmbedded ? '' : 'pt-20'}`}>
       {/* Header - Only show if not embedded (Standalone Mode) */}
       {!isEmbedded && (
-        <div className="glass-bg p-5 sticky top-0 z-40 shadow-sm flex justify-between items-center border-b border-theme transition-colors duration-500">
+        <div className="glass-bg p-5 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex justify-between items-center border-b border-theme transition-colors duration-500">
           <h1 className="text-xl font-bold tracking-tight" style={{color: 'var(--text-primary)'}}>交易市场</h1>
           <button className="text-sm text-accent font-medium hover:brightness-110 transition-colors">我的发布</button>
         </div>

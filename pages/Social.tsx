@@ -32,9 +32,9 @@ const Social: React.FC = () => {
   const sliderLeft = `calc(${(100 / tabCount).toFixed(2)}% * ${activeIndex} + 2px)`;
 
   return (
-    <div className="app-bg min-h-full flex flex-col transition-colors duration-500">
+    <div className="app-bg min-h-full pt-20 flex flex-col transition-colors duration-500">
       {/* Sticky Tab Header - Premium Dark Glass */}
-      <div className="glass-bg sticky top-0 z-40 border-b border-theme pt-4 pb-3 transition-colors duration-500">
+      <div className="glass-bg fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 border-b border-theme pt-4 pb-3 transition-colors duration-500">
         <div className="flex justify-center px-4">
            <div className="relative flex w-full max-w-sm bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
              {/* Slider Background - Adaptive color */}

@@ -28,9 +28,9 @@ const GameCenter: React.FC = () => {
   }, [activeTab]);
 
   return (
-    <div className="app-bg min-h-full pb-6 transition-colors duration-500">
+    <div className="app-bg min-h-full pb-6 pt-20 transition-colors duration-500">
       {/* Search Header */}
-      <div className="glass-bg p-4 sticky top-0 z-40 border-b border-theme transition-colors duration-500">
+      <div className="glass-bg p-4 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 border-b border-theme transition-colors duration-500">
         <div 
           onClick={() => navigate('/search')}
           className="card-bg border border-theme rounded-full flex items-center px-4 py-2.5 cursor-pointer hover:border-accent/50 transition-colors shadow-sm"
