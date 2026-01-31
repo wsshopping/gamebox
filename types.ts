@@ -137,6 +137,7 @@ export interface Message {
   title: string;
   content: string;
   time: string;
+  sortTime?: number;
   type: 'system' | 'social' | 'activity' | 'group';
   read: boolean;
   avatar?: string;

@@ -46,15 +46,27 @@ export const messageApi = {
 
     return [...systemMessages, ...interactionMessages].sort((a, b) => parseMessageTime(b.time) - parseMessageTime(a.time));
   },
-  getSystemNotifications: async (status: 'all' | 'unread' = 'all'): Promise<SystemNotification[]> => {
+  getSystemNotifications: async (
+    status: 'all' | 'unread' = 'all',
+    page = 1,
+    pageSize = 10
+  ): Promise<SystemNotification[]> => {
     const params = new URLSearchParams();
     params.set('status', status);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
     const data = await request<PageResult<SystemNotification>>(`/portal/message/system?${params.toString()}`);
     return data.list || [];
   },
-  getInteractions: async (status: 'all' | 'unread' = 'all'): Promise<Interaction[]> => {
+  getInteractions: async (
+    status: 'all' | 'unread' = 'all',
+    page = 1,
+    pageSize = 10
+  ): Promise<Interaction[]> => {
     const params = new URLSearchParams();
     params.set('status', status);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
     const data = await request<PageResult<Interaction>>(`/portal/message/interactions?${params.toString()}`);
     return data.list || [];
   },

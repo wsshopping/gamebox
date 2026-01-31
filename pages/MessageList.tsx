@@ -43,6 +43,36 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     return '[新消息]';
   };
 
+  const formatNotificationDisplayTime = (value: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const pad = (num: number) => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const parseMessageTime = (value: string) => {
+    if (!value) return 0;
+    const normalized = value.replace(' ', 'T');
+    const date = new Date(normalized);
+    const ts = date.getTime();
+    return Number.isNaN(ts) ? 0 : ts;
+  };
+
+  const buildInteractionPreview = (item: Interaction) => {
+    switch (item.type) {
+      case 'like':
+        return `赞了你的${item.targetContent || '内容'}`;
+      case 'comment':
+        return `评论: "${item.targetContent || ''}"`;
+      case 'follow':
+        return '关注了你';
+      case 'mention':
+        return '在评论中提到了你';
+      default:
+        return item.targetContent || '';
+    }
+  };
 
   const mapImConversations = () => {
     return imConversations.map((conv: any) => {
@@ -54,6 +84,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
         content: formatImPreview(latest),
         time: formatImTime(latest?.sentTime || conv.sortTime),
+        sortTime: Number(latest?.sentTime || conv.sortTime || 0),
         type: isGroup ? 'group' : 'social',
         read: !conv.unreadCount || conv.unreadCount === 0,
         avatar: conv.conversationPortrait,
@@ -75,8 +106,48 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
 
   const fetchData = async () => {
     if (viewMode === 'main') {
-      setIsLoading(!imReady);
-      setMessages(imReady ? mapImConversations() : []);
+      setIsLoading(true);
+      const imItems = imReady ? mapImConversations() : [];
+      try {
+        const unreadPromise = api.message.getUnreadCount().catch(() => null);
+        const [systemList, interactionList, unreadCounts] = await Promise.all([
+          api.message.getSystemNotifications('all', 1, 1),
+          api.message.getInteractions('all', 1, 1),
+          unreadPromise
+        ]);
+        const summaryItems: Message[] = [];
+        const latestSystem = systemList[0];
+        if (latestSystem) {
+          summaryItems.push({
+            id: `system-latest-${latestSystem.id}`,
+            title: '系统通知',
+            content: latestSystem.title || latestSystem.content,
+            time: formatNotificationDisplayTime(latestSystem.time),
+            sortTime: parseMessageTime(latestSystem.time),
+            type: 'system',
+            read: unreadCounts ? unreadCounts.system === 0 : latestSystem.read
+          });
+        }
+        const latestInteraction = interactionList[0];
+        if (latestInteraction) {
+          summaryItems.push({
+            id: `interaction-latest-${latestInteraction.id}`,
+            title: '互动消息',
+            content: `${latestInteraction.userName} ${buildInteractionPreview(latestInteraction)}`.trim(),
+            time: formatNotificationDisplayTime(latestInteraction.time),
+            sortTime: parseMessageTime(latestInteraction.time),
+            type: 'activity',
+            read: unreadCounts ? unreadCounts.interactions === 0 : latestInteraction.read
+          });
+        }
+        const merged = [...summaryItems, ...imItems].sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+        setMessages(merged);
+      } catch (error) {
+        console.error('Failed to load messages', error);
+        setMessages(imItems);
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
     setIsLoading(true);
@@ -172,7 +243,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
              <div className="flex-1">
                <div className="flex justify-between items-start mb-1">
                  <h3 className="font-bold text-sm" style={{color: 'var(--text-primary)'}}>{note.title}</h3>
-                 <span className="text-xs text-slate-500">{note.time}</span>
+                 <span className="text-xs text-slate-500">{formatNotificationDisplayTime(note.time)}</span>
                </div>
                <p className="text-xs text-slate-400 leading-relaxed">{note.content}</p>
              </div>
@@ -207,7 +278,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
              <div className="flex-1 min-w-0">
                <div className="flex justify-between items-baseline">
                  <h3 className="text-sm font-bold truncate" style={{color: 'var(--text-primary)'}}>{item.userName}</h3>
-                 <span className="text-[10px] text-slate-500">{item.time}</span>
+                 <span className="text-[10px] text-slate-500">{formatNotificationDisplayTime(item.time)}</span>
                </div>
                <p className="text-xs text-slate-400 truncate">
                  {item.type === 'like' && `赞了你的${item.targetContent}`}
