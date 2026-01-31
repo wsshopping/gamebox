@@ -47,6 +47,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     return imConversations.map((conv: any) => {
       const isGroup = conv.conversationType === IMConversationType.GROUP;
       const latest = conv.latestMessage;
+      const senderName = latest?.sender?.name || latest?.senderName || latest?.sender?.id || '';
       return {
         id: conv.conversationId,
         title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
@@ -55,7 +56,8 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         type: isGroup ? 'group' : 'social',
         read: !conv.unreadCount || conv.unreadCount === 0,
         avatar: conv.conversationPortrait,
-        members: conv.unreadCount
+        members: conv.unreadCount,
+        senderName: senderName ? String(senderName) : ''
       } as Message;
     });
   };
@@ -333,7 +335,9 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                            <span className="text-xs text-slate-500 flex-shrink-0">{msg.time}</span>
                         </div>
                         <p className="text-xs text-slate-400 line-clamp-1">
-                           {msg.type === 'group' && !msg.content.includes(':') ? <span className="text-slate-500 mr-1">张三:</span> : ''}
+                           {msg.type === 'group' && !msg.content.includes(':') ? (
+                             <span className="text-slate-500 mr-1">{msg.senderName || '群友'}:</span>
+                           ) : ''}
                            {msg.content}
                         </p>
                      </div>

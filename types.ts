@@ -58,6 +58,7 @@ export interface Message {
   read: boolean;
   avatar?: string;
   members?: number;
+  senderName?: string;
 }
 
 // New Types
