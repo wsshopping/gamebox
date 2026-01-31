@@ -15,6 +15,9 @@ interface ChatMessage {
   time: string;
   type: 'text' | 'image';
   imageUrl?: string;
+  sentAt?: number;
+  status?: 'failed' | 'sending';
+  isLocal?: boolean;
 }
 
 const EMOJIS = ['😀', '😂', '🤣', '😍', '😭', '😡', '👍', '🙏', '🎉', '🔥', '❤️', '💔', '💩', '👻', '💀', '👽', '🤖', '🎃', '🎄', '🎁', '🎈', '💪', '👀', '👂', '👃', '🧠', '🦷', '🦴', '🤝', '👋'];
@@ -45,6 +48,7 @@ const Chat: React.FC = () => {
   const { user } = useAuth();
   const [inputText, setInputText] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -77,6 +81,7 @@ const Chat: React.FC = () => {
   const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
   const {
     ready,
+    connected,
     conversations,
     messagesByConversation,
     loadMessages,
@@ -114,6 +119,7 @@ const Chat: React.FC = () => {
   const memberDisplayName = memberProfile?.username
     || selectedMember?.name
     || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
+  const isOffline = !connected;
 
   const formatMessageText = (msg: any) => {
     if (!msg) return '';
@@ -322,10 +328,16 @@ const Chat: React.FC = () => {
       senderId: msg.sender?.id || msg.senderId,
       time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
       type: msg.name === IMMessageType.IMAGE ? 'image' : 'text',
-      imageUrl: msg.content?.imageUri || msg.content?.url
+      imageUrl: msg.content?.imageUri || msg.content?.url,
+      sentAt: msg.sentTime || 0
     }));
-    setMessages(mapped);
-  }, [imMessages]);
+    const combined = [...mapped, ...localMessages].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0));
+    setMessages(combined);
+  }, [imMessages, localMessages]);
+
+  useEffect(() => {
+    setLocalMessages([]);
+  }, [id]);
 
   useEffect(() => {
     if (!isLoading && !isLoadingMore) {
@@ -397,14 +409,60 @@ const Chat: React.FC = () => {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim() || !id) return;
+    const content = inputText.trim();
+    if (!content || !id) return;
+    setInputText('');
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (isOffline) {
+      const now = Date.now();
+      setLocalMessages(prev => ([
+        ...prev,
+        {
+          id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          text: content,
+          sender: 'me',
+          time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'text',
+          sentAt: now,
+          status: 'failed',
+          isLocal: true
+        }
+      ]));
+      return;
+    }
     try {
-      await sendTextMessage(id, conversationType, inputText.trim());
-      setInputText('');
-      setShowEmojiPicker(false);
-      setShowActionMenu(false);
+      await sendTextMessage(id, conversationType, content);
     } catch (e) {
-      console.error(e);
+      const now = Date.now();
+      setLocalMessages(prev => ([
+        ...prev,
+        {
+          id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          text: content,
+          sender: 'me',
+          time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'text',
+          sentAt: now,
+          status: 'failed',
+          isLocal: true
+        }
+      ]));
+    }
+  };
+
+  const handleRetryMessage = async (msg: ChatMessage) => {
+    if (!id || msg.status !== 'failed') return;
+    setLocalMessages(prev => prev.map(item => (
+      item.id === msg.id ? { ...item, status: 'sending' } : item
+    )));
+    try {
+      await sendTextMessage(id, conversationType, msg.text);
+      setLocalMessages(prev => prev.filter(item => item.id !== msg.id));
+    } catch (e) {
+      setLocalMessages(prev => prev.map(item => (
+        item.id === msg.id ? { ...item, status: 'failed' } : item
+      )));
     }
   };
 
@@ -616,6 +674,13 @@ const Chat: React.FC = () => {
          </button>
       </div>
 
+      {!connected && (
+        <div className="flex-none bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs px-4 py-2 flex items-center gap-2">
+          <span className="font-bold">离线</span>
+          <span>消息发送失败可点击叹号重试</span>
+        </div>
+      )}
+
       {isGroup && (
         <div className="flex-none border-b border-theme bg-[var(--bg-card)]/80 backdrop-blur">
           <div className="px-4 py-2.5 flex items-start gap-3">
@@ -709,6 +774,16 @@ const Chat: React.FC = () => {
                         </div>
                       )}
                    </div>
+
+                   {msg.sender === 'me' && msg.status === 'failed' && (
+                     <button
+                       onClick={(e) => { e.stopPropagation(); handleRetryMessage(msg); }}
+                       className="ml-2 w-6 h-6 rounded-full border border-rose-500/40 text-rose-400 flex items-center justify-center text-xs font-bold hover:bg-rose-500/10"
+                       title="点击重发"
+                     >
+                       !
+                     </button>
+                   )}
 
                    {msg.sender === 'me' && (
                      <div className="flex-shrink-0 ml-2">
