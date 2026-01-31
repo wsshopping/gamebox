@@ -36,6 +36,13 @@ const GroupDetail: React.FC = () => {
   const [renameError, setRenameError] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMembersSheet, setShowMembersSheet] = useState(false);
+  const [showMemberActions, setShowMemberActions] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<{ id: string; name?: string } | null>(null);
+  const [memberIsFriend, setMemberIsFriend] = useState(false);
+  const [memberActionError, setMemberActionError] = useState('');
+  const [memberActionSuccess, setMemberActionSuccess] = useState('');
+  const [isMemberLoading, setIsMemberLoading] = useState(false);
+  const [isMemberRequesting, setIsMemberRequesting] = useState(false);
   const { user } = useAuth();
 
   const isJoined = useMemo(() => {
@@ -56,6 +63,15 @@ const GroupDetail: React.FC = () => {
   }, [group?.adminIds, user?.ID]);
 
   const canRename = isOwner || isAdmin;
+  const canManageMemberActions = isOwner || isAdmin;
+  const currentUserId = user?.ID ? String(user.ID) : '';
+  const selectedMemberId = selectedMember?.id || '';
+  const selectedMemberNumericId = /^[0-9]+$/.test(selectedMemberId) ? Number(selectedMemberId) : 0;
+  const isSelfSelected = currentUserId !== '' && String(selectedMemberNumericId) === currentUserId;
+  const canStartPrivateChat = canManageMemberActions && selectedMemberNumericId > 0 && !isSelfSelected;
+  const canAddFriend = canManageMemberActions && selectedMemberNumericId > 0 && !isSelfSelected;
+  const memberDisplayName = selectedMember?.name
+    || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
 
   const parseGroupAdminIds = (value?: string) => {
     if (!value) return [];
@@ -141,6 +157,92 @@ const GroupDetail: React.FC = () => {
       active = false;
     };
   }, [getGroupInfo, getGroupMembers, id]);
+
+  useEffect(() => {
+    if (!showMemberActions || !canAddFriend) {
+      setMemberIsFriend(false);
+      return;
+    }
+    let active = true;
+    setIsMemberLoading(true);
+    setMemberActionError('');
+    api.friend.listFriends(500)
+      .then((res) => {
+        if (!active) return;
+        const isFriend = (res.items || []).some(item => item.id === selectedMemberNumericId);
+        setMemberIsFriend(isFriend);
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setMemberActionError(err?.message || '好友信息获取失败');
+        setMemberIsFriend(false);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsMemberLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [showMemberActions, canAddFriend, selectedMemberNumericId]);
+
+  const handleMemberSelect = (member: { memberId: string; displayName?: string }) => {
+    setSelectedMember({ id: member.memberId, name: member.displayName });
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    setMemberIsFriend(false);
+    setShowMemberActions(true);
+  };
+
+  const handleMemberActionsClose = () => {
+    if (isMemberRequesting) return;
+    setShowMemberActions(false);
+    setSelectedMember(null);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    setMemberIsFriend(false);
+  };
+
+  const handleStartPrivateChat = () => {
+    if (!canStartPrivateChat) {
+      setMemberActionError('暂无权限发起对话');
+      return;
+    }
+    if (!selectedMemberNumericId) {
+      setMemberActionError('无法识别用户');
+      return;
+    }
+    setShowMemberActions(false);
+    navigate(`/chat/${selectedMemberNumericId}`);
+  };
+
+  const handleSendFriendRequest = async () => {
+    if (!canAddFriend) {
+      setMemberActionError('暂无权限发起好友申请');
+      return;
+    }
+    if (!selectedMemberNumericId) {
+      setMemberActionError('无法识别用户');
+      return;
+    }
+    if (memberIsFriend) {
+      setMemberActionSuccess('对方已经是好友');
+      return;
+    }
+    setIsMemberRequesting(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      await api.friend.createRequest(selectedMemberNumericId);
+      setMemberActionSuccess('好友申请已发送');
+      setMemberIsFriend(true);
+    } catch (err: any) {
+      setMemberActionError(err?.message || '发送失败');
+    } finally {
+      setIsMemberRequesting(false);
+    }
+  };
 
   const handleJoin = async () => {
     if (!id) return;
@@ -548,9 +650,11 @@ const GroupDetail: React.FC = () => {
                    const isOwnerBadge = group?.ownerId && String(member.memberId) === String(group.ownerId);
                    const isAdminBadge = group?.adminIds?.includes(String(member.memberId));
                    return (
-                     <div
+                     <button
                        key={member.memberId}
-                       className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-theme"
+                       type="button"
+                       onClick={() => handleMemberSelect(member)}
+                       className="w-full flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-theme hover:border-accent transition-colors"
                      >
                        <div className="flex items-center gap-3">
                          <img
@@ -575,12 +679,77 @@ const GroupDetail: React.FC = () => {
                            </span>
                          )}
                        </div>
-                     </div>
+                     </button>
                    );
                  })
                ) : (
                  <div className="text-sm text-slate-500 text-center py-8">成员加载中...</div>
                )}
+             </div>
+           </div>
+         </div>
+       )}
+
+       {showMemberActions && (
+         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center">
+           <div
+             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+             onClick={handleMemberActionsClose}
+           ></div>
+           <div className="relative w-full sm:max-w-sm card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
+             <div className="flex items-start justify-between">
+               <div>
+                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">成员操作</h3>
+                 <p className="text-xs text-slate-500 mt-1">{memberDisplayName}</p>
+                 <p className="text-[10px] text-slate-600 mt-1">ID: {selectedMemberId || '-'}</p>
+               </div>
+               {isMemberLoading && (
+                 <span className="text-[10px] text-slate-500">资料加载中...</span>
+               )}
+             </div>
+
+             {memberActionError && (
+               <div className="mt-3 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                 {memberActionError}
+               </div>
+             )}
+
+             {memberActionSuccess && (
+               <div className="mt-3 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                 {memberActionSuccess}
+               </div>
+             )}
+
+             <div className="mt-4 space-y-2">
+               {canManageMemberActions ? (
+                 <>
+                   {canStartPrivateChat && (
+                     <button
+                       onClick={handleStartPrivateChat}
+                       className="w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors"
+                     >
+                       私聊
+                     </button>
+                   )}
+                   <button
+                     onClick={handleSendFriendRequest}
+                     disabled={isMemberRequesting || memberIsFriend || !canAddFriend}
+                     className={`w-full text-white font-bold py-3 rounded-xl bg-emerald-500/90 ${isMemberRequesting || memberIsFriend || !canAddFriend ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                   >
+                     {memberIsFriend ? '已是好友' : (isMemberRequesting ? '发送中...' : '加好友')}
+                   </button>
+                 </>
+               ) : (
+                 <div className="text-xs text-slate-500 bg-white/5 border border-theme rounded-xl px-3 py-2">
+                   仅群主/管理员可操作
+                 </div>
+               )}
+               <button
+                 onClick={handleMemberActionsClose}
+                 className="w-full py-3 rounded-xl border border-theme text-sm text-slate-400 hover:bg-white/5 transition-colors"
+               >
+                 关闭
+               </button>
              </div>
            </div>
          </div>
