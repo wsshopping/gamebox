@@ -451,7 +451,9 @@ const Chat: React.FC = () => {
   const handleAvatarClick = (msg: ChatMessage) => {
     if (msg.sender === 'me') return;
     if (!isGroup) {
-      window.alert('暂不支持查看资料');
+      setShowFriendMenu(false);
+      setFriendActionError('');
+      setShowFriendProfile(true);
       return;
     }
     const senderId = String(msg.senderId || '');
