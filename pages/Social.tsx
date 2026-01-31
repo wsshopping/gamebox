@@ -7,11 +7,19 @@ import { useAuth } from '../context/AuthContext';
 
 const Social: React.FC = () => {
   const { user } = useAuth();
-  const isSuperAdmin = Number(user?.role?.id ?? user?.roleId) === 1;
+  const roleId = Number(user?.role?.id ?? user?.roleId || 0);
+  const isSuperAdmin = roleId === 1;
+  const isAgent = roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5;
   const tabs = useMemo(() => {
-    const base = ['trade', 'message', 'agency'];
-    return isSuperAdmin ? [...base, 'superadmin'] : base;
-  }, [isSuperAdmin]);
+    const base = ['trade', 'message'];
+    if (isSuperAdmin || isAgent) {
+      base.push('agency');
+    }
+    if (isSuperAdmin) {
+      base.push('superadmin');
+    }
+    return base;
+  }, [isAgent, isSuperAdmin]);
   const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency' | 'superadmin'>(tabs[0] as any);
   const tabCount = tabs.length;
   const activeIndex = tabs.indexOf(activeTab);
