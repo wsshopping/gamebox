@@ -65,7 +65,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showAssistant, setShowAssistant] = useState(false);
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/groups/discover'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/groups/discover', '/chat/center'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   useEffect(() => {
@@ -134,7 +134,8 @@ const AppRoutes: React.FC = () => {
           <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
 
           {/* Group Discovery */}
-          <Route path="/groups/discover" element={<GroupDiscover />} />
+          <Route path="/groups/discover" element={<Navigate to="/chat/center" replace />} />
+          <Route path="/chat/center" element={<GroupDiscover />} />
         
           {/* Welfare/Task Routes */}
           <Route path="/task" element={<Navigate to="/screen-welfare" replace />} />

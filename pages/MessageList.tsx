@@ -288,7 +288,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               </div>
               
               <div 
-                onClick={() => navigate('/groups/discover')}
+                onClick={() => navigate('/chat/center')}
                 className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
               >
                  <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
