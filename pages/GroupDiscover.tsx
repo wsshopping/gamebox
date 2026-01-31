@@ -588,7 +588,7 @@ const GroupDiscover: React.FC = () => {
                           <span className="text-slate-500 truncate text-xs max-w-[70%]">{chat.content}</span>
                           {!chat.read && (
                             <div className="bg-red-500 text-white text-[10px] font-bold px-1.5 h-4 min-w-[16px] flex items-center justify-center rounded-full">
-                              {chat.unreadCount || 1}
+                              {chat.unreadCount && chat.unreadCount > 99 ? '99+' : (chat.unreadCount || 1)}
                             </div>
                           )}
                         </div>
