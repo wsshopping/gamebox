@@ -57,9 +57,11 @@ const GameDetail: React.FC = () => {
   return (
     <div className="app-bg min-h-screen relative pb-10 transition-colors duration-500">
       {/* Back Button */}
-      <button onClick={() => navigate(-1)} className="absolute top-4 left-4 z-50 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full backdrop-blur-md transition-all border border-white/10">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-      </button>
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 p-4">
+        <button onClick={() => navigate(-1)} className="bg-black/40 hover:bg-black/60 text-white p-2 rounded-full backdrop-blur-md transition-all border border-white/10">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+      </div>
 
       {/* Hero Image */}
       <div className="h-64 relative overflow-hidden">
