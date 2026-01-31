@@ -24,8 +24,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const user = authStorage.getUser()
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...((options.headers as Record<string, string>) || {})
+  }
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
   }
 
   if (!options.skipAuth && token) {

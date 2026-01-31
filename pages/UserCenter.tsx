@@ -3,14 +3,65 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { GAMES, TRADE_ITEMS } from '../services/mockData';
+import { GAMES } from '../services/mockData';
 import GameCard from '../components/GameCard';
+import { api } from '../services/api';
 import { userApi } from '../services/api/user';
 import { useIm } from '../context/ImContext';
+import { TradeOrder } from '../types';
 
 // Sub-page Component
 const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'default' }> = ({ title, type }) => {
   const navigate = useNavigate();
+  const [tradeOrders, setTradeOrders] = useState<TradeOrder[]>([]);
+  const [tradeLoading, setTradeLoading] = useState(false);
+  const [tradeError, setTradeError] = useState('');
+
+  useEffect(() => {
+    if (type !== 'trade') {
+      return;
+    }
+    let active = true;
+    setTradeLoading(true);
+    setTradeError('');
+    api.trade.listOrders('buyer')
+      .then(res => {
+        if (active) {
+          setTradeOrders(res.items);
+        }
+      })
+      .catch((err: any) => {
+        if (active) {
+          setTradeError(err?.message || '加载失败');
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setTradeLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [type]);
+
+  const tradeStatusLabel: Record<string, string> = {
+    pending_delivery: '待发货',
+    delivering: '已发货',
+    completed: '已完成',
+    canceled: '已取消',
+    disputed: '申诉中',
+    refunded: '已退款'
+  };
+
+  const formatOrderTime = (raw?: string) => {
+    if (!raw) return '';
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) {
+      return raw;
+    }
+    return date.toLocaleDateString();
+  };
   
   return (
     <div className="min-h-screen app-bg pb-20 pt-20">
@@ -33,18 +84,29 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
 
         {type === 'trade' && (
            <div className="space-y-3">
-             {TRADE_ITEMS.slice(0, 1).map(item => (
-                <div key={item.id} className="card-bg p-4 rounded-xl border border-theme flex justify-between items-center">
+             {tradeLoading && (
+               <div className="text-center text-xs text-slate-500">加载中...</div>
+             )}
+             {!tradeLoading && tradeError && (
+               <div className="text-center text-xs text-rose-400">{tradeError}</div>
+             )}
+             {!tradeLoading && !tradeError && tradeOrders.length === 0 && (
+               <div className="text-center text-xs text-slate-500">暂无记录</div>
+             )}
+             {!tradeLoading && !tradeError && tradeOrders.map(order => (
+                <div key={order.id} className="card-bg p-4 rounded-xl border border-theme flex justify-between items-center">
                    <div className="flex items-center space-x-3">
                       <div className="w-12 h-12 bg-white/5 rounded-lg overflow-hidden border border-theme">
-                        <img src={item.image} className="w-full h-full object-cover" />
+                        {order.listingImage && <img src={order.listingImage} className="w-full h-full object-cover" />}
                       </div>
                       <div>
-                        <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>{item.title}</div>
-                        <div className="text-xs text-slate-500">{item.time || '2024-05-20'}</div>
+                        <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>{order.listingTitle}</div>
+                        <div className="text-xs text-slate-500">
+                          {formatOrderTime(order.createdAt)} · {tradeStatusLabel[order.status] || order.status}
+                        </div>
                       </div>
                    </div>
-                   <div className="text-accent font-bold">-¥{item.price}</div>
+                   <div className="text-accent font-bold">{order.pricePoints} 积分</div>
                 </div>
              ))}
            </div>

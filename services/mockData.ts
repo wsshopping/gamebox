@@ -1,5 +1,5 @@
 
-import { Game, TradeItem, Article, Task, Message, SystemNotification, Interaction, GroupRecommendation } from '../types';
+import { Game, Article, Task, Message, SystemNotification, Interaction, GroupRecommendation } from '../types';
 
 export const GAMES: Game[] = [
   {
@@ -89,38 +89,6 @@ export const GAMES: Game[] = [
   }
 ];
 
-export const TRADE_ITEMS: TradeItem[] = [
-  {
-    id: 't1',
-    title: '80级狂战士 - 全套史诗装备',
-    price: 150.00,
-    gameName: '古剑奇谭在线版',
-    seller: 'ProGamer123',
-    image: 'https://picsum.photos/200/200?random=20',
-    server: 'S1-龙腾',
-    type: 'Account'
-  },
-  {
-    id: 't2',
-    title: '100万 金币',
-    price: 10.50,
-    gameName: '王国保卫战',
-    seller: 'GoldFarmer',
-    image: 'https://picsum.photos/200/200?random=21',
-    server: '全区全服',
-    type: 'Currency'
-  },
-  {
-    id: 't3',
-    title: '稀有龙坐骑皮肤',
-    price: 45.00,
-    gameName: '古剑奇谭在线版',
-    seller: 'SkinTrader',
-    image: 'https://picsum.photos/200/200?random=22',
-    server: 'S1-龙腾',
-    type: 'Item'
-  }
-];
 
 export const ARTICLES: Article[] = [
   {

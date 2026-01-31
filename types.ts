@@ -17,17 +17,60 @@ export interface Game {
   developer?: string;
 }
 
-export interface TradeItem {
-  id: string;
+export interface TradeListing {
+  id: number;
   title: string;
-  price: number;
-  gameName: string;
-  seller: string;
-  image: string;
-  server: string;
-  type: 'Account' | 'Item' | 'Currency';
-  // Added time property to support transaction history display
-  time?: string;
+  description: string;
+  category: string;
+  pricePoints: number;
+  stock: number;
+  soldCount: number;
+  status: string;
+  sellerId: number;
+  sellerName: string;
+  sellerAvatar: string;
+  coverImage: string;
+  images: string[];
+  createdAt: string;
+}
+
+export interface TradeListingListResponse {
+  items: TradeListing[];
+  total: number;
+}
+
+export interface TradeListingDetailResponse {
+  listing: TradeListing;
+}
+
+export interface TradeOrder {
+  id: number;
+  listingId: number;
+  listingTitle: string;
+  listingImage: string;
+  category: string;
+  pricePoints: number;
+  status: string;
+  buyerId: number;
+  buyerName: string;
+  sellerId: number;
+  sellerName: string;
+  deliveryText?: string;
+  deliveryAt?: string;
+  confirmAt?: string;
+  cancelAt?: string;
+  autoCancelAt?: string;
+  autoConfirmAt?: string;
+  createdAt: string;
+}
+
+export interface TradeOrderListResponse {
+  items: TradeOrder[];
+  total: number;
+}
+
+export interface TradeOrderDetailResponse {
+  order: TradeOrder;
 }
 
 export interface Article {

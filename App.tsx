@@ -7,6 +7,10 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Home from './pages/Home';
 import GameCenter from './pages/GameCenter';
 import Trade from './pages/Trade';
+import TradeDetail from './pages/TradeDetail';
+import TradeMyListings from './pages/TradeMyListings';
+import TradeOrders from './pages/TradeOrders';
+import TradePublish from './pages/TradePublish';
 import Welfare from './pages/Welfare';
 import UserCenter from './pages/UserCenter';
 import Community from './pages/Community';
@@ -65,7 +69,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showAssistant, setShowAssistant] = useState(false);
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center', '/trade/'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
 
   useEffect(() => {
@@ -130,6 +134,10 @@ const AppRoutes: React.FC = () => {
         
           {/* Social/Trade/Message Routes */}
           <Route path="/trade" element={<Trade />} /> 
+          <Route path="/trade/publish" element={<TradePublish />} />
+          <Route path="/trade/my" element={<TradeMyListings />} />
+          <Route path="/trade/orders" element={<TradeOrders />} />
+          <Route path="/trade/:id" element={<TradeDetail />} />
           <Route path="/message/list" element={<MessageList />} />
           <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
 
