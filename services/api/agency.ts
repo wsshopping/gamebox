@@ -54,6 +54,9 @@ export const agencyApi = {
   getPlayers: async (params?: { keyword?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/players${buildQuery(params)}`)
   },
+  getAllPlayers: async (params?: { keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/players/all${buildQuery(params)}`)
+  },
   getOrders: async (params?: { keyword?: string; status?: string; gameId?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/orders${buildQuery(params)}`)
   },

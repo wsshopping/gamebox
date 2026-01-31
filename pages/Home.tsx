@@ -48,9 +48,9 @@ const Home: React.FC = () => {
   };
 
   return (
-    <div className="app-bg min-h-full pb-10 pt-20 transition-colors duration-500">
+    <div className="app-bg min-h-full pb-10 pt-[calc(5rem+env(safe-area-inset-top))] transition-colors duration-500">
       {/* Premium Header: Dark Glass */}
-      <div className="px-6 py-5 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 flex items-center justify-between glass-bg transition-all">
+      <div className="px-6 py-5 pt-[calc(1.25rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 flex items-center justify-between glass-bg transition-all">
         <div className="flex items-center space-x-3">
           {/* Logo: Obsidian & Gold */}
           <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-[var(--bg-card)] to-[var(--bg-primary)] flex items-center justify-center shadow-[0_0_15px_rgba(251,191,36,0.15)] relative overflow-hidden group border border-theme">

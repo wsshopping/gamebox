@@ -832,13 +832,16 @@ const AgentManagement = ({ roleOptions }: { roleOptions: { id: number; name: str
   );
 };
 
+type SuperAdminTab = 'allAgents' | 'allPlayers' | 'boss' | 'approval' | 'notifications';
+
 const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
-  const [subTab, setSubTab] = useState<'allAgents' | 'boss' | 'approval' | 'notifications'>('allAgents');
+  const [subTab, setSubTab] = useState<SuperAdminTab>('allAgents');
   if (!isSuperAdmin) {
     return <EmptyState title="无权限" />;
   }
   const menuItems = [
     { id: 'allAgents', icon: '📋', label: '全部代理' },
+    { id: 'allPlayers', icon: '👥', label: '全部玩家' },
     { id: 'boss', icon: '👔', label: '老板管理' },
     { id: 'approval', icon: '📝', label: '审批管理' },
     { id: 'notifications', icon: '📣', label: '系统通知' }
@@ -850,7 +853,7 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setSubTab(item.id as 'allAgents' | 'boss' | 'approval')}
+              onClick={() => setSubTab(item.id as SuperAdminTab)}
               className="flex flex-col items-center group transition-all duration-300 relative"
             >
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl mb-2 transition-all duration-300 shadow-sm border ${
@@ -873,6 +876,7 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
         </div>
       </div>
       {subTab === 'allAgents' && <AgentList />}
+      {subTab === 'allPlayers' && <PlayerList scope="all" />}
       {subTab === 'boss' && <BossManagement isSuperAdmin={isSuperAdmin} />}
       {subTab === 'approval' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
       {subTab === 'notifications' && <SystemNotificationAdmin />}
@@ -1256,7 +1260,7 @@ const AgentList = () => {
   );
 };
 
-const PlayerList = () => {
+const PlayerList = ({ scope = 'direct' }: { scope?: 'direct' | 'all' }) => {
   const [keyword, setKeyword] = useState('');
   const [list, setList] = useState<PlayerItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -1267,7 +1271,9 @@ const PlayerList = () => {
   const load = async (nextPage = 1) => {
     setLoading(true);
     try {
-      const data = await api.agency.getPlayers({ keyword: keyword.trim(), page: nextPage, pageSize: PAGE_SIZE });
+      const data = scope === 'all'
+        ? await api.agency.getAllPlayers({ keyword: keyword.trim(), page: nextPage, pageSize: PAGE_SIZE })
+        : await api.agency.getPlayers({ keyword: keyword.trim(), page: nextPage, pageSize: PAGE_SIZE });
       setList(data.list || []);
       setTotal(data.total || 0);
       setPage(nextPage);

@@ -442,9 +442,9 @@ const GroupDiscover: React.FC = () => {
   };
 
   return (
-    <div className="app-bg min-h-screen pt-20 flex flex-col transition-colors duration-500 relative">
+    <div className="app-bg min-h-screen pt-[calc(5rem+env(safe-area-inset-top))] flex flex-col transition-colors duration-500 relative">
       {/* Header */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-theme transition-colors duration-500">
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 pt-[env(safe-area-inset-top)] bg-[var(--bg-primary)]/90 backdrop-blur-xl border-b border-theme transition-colors duration-500">
         <div className="flex items-center px-4 py-2 gap-3 h-14">
           <button
             onClick={() => navigate(-1)}

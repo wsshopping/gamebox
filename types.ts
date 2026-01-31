@@ -49,6 +49,46 @@ export interface Task {
   icon: string;
 }
 
+export interface WelfareOverview {
+  balance: number;
+  signinRewardPoints: number;
+  signedIn: boolean;
+  signedAt: string;
+  blindboxCostPoints: number;
+  blindboxDailyLimit: number;
+  todayDrawCount: number;
+}
+
+export interface WelfareReward {
+  type: 'points' | 'item';
+  value: string;
+}
+
+export interface WelfareSignInResponse {
+  rewardPoints: number;
+  balance: number;
+}
+
+export interface WelfareDrawResponse {
+  reward: WelfareReward;
+  costPoints: number;
+  balance: number;
+}
+
+export interface WelfareLedgerItem {
+  id: number;
+  amount: number;
+  source: string;
+  refType: string;
+  refId: number;
+  createdAt: string;
+}
+
+export interface WelfareLedgerResponse {
+  items: WelfareLedgerItem[];
+  nextCursor: number;
+}
+
 export interface Message {
   id: string;
   title: string;

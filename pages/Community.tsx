@@ -22,8 +22,8 @@ const Community: React.FC = () => {
   }, [activeTab]);
 
   return (
-    <div className="app-bg min-h-full transition-colors duration-500 pb-20 pt-20">
-       <div className="glass-bg p-4 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
+    <div className="app-bg min-h-full transition-colors duration-500 pb-20 pt-[calc(5rem+env(safe-area-inset-top))]">
+       <div className="glass-bg p-4 pt-[calc(1rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
          <h1 className="text-xl font-bold" style={{color: 'var(--text-primary)'}}>社区</h1>
          <div className="flex space-x-2">
            <button className="p-2 text-slate-500 hover:text-[var(--text-primary)] card-bg border border-theme rounded-full transition-colors">

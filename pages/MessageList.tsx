@@ -227,10 +227,10 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const shouldPadTop = !isEmbedded || viewMode !== 'main';
 
   return (
-    <div className={`app-bg min-h-full pb-20 transition-colors duration-500 ${shouldPadTop ? 'pt-20' : ''}`}>
+    <div className={`app-bg min-h-full pb-20 transition-colors duration-500 ${shouldPadTop ? 'pt-[calc(5rem+env(safe-area-inset-top))]' : ''}`}>
       {/* Header for Standalone Mode */}
       {!isEmbedded && (
-        <div className="glass-bg p-4 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
+        <div className="glass-bg p-4 pt-[calc(1rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
            <div className="flex items-center space-x-2">
              {viewMode !== 'main' && (
                <button onClick={() => setViewMode('main')} className="mr-2 text-slate-400 hover:text-[var(--text-primary)] p-1 rounded-full transition-colors">
@@ -251,7 +251,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
 
       {/* Header for Embedded Mode (System & Interactions only) */}
       {isEmbedded && (viewMode === 'system' || viewMode === 'interactions') && (
-        <div className="glass-bg p-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
+        <div className="glass-bg p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
            <button 
              onClick={() => setViewMode('main')} 
              className="mr-3 text-slate-400 hover:text-[var(--text-primary)] p-1.5 rounded-full transition-colors"
