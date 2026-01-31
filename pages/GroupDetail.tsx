@@ -35,6 +35,7 @@ const GroupDetail: React.FC = () => {
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [showMembersSheet, setShowMembersSheet] = useState(false);
   const { user } = useAuth();
 
   const isJoined = useMemo(() => {
@@ -335,10 +336,16 @@ const GroupDetail: React.FC = () => {
                    </div>
                 </div>
 
-                <div>
+               <div>
                    <h3 className="text-sm font-bold mb-3 flex justify-between items-center" style={{color: 'var(--text-primary)'}}>
                       群成员
-                      <span className="text-xs text-slate-400 font-normal">查看全部 &gt;</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowMembersSheet(true)}
+                        className="text-xs text-slate-400 font-normal hover:text-[var(--text-primary)] transition-colors"
+                      >
+                        查看全部 &gt;
+                      </button>
                    </h3>
                    <div className="flex -space-x-2 overflow-hidden py-1">
                       {members.slice(0, 5).map((member) => (
@@ -504,6 +511,76 @@ const GroupDetail: React.FC = () => {
                >
                  {isRenaming ? '保存中...' : '保存'}
                </button>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {showMembersSheet && (
+         <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
+           <div
+             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+             onClick={() => setShowMembersSheet(false)}
+           ></div>
+           <div className="relative w-full sm:max-w-md card-bg rounded-t-2xl sm:rounded-2xl border border-theme shadow-2xl animate-fade-in-up">
+             <div className="p-5 border-b border-theme flex items-center justify-between">
+               <div>
+                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">群成员</h3>
+                 <p className="text-xs text-slate-500 mt-1">
+                   {membersLoaded ? `${members.length} 人` : '加载中...'}
+                 </p>
+               </div>
+               <button
+                 onClick={() => setShowMembersSheet(false)}
+                 className="text-slate-500 hover:text-slate-300 p-1"
+                 aria-label="关闭"
+               >
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
+               {membersLoaded ? (
+                 members.map(member => {
+                   const displayName = member.displayName || `用户${member.memberId}`;
+                   const isOwnerBadge = group?.ownerId && String(member.memberId) === String(group.ownerId);
+                   const isAdminBadge = group?.adminIds?.includes(String(member.memberId));
+                   return (
+                     <div
+                       key={member.memberId}
+                       className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-theme"
+                     >
+                       <div className="flex items-center gap-3">
+                         <img
+                           src={`https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(member.memberId)}`}
+                           alt={displayName}
+                           className="w-10 h-10 rounded-full object-cover border border-theme"
+                         />
+                         <div>
+                           <div className="text-sm font-semibold text-[var(--text-primary)]">{displayName}</div>
+                           <div className="text-[10px] text-slate-500">ID: {member.memberId}</div>
+                         </div>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         {isOwnerBadge && (
+                           <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-full">
+                             群主
+                           </span>
+                         )}
+                         {!isOwnerBadge && isAdminBadge && (
+                           <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-full">
+                             管理员
+                           </span>
+                         )}
+                       </div>
+                     </div>
+                   );
+                 })
+               ) : (
+                 <div className="text-sm text-slate-500 text-center py-8">成员加载中...</div>
+               )}
              </div>
            </div>
          </div>
