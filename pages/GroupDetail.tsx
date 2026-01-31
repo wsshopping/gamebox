@@ -19,6 +19,7 @@ const GroupDetail: React.FC = () => {
     members: number;
     level: string;
     ownerId?: string;
+    adminIds?: string[];
   } | null>(null);
   const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string }>>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
@@ -30,6 +31,10 @@ const GroupDetail: React.FC = () => {
   const [showActions, setShowActions] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'leave' | 'disband' | null>(null);
   const [actionError, setActionError] = useState('');
+  const [showRename, setShowRename] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const { user } = useAuth();
 
   const isJoined = useMemo(() => {
@@ -43,6 +48,21 @@ const GroupDetail: React.FC = () => {
     if (!group?.ownerId || !user?.ID) return false;
     return String(user.ID) === String(group.ownerId);
   }, [group?.ownerId, user?.ID]);
+
+  const isAdmin = useMemo(() => {
+    if (!group?.adminIds || !user?.ID) return false;
+    return group.adminIds.includes(String(user.ID));
+  }, [group?.adminIds, user?.ID]);
+
+  const canRename = isOwner || isAdmin;
+
+  const parseGroupAdminIds = (value?: string) => {
+    if (!value) return [];
+    return value
+      .split(/[,\s;|]+/)
+      .map(item => item.trim())
+      .filter(Boolean);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -73,6 +93,8 @@ const GroupDetail: React.FC = () => {
       const ext = info.extFields || {};
       const settings = info.settings || {};
       const ownerId = ext.grp_creator || settings.grp_creator || '';
+      const adminRaw = ext.grp_administrators || settings.grp_administrators || '';
+      const adminIds = parseGroupAdminIds(adminRaw);
       const rawTags = ext.tags || settings.tags || '';
       const tags = rawTags
         ? rawTags.split(/[, ]+/).map(tag => tag.trim()).filter(Boolean)
@@ -97,7 +119,8 @@ const GroupDetail: React.FC = () => {
         tags,
         members: memberItems.length,
         level: levelLabel,
-        ownerId
+        ownerId,
+        adminIds
       });
     };
 
@@ -167,6 +190,52 @@ const GroupDetail: React.FC = () => {
     }
   };
 
+  const validateGroupName = (value: string): string | null => {
+    if (value.trim() !== value) {
+      return '群名称不能包含空格';
+    }
+    const trimmed = value.trim();
+    const length = Array.from(trimmed).length;
+    if (length < 2 || length > 20) {
+      return '群名称长度需为2-20字符';
+    }
+    if (!/^[A-Za-z0-9\u4e00-\u9fa5]+$/.test(trimmed)) {
+      return '群名称仅支持中文、英文、数字';
+    }
+    return null;
+  };
+
+  const handleRenameOpen = () => {
+    if (!group) return;
+    setRenameDraft(group.name);
+    setRenameError('');
+    setShowRename(true);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!group || isRenaming) return;
+    const error = validateGroupName(renameDraft);
+    if (error) {
+      setRenameError(error);
+      return;
+    }
+    setIsRenaming(true);
+    setRenameError('');
+    try {
+      const res = await api.im.updateGroupName({
+        groupId: group.id,
+        groupName: renameDraft.trim()
+      });
+      setGroup(prev => (prev ? { ...prev, name: res.groupName } : prev));
+      await refreshConversations().catch(() => null);
+      setShowRename(false);
+    } catch (e: any) {
+      setRenameError(e?.message || '修改失败');
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   if (isLoading) {
     return (
        <div className="app-bg min-h-screen flex items-center justify-center">
@@ -214,7 +283,20 @@ const GroupDetail: React.FC = () => {
           <div className="card-bg rounded-3xl p-6 shadow-xl border border-theme">
              <div className="flex flex-col items-center -mt-16 mb-4">
                 <img src={group.avatar} alt="avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-md object-cover" />
-                <h1 className="text-xl font-black mt-3 text-center" style={{color: 'var(--text-primary)'}}>{group.name}</h1>
+                <div className="flex items-center justify-center gap-2 mt-3">
+                  <h1 className="text-xl font-black text-center" style={{color: 'var(--text-primary)'}}>{group.name}</h1>
+                  {canRename && (
+                    <button
+                      onClick={handleRenameOpen}
+                      className="p-1 rounded-full text-slate-400 hover:text-[var(--text-primary)] hover:bg-white/5 transition-colors"
+                      aria-label="修改群名"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5h6m-6 4h6m-6 4h6M5 7h.01M5 11h.01M5 15h.01M4 19h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 mt-1">ID: {String(group.id).toUpperCase()}</p>
              </div>
 
@@ -356,6 +438,71 @@ const GroupDetail: React.FC = () => {
                  className={`w-full py-3 rounded-xl text-sm font-bold text-black bg-accent-gradient ${isActionSubmitting ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
                >
                  {isActionSubmitting ? '处理中...' : '确认'}
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {showRename && (
+         <div className="fixed inset-0 z-[70] flex items-center justify-center px-6">
+           <div
+             className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+             onClick={() => !isRenaming && setShowRename(false)}
+           ></div>
+
+           <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+             <div className="flex justify-between items-center mb-5">
+               <div>
+                 <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>修改群名称</h3>
+                 <p className="text-xs text-slate-500 mt-1">2-20字，仅中文/英文/数字</p>
+               </div>
+               <button
+                 onClick={() => setShowRename(false)}
+                 disabled={isRenaming}
+                 className="text-slate-500 hover:text-slate-300 p-1 disabled:opacity-60"
+                 aria-label="关闭"
+               >
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="space-y-3">
+               <input
+                 type="text"
+                 value={renameDraft}
+                 onChange={(event) => {
+                   setRenameDraft(event.target.value);
+                   setRenameError('');
+                 }}
+                 placeholder="请输入群名称"
+                 maxLength={20}
+                 className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:border-accent/50 transition-colors"
+                 autoFocus
+               />
+               {renameError && (
+                 <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2">
+                   {renameError}
+                 </div>
+               )}
+             </div>
+
+             <div className="grid grid-cols-2 gap-3 mt-5">
+               <button
+                 onClick={() => setShowRename(false)}
+                 disabled={isRenaming}
+                 className="w-full py-3 rounded-xl border border-theme text-sm font-bold text-slate-200 hover:bg-white/5 disabled:opacity-60"
+               >
+                 取消
+               </button>
+               <button
+                 onClick={handleRenameSubmit}
+                 disabled={isRenaming}
+                 className={`w-full py-3 rounded-xl text-sm font-bold text-black bg-accent-gradient ${isRenaming ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+               >
+                 {isRenaming ? '保存中...' : '保存'}
                </button>
              </div>
            </div>

@@ -30,6 +30,16 @@ export interface IMGroupAnnouncementRequest {
   content: string
 }
 
+export interface IMGroupRenameRequest {
+  groupId: string
+  groupName: string
+}
+
+export interface IMGroupRenameResponse {
+  groupId: string
+  groupName: string
+}
+
 export const imApi = {
   getToken: async (): Promise<IMTokenResponse> => {
     return request<IMTokenResponse>('/portal/im/token')
@@ -60,6 +70,12 @@ export const imApi = {
   },
   setGroupAnnouncement: async (payload: IMGroupAnnouncementRequest): Promise<IMGroupAnnouncementResponse> => {
     return request<IMGroupAnnouncementResponse>('/portal/im/groups/announcement', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  updateGroupName: async (payload: IMGroupRenameRequest): Promise<IMGroupRenameResponse> => {
+    return request<IMGroupRenameResponse>('/portal/im/groups/name', {
       method: 'POST',
       body: JSON.stringify(payload)
     })
