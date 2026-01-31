@@ -301,8 +301,18 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const loadMessages = useCallback(async (conversationId: string, conversationType: number) => {
     const client = clientRef.current
     if (!client) return []
-    const { messages } = await client.getMessages({ conversationId, conversationType })
-    const sorted = sortMessages(messages || [])
+    const fetchMessages = async () => client.getMessages({ conversationId, conversationType })
+    let result = await fetchMessages()
+    let sorted = sortMessages(result.messages || [])
+    if (sorted.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 80))
+      const retry = await fetchMessages()
+      const retrySorted = sortMessages(retry.messages || [])
+      if (retrySorted.length > 0) {
+        result = retry
+        sorted = retrySorted
+      }
+    }
     const range = getSentTimeRange(sorted)
     logIm('loadMessages', { conversationId, conversationType, count: sorted.length, range })
     setMessagesByConversation(prev => ({
@@ -316,23 +326,33 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const client = clientRef.current
     if (!client) return { messages: [], isFinished: true }
     logIm('loadMoreMessages:start', { conversationId, conversationType, beforeTime, count })
-    const { messages, isFinished } = await client.getMessages({
+    const fetchMessages = async () => client.getMessages({
       conversationId,
       conversationType,
       time: beforeTime,
       count,
       order: messageOrderBackward
     })
-    const sorted = sortMessages(messages || [])
+    let result = await fetchMessages()
+    let sorted = sortMessages(result.messages || [])
+    if (sorted.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 80))
+      const retry = await fetchMessages()
+      const retrySorted = sortMessages(retry.messages || [])
+      if (retrySorted.length > 0) {
+        result = retry
+        sorted = retrySorted
+      }
+    }
     const range = getSentTimeRange(sorted)
-    logIm('loadMoreMessages:done', { conversationId, conversationType, count: sorted.length, isFinished, range })
+    logIm('loadMoreMessages:done', { conversationId, conversationType, count: sorted.length, isFinished: result.isFinished, range })
     const key = buildKey(conversationId, conversationType)
     setMessagesByConversation(prev => {
       const existing = prev[key] || []
       const merged = mergeMessages(existing, sorted)
       return { ...prev, [key]: merged }
     })
-    return { messages: sorted, isFinished: Boolean(isFinished) }
+    return { messages: sorted, isFinished: Boolean(result.isFinished) }
   }, [])
 
   const sendTextMessage = useCallback(async (conversationId: string, conversationType: number, text: string) => {
