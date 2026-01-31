@@ -61,7 +61,28 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
   );
 };
 
-const PasswordChangePage: React.FC = () => {
+type UserCenterModal = 'username' | 'password' | null;
+
+const ModalShell: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({
+  title,
+  onClose,
+  children
+}) => (
+  <div className="fixed inset-0 z-[80] flex items-center justify-center px-6">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
+    <div className="relative w-full max-w-sm card-bg rounded-[24px] p-6 border border-theme shadow-2xl animate-fade-in-up">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1">
+          关闭
+        </button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const PasswordModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [oldPassword, setOldPassword] = useState('');
@@ -69,6 +90,14 @@ const PasswordChangePage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setError('');
+  }, [open]);
 
   const submit = async () => {
     setError('');
@@ -93,16 +122,11 @@ const PasswordChangePage: React.FC = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen app-bg pb-20 pt-20">
-      <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
-         <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
-           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-         </button>
-         <h1 className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>修改密码</h1>
-      </div>
+  if (!open) return null;
 
-      <div className="p-4 space-y-4">
+  return (
+    <ModalShell title="修改密码" onClose={onClose}>
+      <div className="space-y-4">
         <div className="card-bg rounded-[24px] p-5 border border-theme">
           <label className="block text-xs text-slate-500 mb-2">旧密码</label>
           <input
@@ -150,17 +174,22 @@ const PasswordChangePage: React.FC = () => {
           {saving ? '提交中...' : '确认修改'}
         </button>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 
-const UsernameChangePage: React.FC = () => {
-  const navigate = useNavigate();
+const UsernameModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { user, updateUser } = useAuth();
   const { refreshConversations } = useIm();
   const [username, setUsername] = useState(user?.username || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setUsername(user?.username || '');
+    setError('');
+  }, [open, user?.username]);
 
   const submit = async () => {
     const trimmed = username.trim();
@@ -175,7 +204,7 @@ const UsernameChangePage: React.FC = () => {
       updateUser({ username: updated?.username || trimmed });
       await refreshConversations().catch(() => null);
       window.alert('用户名已更新');
-      navigate('/user');
+      onClose();
     } catch (err: any) {
       setError(err?.message || '修改失败');
     } finally {
@@ -183,16 +212,11 @@ const UsernameChangePage: React.FC = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen app-bg pb-20 pt-20">
-      <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
-         <button onClick={() => navigate('/user')} className="mr-3 text-slate-400 hover:bg-white/10 p-1 rounded-full">
-           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-         </button>
-         <h1 className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>修改用户名</h1>
-      </div>
+  if (!open) return null;
 
-      <div className="p-4 space-y-4">
+  return (
+    <ModalShell title="修改用户名" onClose={onClose}>
+      <div className="space-y-4">
         <div className="card-bg rounded-[24px] p-5 border border-theme">
           <label className="block text-xs text-slate-500 mb-2">用户名</label>
           <input
@@ -219,14 +243,22 @@ const UsernameChangePage: React.FC = () => {
           {saving ? '提交中...' : '确认修改'}
         </button>
       </div>
-    </div>
+    </ModalShell>
   );
 };
 
-const UserCenterMain: React.FC = () => {
+const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: () => void }> = ({
+  initialModal = null,
+  onModalClose
+}) => {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [activeModal, setActiveModal] = useState<UserCenterModal>(initialModal);
+
+  useEffect(() => {
+    setActiveModal(initialModal);
+  }, [initialModal]);
 
   const handleLogout = async () => {
     await logout();
@@ -253,6 +285,20 @@ const UserCenterMain: React.FC = () => {
   };
 
   if (!user) return null;
+
+  const handleModalClose = () => {
+    setActiveModal(null);
+    if (onModalClose) {
+      onModalClose();
+    }
+  };
+
+  const settingsItems = [
+    { id: 'username', name: '修改用户名', icon: '✏️', action: () => setActiveModal('username') },
+    { id: 'password', name: '修改密码', icon: '🔒', action: () => setActiveModal('password') },
+    { id: 'realname', name: '实名认证', icon: '🆔', path: '/user/realname' },
+    { id: 'feedback', name: '客服帮助', icon: '🎧', path: '/user/feedback' }
+  ];
 
   return (
     <div className="app-bg min-h-full transition-colors duration-500">
@@ -375,14 +421,18 @@ const UserCenterMain: React.FC = () => {
          <div>
            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Settings & Support</h4>
            <div className="card-bg rounded-[24px] border border-theme overflow-hidden shadow-sm">
-               {[
-                 { name: '修改用户名', icon: '✏️', path: '/user/username' },
-                 { name: '修改密码', icon: '🔒', path: '/user/password' },
-                 { name: '实名认证', icon: '🆔', path: '/user/realname' },
-                 // Update the link to the new Feedback page
-                 { name: '客服帮助', icon: '🎧', path: '/user/feedback' },
-               ].map((item, i) => (
-                 <div key={item.name} onClick={() => navigate(item.path)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-glass)] transition-colors ${i !== 3 ? 'border-b border-theme' : ''}`}>
+               {settingsItems.map((item, i) => (
+                 <div
+                   key={item.id}
+                   onClick={() => {
+                     if (item.action) {
+                       item.action();
+                     } else if (item.path) {
+                       navigate(item.path);
+                     }
+                   }}
+                   className={`p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-glass)] transition-colors ${i !== settingsItems.length - 1 ? 'border-b border-theme' : ''}`}
+                 >
                     <div className="flex items-center space-x-4">
                        <span className="text-lg opacity-70 w-8 text-center">{item.icon}</span>
                        <span className="text-sm font-semibold" style={{color: 'var(--text-primary)'}}>{item.name}</span>
@@ -397,6 +447,9 @@ const UserCenterMain: React.FC = () => {
             退出登录
          </button>
       </div>
+
+      <UsernameModal open={activeModal === 'username'} onClose={handleModalClose} />
+      <PasswordModal open={activeModal === 'password'} onClose={handleModalClose} />
     </div>
   );
 }
@@ -435,9 +488,9 @@ const UserCenter: React.FC = () => {
   } else if (normalizedPath === '/user/gift') {
     content = <UserSubPage title="我的礼包" type="gift" />;
   } else if (normalizedPath === '/user/username') {
-    content = <UsernameChangePage />;
+    content = <UserCenterMain initialModal="username" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/password') {
-    content = <PasswordChangePage />;
+    content = <UserCenterMain initialModal="password" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/feedback') {
     content = <UserSubPage title="反馈" type="default" />;
   }
