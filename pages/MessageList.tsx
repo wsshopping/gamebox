@@ -276,6 +276,16 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               </div>
               
               <div 
+                onClick={() => navigate('/chat/center')}
+                className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
+              >
+                 <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
+                   👥
+                 </div>
+                 <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">聊天</span>
+              </div>
+
+              <div 
                 onClick={() => setViewMode('interactions')}
                 className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-emerald-500/30 transition-all"
               >
@@ -285,16 +295,6 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-card)] text-[9px] text-white flex items-center justify-center shadow-sm">2</div>
                  </div>
                  <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">互动消息</span>
-              </div>
-              
-              <div 
-                onClick={() => navigate('/chat/center')}
-                className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
-              >
-                 <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
-                   👥
-                 </div>
-                 <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">聊天</span>
               </div>
            </div>
 
