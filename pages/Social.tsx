@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Social: React.FC = () => {
   const { user } = useAuth();
-  const roleId = Number(user?.role?.id ?? user?.roleId || 0);
+  const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
   const isSuperAdmin = roleId === 1;
   const isAgent = roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5;
   const tabs = useMemo(() => {
