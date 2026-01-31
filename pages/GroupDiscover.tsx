@@ -54,6 +54,7 @@ const GroupDiscover: React.FC = () => {
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestItem[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestItem[]>([]);
   const [friendList, setFriendList] = useState<FriendItem[]>([]);
+  const [incomingPendingCount, setIncomingPendingCount] = useState(0);
   const [requestActionId, setRequestActionId] = useState<number | null>(null);
   const [createError, setCreateError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +83,7 @@ const GroupDiscover: React.FC = () => {
     if (!user?.ID) {
       setContactsError('请先登录');
       setContactsLoading(false);
+      setIncomingPendingCount(0);
       return;
     }
     setContactsLoading(true);
@@ -95,6 +97,7 @@ const GroupDiscover: React.FC = () => {
       setIncomingRequests(incomingRes.list || []);
       setOutgoingRequests(outgoingRes.list || []);
       setFriendList(friendsRes.items || []);
+      setIncomingPendingCount(Number(incomingRes.total || (incomingRes.list || []).length));
     } catch (e: any) {
       setContactsError(e?.message || '加载失败');
     } finally {
@@ -102,10 +105,27 @@ const GroupDiscover: React.FC = () => {
     }
   }, [user?.ID]);
 
+  const loadPendingRequestCount = useCallback(async () => {
+    if (!user?.ID) {
+      setIncomingPendingCount(0);
+      return;
+    }
+    try {
+      const incomingRes = await friendApi.listRequests('incoming', 'pending', 1, 1);
+      setIncomingPendingCount(Number(incomingRes.total || (incomingRes.list || []).length));
+    } catch {
+      setIncomingPendingCount(0);
+    }
+  }, [user?.ID]);
+
   useEffect(() => {
     if (activeTab !== 'contacts') return;
     loadContacts();
   }, [activeTab, loadContacts]);
+
+  useEffect(() => {
+    loadPendingRequestCount();
+  }, [loadPendingRequestCount]);
 
   const formatImTime = (timestamp?: number) => {
     if (!timestamp) return '';
@@ -778,6 +798,11 @@ const GroupDiscover: React.FC = () => {
               onClick={() => setActiveTab(tab.id as any)}
               className={`relative flex flex-col items-center justify-center w-20 py-1 group ${activeTab === tab.id ? 'text-accent' : 'text-slate-500 hover:text-slate-300'}`}
             >
+              {tab.id === 'contacts' && incomingPendingCount > 0 && (
+                <span className="absolute -top-1 right-2 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm">
+                  {incomingPendingCount > 99 ? '99+' : incomingPendingCount}
+                </span>
+              )}
               <span className={`text-[10px] font-medium tracking-wide mt-1 transition-all duration-300 ${activeTab === tab.id ? 'text-accent font-bold scale-105 drop-shadow-sm' : 'text-slate-600'}`}>
                 {tab.label}
               </span>
