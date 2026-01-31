@@ -14,7 +14,7 @@ const TradePublish: React.FC = () => {
     title: '',
     description: '',
     category: '',
-    pricePoints: '0',
+    pricePoints: '',
     stock: '1',
     images: [] as string[]
   });
@@ -97,6 +97,10 @@ const TradePublish: React.FC = () => {
       stock: Number(formState.stock),
       images
     };
+    if (!payload.pricePoints || Number.isNaN(payload.pricePoints)) {
+      showNotice('请输入积分价格');
+      return;
+    }
 
     try {
       if (editingListing) {
@@ -168,13 +172,6 @@ const TradePublish: React.FC = () => {
                 className="w-28 bg-transparent border border-theme rounded-xl px-3 py-2 text-[var(--text-primary)] placeholder:text-slate-500"
               />
             </div>
-            <input
-              value={formState.stock}
-              onChange={e => setFormState(prev => ({ ...prev, stock: e.target.value }))}
-              placeholder="库存"
-              type="number"
-              className="w-28 bg-transparent border border-theme rounded-xl px-3 py-2 text-[var(--text-primary)] placeholder:text-slate-500"
-            />
             <div className="space-y-2">
               <div className="text-xs text-slate-500">上传图片（选填，JPG/PNG，最多3张）</div>
               <input
