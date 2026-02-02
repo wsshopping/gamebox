@@ -1,49 +1,43 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Trade from './Trade';
 import MessageList from './MessageList';
-import Agency, { SuperAdminPage } from './Agency';
-import { useAuth } from '../context/AuthContext';
+import Agency from './Agency';
 
 const Social: React.FC = () => {
-  const { user } = useAuth();
-  const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
-  const isSuperAdmin = roleId === 1;
-  const isAgent = roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5;
-  const tabs = useMemo(() => {
-    const base = ['trade', 'message'];
-    if (isSuperAdmin || isAgent) {
-      base.push('agency');
-    }
-    if (isSuperAdmin) {
-      base.push('superadmin');
-    }
-    return base;
-  }, [isAgent, isSuperAdmin]);
-  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency' | 'superadmin'>(tabs[0] as any);
-  const tabCount = tabs.length;
-  const activeIndex = tabs.indexOf(activeTab);
+  const location = useLocation();
+  
+  // Fix: Initialize state directly from location.state to avoid flashing 'trade' first
+  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency'>(() => {
+    const state = location.state as { tab?: 'trade' | 'message' | 'agency' } | null;
+    return state?.tab || 'trade';
+  });
+
   useEffect(() => {
-    if (activeIndex === -1) {
-      setActiveTab(tabs[0] as any);
+    // Keep this to handle updates if navigating to same page with different state
+    const state = location.state as { tab?: 'trade' | 'message' | 'agency' } | null;
+    if (state?.tab) {
+      setActiveTab(state.tab);
     }
-  }, [activeIndex, tabs]);
-  const sliderWidth = `calc(${(100 / tabCount).toFixed(2)}% - 4px)`;
-  const sliderLeft = `calc(${(100 / tabCount).toFixed(2)}% * ${activeIndex} + 2px)`;
+  }, [location.state]);
 
   return (
-    <div className="app-bg min-h-full pt-[calc(5rem+env(safe-area-inset-top))] flex flex-col transition-colors duration-500">
+    <div className="app-bg min-h-full flex flex-col transition-colors duration-500">
       {/* Sticky Tab Header - Premium Dark Glass */}
-      <div className="glass-bg fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 border-b border-theme pt-[calc(1rem+env(safe-area-inset-top))] pb-3 transition-colors duration-500">
+      <div className="glass-bg sticky top-0 z-40 border-b border-theme pt-4 pb-3 transition-colors duration-500">
         <div className="flex justify-center px-4">
            <div className="relative flex w-full max-w-sm bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
              {/* Slider Background - Adaptive color */}
              <div 
-               className="absolute top-1 bottom-1 bg-accent-color/20 rounded-xl shadow-sm border border-accent/20 transition-all duration-300 ease-out"
-               style={{ width: sliderWidth, left: sliderLeft }}
+               className={`absolute top-1 bottom-1 w-[calc(33.33%-4px)] bg-accent-color/20 rounded-xl shadow-sm border border-accent/20 transition-all duration-300 ease-out ${
+                 activeTab === 'trade' ? 'left-1' : 
+                 activeTab === 'message' ? 'left-[calc(33.33%+2px)]' : 
+                 'left-[calc(66.66%+2px)]'
+               }`}
              ></div>
              
-             {tabs.map(tab => (
+             {['trade', 'message', 'agency'].map(tab => (
                  <button 
                    key={tab}
                    onClick={() => setActiveTab(tab as any)}
@@ -53,7 +47,7 @@ const Social: React.FC = () => {
                      : 'text-slate-500 hover:text-[var(--text-primary)]'
                    }`}
                  >
-                   {tab === 'trade' ? '市场交易' : tab === 'message' ? '消息中心' : tab === 'agency' ? '代理中心' : '超管中心'}
+                   {tab === 'trade' ? '市场交易' : tab === 'message' ? '消息中心' : '代理中心'}
                  </button>
              ))}
            </div>
@@ -65,7 +59,6 @@ const Social: React.FC = () => {
         {activeTab === 'trade' && <Trade isEmbedded={true} />}
         {activeTab === 'message' && <MessageList isEmbedded={true} />}
         {activeTab === 'agency' && <Agency />}
-        {activeTab === 'superadmin' && <SuperAdminPage />}
       </div>
     </div>
   );

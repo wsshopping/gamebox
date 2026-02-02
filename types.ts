@@ -17,60 +17,17 @@ export interface Game {
   developer?: string;
 }
 
-export interface TradeListing {
-  id: number;
+export interface TradeItem {
+  id: string;
   title: string;
-  description: string;
-  category: string;
-  pricePoints: number;
-  stock: number;
-  soldCount: number;
-  status: string;
-  sellerId: number;
-  sellerName: string;
-  sellerAvatar: string;
-  coverImage: string;
-  images: string[];
-  createdAt: string;
-}
-
-export interface TradeListingListResponse {
-  items: TradeListing[];
-  total: number;
-}
-
-export interface TradeListingDetailResponse {
-  listing: TradeListing;
-}
-
-export interface TradeOrder {
-  id: number;
-  listingId: number;
-  listingTitle: string;
-  listingImage: string;
-  category: string;
-  pricePoints: number;
-  status: string;
-  buyerId: number;
-  buyerName: string;
-  sellerId: number;
-  sellerName: string;
-  deliveryText?: string;
-  deliveryAt?: string;
-  confirmAt?: string;
-  cancelAt?: string;
-  autoCancelAt?: string;
-  autoConfirmAt?: string;
-  createdAt: string;
-}
-
-export interface TradeOrderListResponse {
-  items: TradeOrder[];
-  total: number;
-}
-
-export interface TradeOrderDetailResponse {
-  order: TradeOrder;
+  price: number;
+  gameName: string;
+  seller: string;
+  image: string;
+  server: string;
+  type: 'Account' | 'Item' | 'Currency';
+  // Added time property to support transaction history display
+  time?: string;
 }
 
 export interface Article {
@@ -92,46 +49,6 @@ export interface Task {
   icon: string;
 }
 
-export interface WelfareOverview {
-  balance: number;
-  signinRewardPoints: number;
-  signedIn: boolean;
-  signedAt: string;
-  blindboxCostPoints: number;
-  blindboxDailyLimit: number;
-  todayDrawCount: number;
-}
-
-export interface WelfareReward {
-  type: 'points' | 'item';
-  value: string;
-}
-
-export interface WelfareSignInResponse {
-  rewardPoints: number;
-  balance: number;
-}
-
-export interface WelfareDrawResponse {
-  reward: WelfareReward;
-  costPoints: number;
-  balance: number;
-}
-
-export interface WelfareLedgerItem {
-  id: number;
-  amount: number;
-  source: string;
-  refType: string;
-  refId: number;
-  createdAt: string;
-}
-
-export interface WelfareLedgerResponse {
-  items: WelfareLedgerItem[];
-  nextCursor: number;
-}
-
 export interface Message {
   id: string;
   title: string;
@@ -141,12 +58,11 @@ export interface Message {
   read: boolean;
   avatar?: string;
   members?: number;
-  senderName?: string;
 }
 
 // New Types
 export interface SystemNotification {
-  id: number;
+  id: string;
   title: string;
   content: string;
   time: string;
@@ -155,7 +71,7 @@ export interface SystemNotification {
 }
 
 export interface Interaction {
-  id: number;
+  id: string;
   userAvatar: string;
   userName: string;
   type: 'like' | 'comment' | 'follow' | 'mention';
@@ -172,13 +88,6 @@ export interface GroupRecommendation {
   avatar: string;
   desc: string;
   tags: string[];
-}
-
-export interface Banner {
-  id: number;
-  title: string;
-  imageUrl: string;
-  linkUrl?: string;
 }
 
 export enum TabType {

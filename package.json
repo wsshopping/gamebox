@@ -1,18 +1,16 @@
 {
-  "name": "贪玩盒子",
+  "name": "demo",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:im-sdk": "npm --prefix ../im/imsdk-web install && PACKAGE_NAME=juggleim npm --prefix ../im/imsdk-web run release && cp ../im/imsdk-web/dist/juggleim-es-1.9.6.js ./vendor/",
-    "build:with-im-sdk": "npm run build:im-sdk && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
     "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react-dom": "^19.2.3",
     "react-router-dom": "6.22.3",
     "@google/genai": "latest"
   },

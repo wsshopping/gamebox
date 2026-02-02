@@ -2,27 +2,24 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
-import { Game, Article, Banner } from '../types';
+import { Game, Article } from '../types';
 import GameCard from '../components/GameCard';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [banners, setBanners] = useState<Banner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [gamesData, articlesData, bannerData] = await Promise.all([
+        const [gamesData, articlesData] = await Promise.all([
           api.game.getHot(),
-          api.community.getArticles(),
-          api.banner.getHome().catch(() => [])
+          api.community.getArticles()
         ]);
         setGames(gamesData);
         setArticles(articlesData);
-        setBanners(bannerData);
       } catch (e) {
         console.error("Failed to load home data", e);
       } finally {
@@ -32,25 +29,10 @@ const Home: React.FC = () => {
     fetchData();
   }, []);
 
-  const heroBanner = banners[0];
-  const heroTitle = heroBanner?.title || 'BLACK MYTH';
-  const heroLink = heroBanner?.linkUrl;
-  const handleHeroClick = () => {
-    if (heroLink) {
-      if (/^https?:\/\//i.test(heroLink)) {
-        window.open(heroLink, '_blank');
-      } else {
-        navigate(heroLink);
-      }
-    } else {
-      navigate('/screen-welfare');
-    }
-  };
-
   return (
-    <div className="app-bg min-h-full pb-10 pt-[calc(5rem+env(safe-area-inset-top))] transition-colors duration-500">
+    <div className="app-bg min-h-full pb-10 transition-colors duration-500">
       {/* Premium Header: Dark Glass */}
-      <div className="px-6 py-5 pt-[calc(1.25rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 flex items-center justify-between glass-bg transition-all">
+      <div className="px-6 py-5 sticky top-0 z-40 flex items-center justify-between glass-bg transition-all">
         <div className="flex items-center space-x-3">
           {/* Logo: Obsidian & Gold */}
           <div className="w-10 h-10 rounded-[14px] bg-gradient-to-br from-[var(--bg-card)] to-[var(--bg-primary)] flex items-center justify-center shadow-[0_0_15px_rgba(251,191,36,0.15)] relative overflow-hidden group border border-theme">
@@ -81,17 +63,9 @@ const Home: React.FC = () => {
 
       {/* Hero Banner: Luxury Black Card Style - FORCE DARK BACKGROUND */}
       <div className="px-6 mt-6 relative z-0">
-        <div
-          onClick={handleHeroClick}
-          className="h-56 rounded-[32px] p-8 relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-[1.02] border border-theme"
-        >
+        <div className="h-56 rounded-[32px] p-8 relative overflow-hidden group cursor-pointer shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] transition-transform duration-500 hover:scale-[1.02] border border-theme">
           {/* Background: Force dark slate/black to contrast with white text */}
-          {heroBanner?.imageUrl ? (
-            <img src={heroBanner.imageUrl} alt={heroTitle} className="absolute inset-0 w-full h-full object-cover" />
-          ) : (
-            <div className="absolute inset-0 bg-slate-950 opacity-100"></div>
-          )}
-          <div className="absolute inset-0 bg-slate-950/60"></div>
+          <div className="absolute inset-0 bg-slate-950 opacity-100"></div>
           
           {/* Gold Accents/Glows */}
           <div className="absolute top-[-80px] right-[-80px] w-64 h-64 bg-amber-500/20 opacity-10 rounded-full blur-[80px]"></div>
@@ -104,15 +78,16 @@ const Home: React.FC = () => {
                <span className="text-accent text-[10px] font-bold uppercase tracking-widest">Premium Event</span>
             </div>
             
-            <h2 className="text-3xl font-black mb-2 leading-tight tracking-tight text-white font-serif italic">
-              {heroTitle}
+            <h2 className="text-4xl font-black mb-2 leading-[0.9] tracking-tighter text-white font-serif italic">
+              BLACK<br/>
+              <span className="text-accent-gradient drop-shadow-sm">MYTH</span>
             </h2>
             
             <p className="text-slate-400 text-xs mb-6 font-medium max-w-[200px] leading-relaxed">
               Experience the legend. Exclusive rewards for VIP members.
             </p>
             
-            <button onClick={handleHeroClick} className="group/btn bg-accent-gradient text-black px-6 py-2.5 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:brightness-110 transition-all flex items-center">
+            <button onClick={() => navigate('/screen-welfare')} className="group/btn bg-accent-gradient text-black px-6 py-2.5 rounded-full text-xs font-bold shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:brightness-110 transition-all flex items-center">
               立即探索
               <svg className="w-3 h-3 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
             </button>

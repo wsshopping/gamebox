@@ -3,19 +3,16 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Message, SystemNotification, Interaction } from '../types';
-import { useIm } from '../context/ImContext';
-import { IMConversationType, IMMessageType } from '../services/im/client';
 
 interface MessageListProps {
   isEmbedded?: boolean;
 }
 
 // Define the available views for this page
-type ViewMode = 'main' | 'system' | 'interactions';
+type ViewMode = 'main' | 'system' | 'interactions' | 'contacts';
 
 const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const navigate = useNavigate();
-  const { conversations: imConversations, ready: imReady, refreshConversations, connected } = useIm();
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -23,73 +20,25 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [systemNotes, setSystemNotes] = useState<SystemNotification[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
-  const isOffline = !connected;
-
-  const formatImTime = (timestamp?: number) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatImPreview = (message: any) => {
-    if (!message) return '';
-    if (message.name === IMMessageType.TEXT) {
-      return message.content?.text || message.content?.content || '';
-    }
-    if (message.name === IMMessageType.IMAGE) return '[图片]';
-    if (message.name === IMMessageType.FILE) return '[文件]';
-    if (message.name === IMMessageType.VIDEO) return '[视频]';
-    if (message.name === IMMessageType.VOICE) return '[语音]';
-    return '[新消息]';
-  };
-
-
-  const mapImConversations = () => {
-    return imConversations.map((conv: any) => {
-      const isGroup = conv.conversationType === IMConversationType.GROUP;
-      const latest = conv.latestMessage;
-      const senderName = latest?.sender?.name || latest?.senderName || latest?.sender?.id || '';
-      return {
-        id: conv.conversationId,
-        title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
-        content: formatImPreview(latest),
-        time: formatImTime(latest?.sentTime || conv.sortTime),
-        type: isGroup ? 'group' : 'social',
-        read: !conv.unreadCount || conv.unreadCount === 0,
-        avatar: conv.conversationPortrait,
-        members: conv.unreadCount,
-        senderName: senderName ? String(senderName) : ''
-      } as Message;
-    });
-  };
 
   useEffect(() => {
     fetchData();
-  }, [viewMode, imConversations, imReady]);
-
-  useEffect(() => {
-    if (viewMode === 'main' && imReady) {
-      refreshConversations().catch(() => null);
-    }
-  }, [viewMode, imReady, refreshConversations]);
+  }, [viewMode]);
 
   const fetchData = async () => {
-    if (viewMode === 'main') {
-      setIsLoading(!imReady);
-      setMessages(imReady ? mapImConversations() : []);
-      return;
-    }
     setIsLoading(true);
     try {
-      if (viewMode === 'system') {
+      if (viewMode === 'main') {
+        // Fetch mixed preview (System, Activity, Chats) limited to 3
+        const data = await api.message.getMixedPreview();
+        setMessages(data);
+      } else if (viewMode === 'system') {
         const data = await api.message.getSystemNotifications();
         setSystemNotes(data);
       } else if (viewMode === 'interactions') {
         const data = await api.message.getInteractions();
         setInteractions(data);
       }
-    } catch (error) {
-      console.error('Failed to load messages', error);
     } finally {
       setIsLoading(false);
     }
@@ -98,45 +47,10 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const handleMessageClick = (type: string, id: string) => {
     if (type === 'system') {
       setViewMode('system');
-      return;
-    }
-    if (type === 'activity') {
+    } else if (type === 'activity') {
       setViewMode('interactions');
-      return;
-    }
-    if (type === 'social' || type === 'group') {
+    } else if (type === 'social' || type === 'group') {
       navigate(`/chat/${id}`);
-    }
-  };
-
-  const handleSystemRead = async (note: SystemNotification) => {
-    if (note.read) return;
-    try {
-      await api.message.markSystemRead([note.id]);
-      setSystemNotes(prev => prev.map(item => (item.id === note.id ? { ...item, read: true } : item)));
-    } catch (error) {
-      console.error('Failed to mark system notification read', error);
-    }
-  };
-
-  const handleInteractionRead = async (item: Interaction) => {
-    if (item.read) return;
-    try {
-      await api.message.markInteractionRead([item.id]);
-      setInteractions(prev => prev.map(entry => (entry.id === item.id ? { ...entry, read: true } : entry)));
-    } catch (error) {
-      console.error('Failed to mark interaction notification read', error);
-    }
-  };
-
-  // Helper for message list icons
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'system': return '🔔';
-      case 'activity': return '🎉';
-      case 'group': return '👥';
-      case 'social': return '💬';
-      default: return '📫';
     }
   };
 
@@ -150,6 +64,16 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     }
   };
 
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'system': return '🔔';
+      case 'activity': return '@';
+      case 'group': return '👥';
+      case 'social': return '💬';
+      default: return '📫';
+    }
+  };
+
   // --- Sub-View Renderers ---
 
   const renderSystemView = () => (
@@ -158,11 +82,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
          [1,2].map(i => <div key={i} className="h-24 card-bg rounded-xl animate-pulse border border-theme"></div>)
       ) : (
         systemNotes.map(note => (
-          <div
-            key={note.id}
-            onClick={() => handleSystemRead(note)}
-            className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-start space-x-3 cursor-pointer hover:border-accent/30 transition-colors"
-          >
+          <div key={note.id} className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-start space-x-3">
              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                note.level === 'warning' ? 'bg-red-500/10 text-red-500' : 
                note.level === 'success' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'
@@ -189,11 +109,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         [1,2,3].map(i => <div key={i} className="h-16 card-bg rounded-xl animate-pulse border border-theme"></div>)
       ) : (
         interactions.map(item => (
-          <div
-            key={item.id}
-            onClick={() => handleInteractionRead(item)}
-            className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-center space-x-3 hover:border-accent/30 transition-colors cursor-pointer"
-          >
+          <div key={item.id} className="card-bg p-4 rounded-xl border border-theme shadow-sm flex items-center space-x-3 hover:border-accent/30 transition-colors">
              <div className="relative">
                <img src={item.userAvatar} alt={item.userName} className="w-10 h-10 rounded-full object-cover border border-theme" />
                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] text-[10px] ${
@@ -222,15 +138,54 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     </div>
   );
 
+  const renderContactsView = () => (
+      <div className="p-4 space-y-4">
+        {/* Search */}
+        <div className="bg-[var(--bg-primary)] rounded-full px-4 py-3 border border-theme flex items-center">
+            <svg className="w-4 h-4 text-slate-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input type="text" placeholder="搜索好友" className="bg-transparent border-none outline-none text-sm text-[var(--text-primary)] w-full placeholder-slate-500" />
+        </div>
+
+        {/* New Friend Request */}
+        <div className="card-bg p-3 rounded-xl border border-theme flex items-center justify-between">
+           <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-accent-gradient rounded-full flex items-center justify-center text-black">
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+              </div>
+              <span className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>新朋友</span>
+           </div>
+           <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] text-white">1</div>
+        </div>
+
+        {/* List */}
+        <div>
+           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-1 mb-2">My Friends</h3>
+           <div className="space-y-3">
+              {['u1', 'u2', 'u3'].map(uid => (
+                 <div key={uid} onClick={() => navigate(`/profile/${uid}`)} className="card-bg p-3 rounded-xl border border-theme flex items-center space-x-3 cursor-pointer hover:border-accent/30">
+                    <img src={`https://picsum.photos/50/50?random=${uid}`} className="w-10 h-10 rounded-full object-cover" alt=""/>
+                    <div className="flex-1">
+                       <h4 className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>Friend_{uid}</h4>
+                       <p className="text-[10px] text-slate-500">Online</p>
+                    </div>
+                    <button className="text-slate-400">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                    </button>
+                 </div>
+              ))}
+           </div>
+        </div>
+      </div>
+  );
+
   // --- Main Render ---
 
-  const shouldPadTop = !isEmbedded || viewMode !== 'main';
-
   return (
-    <div className={`app-bg min-h-full pb-20 transition-colors duration-500 ${shouldPadTop ? 'pt-[calc(5rem+env(safe-area-inset-top))]' : ''}`}>
-      {/* Header for Standalone Mode */}
+    <div className="app-bg min-h-full pb-20 transition-colors duration-500">
+      
+      {/* Standard Header - Hidden when in 'groups' mode for full-screen feel */}
       {!isEmbedded && (
-        <div className="glass-bg p-4 pt-[calc(1rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
+        <div className="glass-bg p-4 sticky top-0 z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
            <div className="flex items-center space-x-2">
              {viewMode !== 'main' && (
                <button onClick={() => setViewMode('main')} className="mr-2 text-slate-400 hover:text-[var(--text-primary)] p-1 rounded-full transition-colors">
@@ -241,17 +196,20 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                {viewMode === 'main' && '消息中心'}
                {viewMode === 'system' && '系统通知'}
                {viewMode === 'interactions' && '互动消息'}
+               {viewMode === 'contacts' && '通讯录'}
              </h1>
            </div>
            {viewMode === 'main' && (
-             <button className="text-sm text-slate-500 hover:text-accent transition-colors">清除未读</button>
+             <button onClick={() => setViewMode('contacts')} className="text-sm font-bold text-accent hover:text-white transition-colors bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
+               通讯录
+             </button>
            )}
         </div>
       )}
 
       {/* Header for Embedded Mode (System & Interactions only) */}
-      {isEmbedded && (viewMode === 'system' || viewMode === 'interactions') && (
-        <div className="glass-bg p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
+      {isEmbedded && viewMode !== 'main' && (
+        <div className="glass-bg p-3 sticky top-0 z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
            <button 
              onClick={() => setViewMode('main')} 
              className="mr-3 text-slate-400 hover:text-[var(--text-primary)] p-1.5 rounded-full transition-colors"
@@ -261,21 +219,14 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
            <h1 className="text-base font-bold" style={{color: 'var(--text-primary)'}}>
              {viewMode === 'system' && '系统通知'}
              {viewMode === 'interactions' && '互动消息'}
+             {viewMode === 'contacts' && '通讯录'}
            </h1>
         </div>
       )}
 
-      {isOffline && (
-        <div className="bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs px-4 py-2 flex items-center gap-2">
-          <span className="font-bold">离线</span>
-          <span>网络异常，消息可能无法及时更新</span>
-        </div>
-      )}
-
-      {/* Main View */}
+      {/* Main View Grid */}
       {viewMode === 'main' && (
         <>
-           {/* Functional Grid */}
            <div className="grid grid-cols-3 gap-3 p-4 pb-2">
               <div 
                 onClick={() => setViewMode('system')}
@@ -288,25 +239,24 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               </div>
               
               <div 
-                onClick={() => navigate('/chat/center')}
-                className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
-              >
-                 <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
-                   👥
-                 </div>
-                 <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">聊天</span>
-              </div>
-
-              <div 
                 onClick={() => setViewMode('interactions')}
                 className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-emerald-500/30 transition-all"
               >
                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg shadow-inner relative border border-emerald-500/20">
                    @
-                   {/* Badge Mock */}
                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-card)] text-[9px] text-white flex items-center justify-center shadow-sm">2</div>
                  </div>
                  <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">互动消息</span>
+              </div>
+              
+              <div 
+                onClick={() => navigate('/groups/discover')}
+                className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-indigo-500/30 transition-all"
+              >
+                 <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg shadow-inner border border-indigo-500/20">
+                   👥
+                 </div>
+                 <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">加入群聊</span>
               </div>
            </div>
 
@@ -320,16 +270,22 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
               ) : (
                 messages.map(msg => (
                   <div 
-                    key={`${msg.type}-${msg.id}`} 
+                    key={msg.id} 
                     onClick={() => handleMessageClick(msg.type, msg.id)}
                     className="card-bg p-4 rounded-xl border border-theme shadow-sm flex space-x-3 cursor-pointer active:scale-[0.98] transition-all hover:border-accent/30"
                   >
+                     {/* Avatar / Icon Logic */}
                      {msg.avatar ? (
                        <div className="relative">
                           <img src={msg.avatar} alt={msg.title} className="w-12 h-12 rounded-xl object-cover ring-1 ring-theme shadow-sm" />
                           {msg.type === 'group' && (
                             <div className="absolute -bottom-1 -right-1 card-bg rounded-full p-0.5 border border-theme">
                                <div className="bg-purple-500 rounded-full w-4 h-4 flex items-center justify-center text-[8px] text-white">群</div>
+                            </div>
+                          )}
+                          {msg.type === 'activity' && (
+                             <div className="absolute -bottom-1 -right-1 card-bg rounded-full p-0.5 border border-theme">
+                               <div className="bg-amber-500 rounded-full w-4 h-4 flex items-center justify-center text-[8px] text-black">@</div>
                             </div>
                           )}
                        </div>
@@ -345,9 +301,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                            <span className="text-xs text-slate-500 flex-shrink-0">{msg.time}</span>
                         </div>
                         <p className="text-xs text-slate-400 line-clamp-1">
-                           {msg.type === 'group' && !msg.content.includes(':') ? (
-                             <span className="text-slate-500 mr-1">{msg.senderName || '群友'}:</span>
-                           ) : ''}
+                           {msg.type === 'group' && !msg.content.includes(':') ? <span className="text-slate-500 mr-1">张三:</span> : ''}
                            {msg.content}
                         </p>
                      </div>
@@ -363,9 +317,10 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         </>
       )}
 
-      {/* Conditional Rendering of Sub-Views */}
+      {/* Render Sub-Views */}
       {viewMode === 'system' && renderSystemView()}
       {viewMode === 'interactions' && renderInteractionsView()}
+      {viewMode === 'contacts' && renderContactsView()}
 
     </div>
   );

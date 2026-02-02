@@ -11,8 +11,7 @@ const Register: React.FC = () => {
     username: '', 
     phone: '', 
     password: '', 
-    confirmPassword: '',
-    inviteCode: ''
+    confirmPassword: '' 
   });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +21,7 @@ const Register: React.FC = () => {
     setError('');
 
     // Validation
-    if (!formData.username || !formData.phone || !formData.password || !formData.inviteCode) {
+    if (!formData.username || !formData.phone || !formData.password) {
       setError('请填写所有必填项');
       return;
     }
@@ -38,7 +37,7 @@ const Register: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await register(formData.username, formData.phone, formData.password, formData.inviteCode);
+      await register(formData.username, formData.phone, formData.password);
       // Register logic automatically logs user in via AuthContext
       navigate('/user'); 
     } catch (err: any) {
@@ -92,20 +91,6 @@ const Register: React.FC = () => {
                className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
                style={{color: 'var(--text-primary)'}}
                placeholder="用于登录和找回密码" 
-             />
-           </div>
-        </div>
-
-        <div>
-           <label className="block text-xs font-bold mb-1.5 ml-1" style={{color: 'var(--text-primary)'}}>代理码</label>
-           <div className="card-bg rounded-2xl px-4 py-3 border border-theme focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/10 transition-all">
-             <input 
-               type="text" 
-               value={formData.inviteCode}
-               onChange={(e) => setFormData({...formData, inviteCode: e.target.value.toUpperCase()})}
-               className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
-               style={{color: 'var(--text-primary)'}}
-               placeholder="4位大写字母或数字" 
              />
            </div>
         </div>

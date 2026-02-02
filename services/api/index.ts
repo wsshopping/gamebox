@@ -1,15 +1,15 @@
-import { gameApi } from './game'
-import { tradeApi } from './trade'
-import { communityApi } from './community'
-import { welfareApi } from './welfare'
-import { messageApi } from './message'
-import { messageAdminApi } from './messageAdmin'
-import { agencyApi } from './agency'
-import { bannerApi } from './banner'
-import { searchApi } from './search'
-import { userApi } from './user'
-import { imApi } from './im'
-import { friendApi } from './friend'
+
+import { delay, DELAY } from './core';
+import { gameApi } from './game';
+import { tradeApi } from './trade';
+import { communityApi } from './community';
+import { welfareApi } from './welfare';
+import { messageApi } from './message';
+import { groupApi } from './group'; 
+import { contactApi } from './contact'; // Imported
+import { agencyApi } from './agency';
+import { userApi } from './user';
+import { GAMES, TRADE_ITEMS } from '../mockData';
 
 export const api = {
   game: gameApi,
@@ -17,11 +17,19 @@ export const api = {
   community: communityApi,
   welfare: welfareApi,
   message: messageApi,
-  messageAdmin: messageAdminApi,
+  group: groupApi, 
+  contact: contactApi, // Exported
   agency: agencyApi,
-  banner: bannerApi,
-  search: searchApi,
   user: userApi,
-  im: imApi,
-  friend: friendApi
-}
+  
+  // Search is cross-cutting, keeping it here or move to search.ts
+  search: {
+    query: async (term: string): Promise<any> => {
+        await delay(800);
+        return {
+            games: GAMES.filter(g => g.title.includes(term)),
+            items: TRADE_ITEMS.filter(t => t.title.includes(term))
+        }
+    }
+  }
+};

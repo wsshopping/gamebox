@@ -1,40 +1,19 @@
-import { request } from '../http';
-import {
-  WelfareDrawResponse,
-  WelfareLedgerResponse,
-  WelfareOverview,
-  WelfareSignInResponse
-} from '../../types';
-
-const generateRequestId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-};
+import { delay, DELAY } from './core';
+import { TASKS } from '../mockData';
+import { Task } from '../../types';
 
 export const welfareApi = {
-  getOverview: async (): Promise<WelfareOverview> => {
-    return request('/portal/welfare/overview');
+  getTasks: async (): Promise<Task[]> => {
+    await delay(DELAY);
+    return [...TASKS];
   },
-  signIn: async (): Promise<WelfareSignInResponse> => {
-    return request('/portal/welfare/signin', {
-      method: 'POST',
-      body: JSON.stringify({ requestId: generateRequestId() })
-    });
+  claimTask: async (taskId: string): Promise<boolean> => {
+    await delay(800);
+    return true;
   },
-  drawBlindBox: async (): Promise<WelfareDrawResponse> => {
-    return request('/portal/welfare/blindbox/draw', {
-      method: 'POST',
-      body: JSON.stringify({ requestId: generateRequestId() })
-    });
-  },
-  getLedger: async (cursor?: number, limit = 20): Promise<WelfareLedgerResponse> => {
-    const query = new URLSearchParams();
-    query.set('limit', String(limit));
-    if (cursor) {
-      query.set('cursor', String(cursor));
-    }
-    return request(`/portal/welfare/ledger?${query.toString()}`);
+  drawBlindBox: async (): Promise<string> => {
+    await delay(2000); // Longer delay for suspense
+    const prizes = ['500 积分', '限定皮肤', '10 钻石', '经验加成卡 (1h)', '神秘碎片'];
+    return prizes[Math.floor(Math.random() * prizes.length)];
   }
 };
