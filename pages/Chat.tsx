@@ -3,8 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIm } from '../context/ImContext';
 import { friendApi, FriendItem, FriendProfile } from '../services/api/friend';
-import { imApi, IMGroupAnnouncementResponse } from '../services/api/im';
+import {
+  imApi,
+  IMGroupAnnouncementResponse,
+  IMRedPacketDetailResponse
+} from '../services/api/im';
 import { IMConversationType, IMMessageType } from '../services/im/client';
+
+const RED_PACKET_MESSAGE = 'jg:redpacket';
 
 interface ChatMessage {
   id: string;
@@ -13,8 +19,20 @@ interface ChatMessage {
   senderName?: string;
   senderId?: string;
   time: string;
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'redpacket';
   imageUrl?: string;
+  redPacketId?: number;
+  redPacketTitle?: string;
+  redPacketAmount?: number;
+  redPacketCount?: number;
+  redPacketGreeting?: string;
+  redPacketStatus?: string;
+  redPacketClaimedAmount?: number;
+  redPacketRemainingAmount?: number;
+  redPacketRemainingCount?: number;
+  redPacketClaiming?: boolean;
+  redPacketError?: string;
+  localFile?: File;
   sentAt?: number;
   status?: 'failed' | 'sending';
   isLocal?: boolean;
@@ -23,16 +41,23 @@ interface ChatMessage {
 const EMOJIS = ['😀', '😂', '🤣', '😍', '😭', '😡', '👍', '🙏', '🎉', '🔥', '❤️', '💔', '💩', '👻', '💀', '👽', '🤖', '🎃', '🎄', '🎁', '🎈', '💪', '👀', '👂', '👃', '🧠', '🦷', '🦴', '🤝', '👋'];
 
 const ACTION_ITEMS = [
-  { name: '相册', icon: '🖼️' },
+  { name: '相册', icon: '🖼️', action: 'album' },
   { name: '拍摄', icon: '📷' },
   { name: '位置', icon: '📍' },
-  { name: '红包', icon: '🧧' },
+  { name: '红包', icon: '🧧', action: 'redpacket' },
   { name: '文件', icon: '📁' },
   { name: '收藏', icon: '⭐' },
   { name: '名片', icon: '🎫' },
   { name: '语音', icon: '🎤' }
 ];
+const IMAGE_MAX_SIZE = 2 * 1024 * 1024;
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png'];
 const MAX_ANNOUNCEMENT_LENGTH = 100;
+const RED_PACKET_MIN_AMOUNT = 1;
+const RED_PACKET_MAX_AMOUNT = 20000;
+const RED_PACKET_MIN_COUNT = 1;
+const RED_PACKET_MAX_COUNT = 100;
+const RED_PACKET_MAX_GREETING = 50;
 
 const Chat: React.FC = () => {
   const navigate = useNavigate();
@@ -40,6 +65,8 @@ const Chat: React.FC = () => {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const cutoffTimeRef = useRef(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const localMessagesRef = useRef<ChatMessage[]>([]);
   const enableImDebug = false;
   const logIm = (...args: any[]) => {
     if (!enableImDebug) return;
@@ -79,6 +106,15 @@ const Chat: React.FC = () => {
   const [isMemberRequesting, setIsMemberRequesting] = useState(false);
   const [groupOwnerId, setGroupOwnerId] = useState('');
   const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
+  const [isRedPacketModalOpen, setIsRedPacketModalOpen] = useState(false);
+  const [redPacketType, setRedPacketType] = useState<'fixed' | 'random'>('random');
+  const [redPacketAmount, setRedPacketAmount] = useState('');
+  const [redPacketCount, setRedPacketCount] = useState('');
+  const [redPacketGreeting, setRedPacketGreeting] = useState('恭喜发财，大吉大利');
+  const [redPacketError, setRedPacketError] = useState('');
+  const [isRedPacketSending, setIsRedPacketSending] = useState(false);
+  const [redPacketPatches, setRedPacketPatches] = useState<Record<number, Partial<ChatMessage>>>({});
+  const redPacketLastSyncRef = useRef<Record<number, number>>({});
   const {
     ready,
     connected,
@@ -87,6 +123,8 @@ const Chat: React.FC = () => {
     loadMessages,
     loadMoreMessages,
     sendTextMessage,
+    sendCustomMessage,
+    sendImageMessage,
     clearConversationUnread,
     refreshConversations,
     getGroupInfo,
@@ -126,11 +164,20 @@ const Chat: React.FC = () => {
     if (msg.name === IMMessageType.TEXT) {
       return msg.content?.text || msg.content?.content || '';
     }
+    if (msg.name === RED_PACKET_MESSAGE) {
+      return msg.content?.greeting || '恭喜发财，大吉大利';
+    }
     if (msg.name === IMMessageType.IMAGE) return '[图片]';
     if (msg.name === IMMessageType.FILE) return '[文件]';
     if (msg.name === IMMessageType.VOICE) return '[语音]';
     if (msg.name === IMMessageType.VIDEO) return '[视频]';
     return msg.content?.text || msg.content?.content || '[新消息]';
+  };
+
+  const revokeImageUrl = (url?: string) => {
+    if (url && url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
   };
 
   const formatAnnouncementTime = (value?: number) => {
@@ -147,6 +194,206 @@ const Chat: React.FC = () => {
       .split(/[,\s;|]+/)
       .map(item => item.trim())
       .filter(Boolean);
+  };
+
+  const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+
+  const resolveRedPacketTitle = (status?: string, claimedAmount?: number) => {
+    if (status === 'refunded' || status === 'expired') return '红包已过期';
+    if (status === 'empty') return '红包已抢完';
+    if (claimedAmount && claimedAmount > 0) return `已领取 ${claimedAmount} 积分`;
+    return '领取红包';
+  };
+
+  const resolveRedPacketMessageText = (status?: string, claimedAmount?: number) => {
+    if (status === 'refunded' || status === 'expired') return '红包已过期';
+    if (status === 'empty') return '手慢了，红包已抢完';
+    if (claimedAmount && claimedAmount > 0) return `你领取了 ${claimedAmount} 积分`;
+    return '恭喜发财，大吉大利';
+  };
+
+  const updateRedPacketMessage = useCallback((packetId: number, patch: Partial<ChatMessage>) => {
+    if (!packetId) return;
+    setRedPacketPatches(prev => ({
+      ...prev,
+      [packetId]: {
+        ...(prev[packetId] || {}),
+        ...patch
+      }
+    }));
+  }, []);
+
+  const toInt = (value: any) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.floor(parsed));
+  };
+
+  const syncRedPacketDetail = useCallback(async (packetId: number, force = false) => {
+    if (!packetId || isOffline) return;
+    const now = Date.now();
+    const lastSyncAt = redPacketLastSyncRef.current[packetId] || 0;
+    if (!force && now-lastSyncAt < 5000) {
+      return;
+    }
+    redPacketLastSyncRef.current[packetId] = now;
+    try {
+      const detail: IMRedPacketDetailResponse = await imApi.getRedPacketDetail(packetId);
+      const claimedAmount = detail.myClaimStatus === 'claimed' ? detail.myClaimedAmount : 0;
+      updateRedPacketMessage(packetId, {
+        redPacketStatus: detail.status,
+        redPacketClaimedAmount: claimedAmount,
+        redPacketRemainingAmount: detail.remainingAmount,
+        redPacketRemainingCount: detail.remainingCount,
+        redPacketGreeting: detail.greeting,
+        redPacketTitle: resolveRedPacketTitle(detail.status, claimedAmount),
+        text: resolveRedPacketMessageText(detail.status, claimedAmount),
+        redPacketError: ''
+      });
+    } catch (error) {
+      redPacketLastSyncRef.current[packetId] = 0;
+    }
+  }, [isOffline, updateRedPacketMessage]);
+
+  const handleClaimRedPacket = async (msg: ChatMessage) => {
+    if (!msg.redPacketId || msg.redPacketClaiming) return;
+    if (isOffline) {
+      updateRedPacketMessage(msg.redPacketId, {
+        redPacketError: '离线状态暂不可领取'
+      });
+      return;
+    }
+    updateRedPacketMessage(msg.redPacketId, { redPacketClaiming: true, redPacketError: '' });
+    try {
+      const res = await imApi.claimRedPacket({
+        packetId: msg.redPacketId,
+        claimRequestId: createRequestId()
+      });
+      updateRedPacketMessage(msg.redPacketId, {
+        redPacketStatus: res.status,
+        redPacketClaimedAmount: res.claimedAmount,
+        redPacketRemainingAmount: res.remainingAmount,
+        redPacketRemainingCount: res.remainingCount,
+        redPacketClaiming: false,
+        redPacketError: '',
+        redPacketTitle: resolveRedPacketTitle(res.status, res.claimedAmount),
+        text: resolveRedPacketMessageText(res.status, res.claimedAmount)
+      });
+      syncRedPacketDetail(msg.redPacketId, true).catch(() => null);
+    } catch (error: any) {
+      const errMessage = error?.message || '操作繁忙，请稍后重试';
+      if (errMessage.includes('抢完')) {
+        updateRedPacketMessage(msg.redPacketId, {
+          redPacketStatus: 'empty',
+          redPacketClaiming: false,
+          redPacketError: '',
+          redPacketTitle: resolveRedPacketTitle('empty', 0),
+          text: resolveRedPacketMessageText('empty', 0)
+        });
+        return;
+      }
+      if (errMessage.includes('过期')) {
+        updateRedPacketMessage(msg.redPacketId, {
+          redPacketStatus: 'expired',
+          redPacketClaiming: false,
+          redPacketError: '',
+          redPacketTitle: resolveRedPacketTitle('expired', 0),
+          text: resolveRedPacketMessageText('expired', 0)
+        });
+        return;
+      }
+      updateRedPacketMessage(msg.redPacketId, {
+        redPacketClaiming: false,
+        redPacketError: errMessage
+      });
+    }
+  };
+
+  const validateRedPacketInput = () => {
+    const amount = Number(redPacketAmount);
+    const count = Number(redPacketCount);
+    const greetingChars = Array.from(redPacketGreeting.trim()).length;
+    if (!Number.isFinite(amount) || amount < RED_PACKET_MIN_AMOUNT || amount > RED_PACKET_MAX_AMOUNT) {
+      return `红包总额需在 ${RED_PACKET_MIN_AMOUNT}-${RED_PACKET_MAX_AMOUNT} 之间`;
+    }
+    if (!Number.isFinite(count) || count < RED_PACKET_MIN_COUNT || count > RED_PACKET_MAX_COUNT) {
+      return `红包份数需在 ${RED_PACKET_MIN_COUNT}-${RED_PACKET_MAX_COUNT} 之间`;
+    }
+    if (redPacketType === 'random' && amount < count) {
+      return '拼手气红包总额不能小于份数';
+    }
+    if (greetingChars > RED_PACKET_MAX_GREETING) {
+      return `祝福语最多 ${RED_PACKET_MAX_GREETING} 字`;
+    }
+    return '';
+  };
+
+  const openRedPacketModal = () => {
+    if (!isGroup) {
+      window.alert('群聊才支持发红包');
+      return;
+    }
+    setRedPacketType('random');
+    setRedPacketAmount('');
+    setRedPacketCount('');
+    setRedPacketGreeting('恭喜发财，大吉大利');
+    setRedPacketError('');
+    setIsRedPacketModalOpen(true);
+    setShowActionMenu(false);
+  };
+
+  const closeRedPacketModal = () => {
+    if (isRedPacketSending) return;
+    setIsRedPacketModalOpen(false);
+    setRedPacketError('');
+  };
+
+  const handleSendRedPacket = async () => {
+    if (!id || !isGroup || isRedPacketSending) return;
+    if (isOffline) {
+      setRedPacketError('当前离线，无法发送红包');
+      return;
+    }
+    const validationError = validateRedPacketInput();
+    if (validationError) {
+      setRedPacketError(validationError);
+      return;
+    }
+    setRedPacketError('');
+    setIsRedPacketSending(true);
+    try {
+      const createRes = await imApi.createRedPacket({
+        groupId: id,
+        packetType: redPacketType,
+        totalAmount: Number(redPacketAmount),
+        totalCount: Number(redPacketCount),
+        greeting: redPacketGreeting.trim(),
+        requestId: createRequestId()
+      });
+
+      await sendCustomMessage(id, conversationType, RED_PACKET_MESSAGE, {
+        packetId: createRes.packetId,
+        groupId: createRes.groupId,
+        packetType: createRes.packetType,
+        totalAmount: createRes.totalAmount,
+        totalCount: createRes.totalCount,
+        greeting: createRes.greeting,
+        senderId: createRes.sender.userId,
+        senderName: createRes.sender.username,
+        senderAvatar: createRes.sender.avatar,
+        status: createRes.status,
+        remainingAmount: createRes.remainingAmount,
+        remainingCount: createRes.remainingCount,
+        expireAt: createRes.expireAt
+      });
+
+      setIsRedPacketModalOpen(false);
+      setShowActionMenu(false);
+    } catch (error: any) {
+      setRedPacketError(error?.message || '操作繁忙，请稍后重试');
+    } finally {
+      setIsRedPacketSending(false);
+    }
   };
 
   const loadFriendProfile = useCallback(async () => {
@@ -297,6 +544,10 @@ const Chat: React.FC = () => {
     setMemberActionSuccess('');
     setShowMemberMenu(false);
     setShowMemberProfile(false);
+    setIsRedPacketModalOpen(false);
+    setRedPacketError('');
+    setRedPacketPatches({});
+    redPacketLastSyncRef.current = {};
   }, [id]);
 
   useEffect(() => {
@@ -320,23 +571,80 @@ const Chat: React.FC = () => {
       filtered: filtered.length,
       cutoffTime
     });
-    const mapped = filtered.map((msg: any) => ({
-      id: msg.messageId || msg.tid || String(msg.sentTime || Date.now()),
-      text: formatMessageText(msg),
-      sender: msg.isSender ? 'me' : 'other',
-      senderName: msg.sender?.name || msg.senderName,
-      senderId: msg.sender?.id || msg.senderId,
-      time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-      type: msg.name === IMMessageType.IMAGE ? 'image' : 'text',
-      imageUrl: msg.content?.imageUri || msg.content?.url,
-      sentAt: msg.sentTime || 0
-    }));
+    const mapped = filtered.map((msg: any) => {
+      const packetId = toInt(msg?.content?.packetId || msg?.content?.packet_id);
+      const isRedPacket = msg.name === RED_PACKET_MESSAGE && packetId > 0;
+      const patch = packetId ? (redPacketPatches[packetId] || {}) : {};
+      if (isRedPacket) {
+        const status = String(patch.redPacketStatus || msg.content?.status || 'open');
+        const claimedAmount = toInt(patch.redPacketClaimedAmount ?? msg.content?.myClaimedAmount ?? 0);
+        return {
+          id: msg.messageId || msg.tid || `${packetId}-${msg.sentTime || Date.now()}`,
+          text: String(patch.text || resolveRedPacketMessageText(status, claimedAmount)),
+          sender: msg.isSender ? 'me' : 'other',
+          senderName: msg.sender?.name || msg.senderName,
+          senderId: msg.sender?.id || msg.senderId,
+          time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          type: 'redpacket' as const,
+          redPacketId: packetId,
+          redPacketTitle: String(patch.redPacketTitle || resolveRedPacketTitle(status, claimedAmount)),
+          redPacketAmount: toInt(patch.redPacketAmount ?? msg.content?.totalAmount),
+          redPacketCount: toInt(patch.redPacketCount ?? msg.content?.totalCount),
+          redPacketGreeting: String(patch.redPacketGreeting || msg.content?.greeting || '恭喜发财，大吉大利'),
+          redPacketStatus: status,
+          redPacketClaimedAmount: claimedAmount,
+          redPacketRemainingAmount: toInt(patch.redPacketRemainingAmount ?? msg.content?.remainingAmount),
+          redPacketRemainingCount: toInt(patch.redPacketRemainingCount ?? msg.content?.remainingCount),
+          redPacketClaiming: Boolean(patch.redPacketClaiming),
+          redPacketError: String(patch.redPacketError || ''),
+          sentAt: msg.sentTime || 0
+        };
+      }
+
+      return {
+        id: msg.messageId || msg.tid || String(msg.sentTime || Date.now()),
+        text: formatMessageText(msg),
+        sender: msg.isSender ? 'me' : 'other',
+        senderName: msg.sender?.name || msg.senderName,
+        senderId: msg.sender?.id || msg.senderId,
+        time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+        type: msg.name === IMMessageType.IMAGE ? 'image' : 'text',
+        imageUrl: msg.content?.imageUri || msg.content?.url,
+        sentAt: msg.sentTime || 0
+      };
+    });
     const combined = [...mapped, ...localMessages].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0));
     setMessages(combined);
-  }, [imMessages, localMessages]);
+  }, [imMessages, localMessages, redPacketPatches]);
+
+  useEffect(() => {
+    if (isOffline) return;
+    const packetIds = Array.from(new Set(
+      messages
+        .filter(item => item.type === 'redpacket' && item.redPacketId)
+        .map(item => item.redPacketId as number)
+    ));
+    packetIds.forEach(packetId => {
+      syncRedPacketDetail(packetId).catch(() => null);
+    });
+  }, [isOffline, messages, syncRedPacketDetail]);
 
   useEffect(() => {
     setLocalMessages([]);
+  }, [id]);
+
+  useEffect(() => {
+    localMessagesRef.current = localMessages;
+  }, [localMessages]);
+
+  useEffect(() => {
+    return () => {
+      localMessagesRef.current.forEach((msg) => {
+        if (msg.type === 'image') {
+          revokeImageUrl(msg.imageUrl);
+        }
+      });
+    };
   }, [id]);
 
   useEffect(() => {
@@ -457,8 +765,19 @@ const Chat: React.FC = () => {
       item.id === msg.id ? { ...item, status: 'sending' } : item
     )));
     try {
-      await sendTextMessage(id, conversationType, msg.text);
-      setLocalMessages(prev => prev.filter(item => item.id !== msg.id));
+      if (msg.type === 'image') {
+        if (!msg.localFile) {
+          window.alert('图片已失效，请重新选择');
+          setLocalMessages(prev => prev.map(item => (
+            item.id === msg.id ? { ...item, status: 'failed' } : item
+          )));
+          return;
+        }
+        await sendImageMessage(id, conversationType, msg.localFile);
+      } else {
+        await sendTextMessage(id, conversationType, msg.text);
+      }
+      removeLocalMessage(msg.id);
     } catch (e) {
       setLocalMessages(prev => prev.map(item => (
         item.id === msg.id ? { ...item, status: 'failed' } : item
@@ -631,6 +950,106 @@ const Chat: React.FC = () => {
     setShowActionMenu(false);
   };
 
+  const removeLocalMessage = (messageId: string) => {
+    setLocalMessages(prev => {
+      const target = prev.find(item => item.id === messageId);
+      if (target?.type === 'image') {
+        revokeImageUrl(target.imageUrl);
+      }
+      return prev.filter(item => item.id !== messageId);
+    });
+  };
+
+  const handleAlbumClick = () => {
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+      imageInputRef.current.click();
+    }
+  };
+
+  const validateImageFile = (file: File) => {
+    if (!IMAGE_MIME_TYPES.includes(file.type)) {
+      window.alert('仅支持 JPG/PNG 图片');
+      return false;
+    }
+    if (file.size > IMAGE_MAX_SIZE) {
+      window.alert('图片大小不能超过 2MB');
+      return false;
+    }
+    return true;
+  };
+
+  const addLocalImageMessage = (file: File, status: 'failed' | 'sending') => {
+    const now = Date.now();
+    const imageUrl = URL.createObjectURL(file);
+    setLocalMessages(prev => ([
+      ...prev,
+      {
+        id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        text: '',
+        sender: 'me',
+        time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'image',
+        imageUrl,
+        sentAt: now,
+        status,
+        isLocal: true,
+        localFile: file
+      }
+    ]));
+  };
+
+  const handleSendImage = async (file: File) => {
+    if (!id || !validateImageFile(file)) return;
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (isOffline) {
+      addLocalImageMessage(file, 'failed');
+      return;
+    }
+    try {
+      await sendImageMessage(id, conversationType, file);
+    } catch (e) {
+      addLocalImageMessage(file, 'failed');
+    }
+  };
+
+  const handleImageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    handleSendImage(file);
+  };
+
+  const handleActionItemClick = (item: { name: string; action?: string }) => {
+    if (item.action === 'album') {
+      handleAlbumClick();
+      return;
+    }
+    if (item.action === 'redpacket') {
+      openRedPacketModal();
+      return;
+    }
+    handleUnsupported(item.name);
+  };
+
+  const canClaimRedPacket = (msg: ChatMessage) => {
+    if (msg.type !== 'redpacket') return false;
+    if ((msg.redPacketClaimedAmount || 0) > 0) return false;
+    return msg.redPacketStatus === 'open';
+  };
+
+  const getRedPacketActionLabel = (msg: ChatMessage) => {
+    if (msg.redPacketClaiming) return '领取中...';
+    if ((msg.redPacketClaimedAmount || 0) > 0) return `已领 ${msg.redPacketClaimedAmount} 积分`;
+    if (msg.redPacketStatus === 'empty') return '已抢完';
+    if (msg.redPacketStatus === 'expired' || msg.redPacketStatus === 'refunded') return '已过期';
+    if (isOffline) return '离线不可领';
+    return '立即抢红包';
+  };
+
   const statusLabel = isGroup
     ? (memberCount === null ? '群聊' : `${memberCount} 人在线`)
     : <span className="text-emerald-500">● 在线</span>;
@@ -759,6 +1178,41 @@ const Chat: React.FC = () => {
                         <div className={`rounded-xl overflow-hidden border border-theme shadow-sm max-w-[200px] ${msg.sender === 'me' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
                           <img src={msg.imageUrl} alt="sent" className="w-full h-auto" />
                         </div>
+                      ) : msg.type === 'redpacket' ? (
+                        <button
+                          type="button"
+                          className={`max-w-[75vw] px-4 py-3 rounded-2xl text-left shadow-sm border transition-all ${
+                            msg.sender === 'me'
+                              ? 'bg-gradient-to-br from-rose-500 to-orange-500 text-white border-transparent rounded-tr-sm'
+                              : 'bg-gradient-to-br from-red-500/90 to-orange-500/90 text-white border-red-300/20 rounded-tl-sm'
+                          } ${canClaimRedPacket(msg) && !msg.redPacketClaiming && !isOffline ? 'hover:brightness-110 active:scale-[0.99]' : 'opacity-95'}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (canClaimRedPacket(msg) && !msg.redPacketClaiming && !isOffline) {
+                              handleClaimRedPacket(msg);
+                              return;
+                            }
+                            if (msg.redPacketId) {
+                              syncRedPacketDetail(msg.redPacketId, true).catch(() => null);
+                            }
+                          }}
+                          disabled={msg.redPacketClaiming}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="text-2xl leading-none">🧧</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold truncate">{msg.redPacketGreeting || '恭喜发财，大吉大利'}</div>
+                              <div className="text-[11px] mt-1 opacity-95">{msg.redPacketTitle || getRedPacketActionLabel(msg)}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-white/20 flex items-center justify-between text-[10px]">
+                            <span>{getRedPacketActionLabel(msg)}</span>
+                            <span>{msg.time}</span>
+                          </div>
+                          {msg.redPacketError && (
+                            <div className="mt-2 text-[10px] text-rose-100">{msg.redPacketError}</div>
+                          )}
+                        </button>
                       ) : (
                         <div
                           className={`max-w-[75vw] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm break-words relative group ${
@@ -802,6 +1256,13 @@ const Chat: React.FC = () => {
       {/* Input Area */}
       <div className="flex-none z-20">
         <div className="p-3 pb-4 glass-bg border-t border-theme">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            className="hidden"
+            onChange={handleImageInputChange}
+          />
           <div className="flex items-center space-x-2">
               <button
                 onClick={toggleActionMenu}
@@ -856,7 +1317,7 @@ const Chat: React.FC = () => {
              {showActionMenu && (
                <div className="grid grid-cols-4 gap-6 p-6">
                   {ACTION_ITEMS.map((item) => (
-                    <div key={item.name} onClick={() => handleUnsupported(item.name)} className="flex flex-col items-center gap-2 cursor-pointer group">
+                    <div key={item.name} onClick={() => handleActionItemClick(item)} className="flex flex-col items-center gap-2 cursor-pointer group">
                        <div className="w-14 h-14 bg-[var(--bg-primary)] rounded-2xl flex items-center justify-center text-2xl border border-theme shadow-sm group-hover:bg-white/5 transition-colors group-active:scale-95">
                           {item.icon}
                        </div>
@@ -1119,6 +1580,116 @@ const Chat: React.FC = () => {
               >
                 {isAnnouncementSaving ? '保存中...' : '保存'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRedPacketModalOpen && (
+        <div className="fixed inset-0 z-[75] flex items-end sm:items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+            onClick={closeRedPacketModal}
+          ></div>
+          <div className="relative w-full sm:max-w-md card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">发红包</h3>
+              <button
+                onClick={closeRedPacketModal}
+                disabled={isRedPacketSending}
+                className="text-xs text-slate-400 hover:text-[var(--text-primary)] transition-colors disabled:opacity-60"
+              >
+                关闭
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="text-xs text-slate-500 mb-2">红包类型</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setRedPacketType('random')}
+                    className={`py-2.5 rounded-xl border text-sm transition-colors ${redPacketType === 'random' ? 'bg-accent-gradient text-black border-transparent font-semibold' : 'border-theme text-[var(--text-primary)] hover:bg-white/5'}`}
+                  >
+                    拼手气
+                  </button>
+                  <button
+                    onClick={() => setRedPacketType('fixed')}
+                    className={`py-2.5 rounded-xl border text-sm transition-colors ${redPacketType === 'fixed' ? 'bg-accent-gradient text-black border-transparent font-semibold' : 'border-theme text-[var(--text-primary)] hover:bg-white/5'}`}
+                  >
+                    普通红包
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">总金额(积分)</div>
+                  <input
+                    type="number"
+                    min={RED_PACKET_MIN_AMOUNT}
+                    max={RED_PACKET_MAX_AMOUNT}
+                    value={redPacketAmount}
+                    onChange={(event) => setRedPacketAmount(event.target.value)}
+                    className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+                    placeholder="如 100"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">份数</div>
+                  <input
+                    type="number"
+                    min={RED_PACKET_MIN_COUNT}
+                    max={RED_PACKET_MAX_COUNT}
+                    value={redPacketCount}
+                    onChange={(event) => setRedPacketCount(event.target.value)}
+                    className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+                    placeholder="如 10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                  <span>祝福语</span>
+                  <span>{Array.from(redPacketGreeting).length}/{RED_PACKET_MAX_GREETING}</span>
+                </div>
+                <input
+                  type="text"
+                  maxLength={RED_PACKET_MAX_GREETING}
+                  value={redPacketGreeting}
+                  onChange={(event) => setRedPacketGreeting(event.target.value)}
+                  className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+                  placeholder="恭喜发财，大吉大利"
+                />
+              </div>
+
+              <div className="text-[11px] text-slate-500 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2">
+                规则：金额 {RED_PACKET_MIN_AMOUNT}-{RED_PACKET_MAX_AMOUNT}，份数 {RED_PACKET_MIN_COUNT}-{RED_PACKET_MAX_COUNT}；抢完或过期后不可领取。
+              </div>
+
+              {redPacketError && (
+                <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                  {redPacketError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={closeRedPacketModal}
+                  disabled={isRedPacketSending}
+                  className="py-2.5 rounded-xl border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors disabled:opacity-60"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSendRedPacket}
+                  disabled={isRedPacketSending}
+                  className={`py-2.5 rounded-xl text-sm font-bold transition-all ${isRedPacketSending ? 'bg-slate-700/60 text-slate-400' : 'bg-gradient-to-r from-rose-500 to-orange-500 text-white hover:brightness-105 active:scale-95'}`}
+                >
+                  {isRedPacketSending ? '发送中...' : '确认发送'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

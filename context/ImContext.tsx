@@ -88,6 +88,8 @@ interface ImContextValue {
     isFinished: boolean
   }>
   sendTextMessage: (conversationId: string, conversationType: number, text: string) => Promise<ImMessage | null>
+  sendCustomMessage: (conversationId: string, conversationType: number, name: string, content: Record<string, any>) => Promise<ImMessage | null>
+  sendImageMessage: (conversationId: string, conversationType: number, file: File) => Promise<ImMessage | null>
   clearConversationUnread: (conversationId: string, conversationType: number, unreadIndex?: number) => Promise<void>
   removeConversation: (conversationId: string, conversationType: number) => Promise<void>
   setTopConversation: (conversationId: string, conversationType: number, isTop: boolean) => Promise<void>
@@ -365,6 +367,43 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       content: { text }
     }
     const sent = await client.sendMessage(payload)
+    setMessagesByConversation(prev => {
+      const key = buildKey(conversationId, conversationType)
+      const list = mergeMessage(prev[key] || [], sent)
+      return { ...prev, [key]: list }
+    })
+    scheduleRefresh()
+    return sent
+  }, [scheduleRefresh])
+
+  const sendCustomMessage = useCallback(async (conversationId: string, conversationType: number, name: string, content: Record<string, any>) => {
+    const client = clientRef.current as any
+    if (!client?.sendMessage) return null
+    const payload = {
+      conversationId,
+      conversationType,
+      name,
+      content
+    }
+    const sent = await client.sendMessage(payload)
+    setMessagesByConversation(prev => {
+      const key = buildKey(conversationId, conversationType)
+      const list = mergeMessage(prev[key] || [], sent)
+      return { ...prev, [key]: list }
+    })
+    scheduleRefresh()
+    return sent
+  }, [scheduleRefresh])
+
+  const sendImageMessage = useCallback(async (conversationId: string, conversationType: number, file: File) => {
+    const client = clientRef.current as any
+    if (!client?.sendImageMessage) return null
+    const payload = {
+      conversationId,
+      conversationType,
+      content: { file }
+    }
+    const sent = await client.sendImageMessage(payload)
     setMessagesByConversation(prev => {
       const key = buildKey(conversationId, conversationType)
       const list = mergeMessage(prev[key] || [], sent)
@@ -735,6 +774,8 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     loadMessages,
     loadMoreMessages,
     sendTextMessage,
+    sendCustomMessage,
+    sendImageMessage,
     clearConversationUnread,
     removeConversation,
     setTopConversation,

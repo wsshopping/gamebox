@@ -40,6 +40,82 @@ export interface IMGroupRenameResponse {
   groupName: string
 }
 
+export interface IMRedPacketSender {
+  userId: number
+  username: string
+  avatar: string
+}
+
+export interface IMRedPacketCreateRequest {
+  groupId: string
+  packetType: 'fixed' | 'random'
+  totalAmount: number
+  totalCount: number
+  greeting: string
+  requestId: string
+}
+
+export interface IMRedPacketCreateResponse {
+  packetId: number
+  groupId: string
+  packetType: 'fixed' | 'random'
+  totalAmount: number
+  totalCount: number
+  remainingAmount: number
+  remainingCount: number
+  greeting: string
+  status: string
+  expireAt: number
+  senderCanClaim: boolean
+  sender: IMRedPacketSender
+}
+
+export interface IMRedPacketClaimRequest {
+  packetId: number
+  claimRequestId: string
+}
+
+export interface IMRedPacketClaimResponse {
+  packetId: number
+  claimedAmount: number
+  status: string
+  remainingAmount: number
+  remainingCount: number
+  myClaimed: boolean
+}
+
+export interface IMRedPacketClaimItem {
+  claimerId: number
+  claimerName: string
+  claimerAvatar: string
+  amount: number
+  claimedAt: number
+  createdAt: string
+}
+
+export interface IMRedPacketClaimsResponse {
+  items: IMRedPacketClaimItem[]
+  total: number
+}
+
+export interface IMRedPacketDetailResponse {
+  packetId: number
+  groupId: string
+  packetType: 'fixed' | 'random'
+  totalAmount: number
+  totalCount: number
+  remainingAmount: number
+  remainingCount: number
+  greeting: string
+  status: string
+  expireAt: number
+  myClaimStatus: string
+  myClaimedAmount: number
+  senderCanClaim: boolean
+  sender: IMRedPacketSender
+  topClaims: IMRedPacketClaimItem[]
+}
+
 export const imApi = {
   getToken: async (): Promise<IMTokenResponse> => {
     return request<IMTokenResponse>('/portal/im/token')
@@ -79,5 +155,24 @@ export const imApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     })
+  },
+  createRedPacket: async (payload: IMRedPacketCreateRequest): Promise<IMRedPacketCreateResponse> => {
+    return request<IMRedPacketCreateResponse>('/portal/im/red-packets/create', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  claimRedPacket: async (payload: IMRedPacketClaimRequest): Promise<IMRedPacketClaimResponse> => {
+    return request<IMRedPacketClaimResponse>('/portal/im/red-packets/claim', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  getRedPacketDetail: async (packetId: number): Promise<IMRedPacketDetailResponse> => {
+    return request<IMRedPacketDetailResponse>(`/portal/im/red-packets/detail?packetId=${encodeURIComponent(String(packetId))}`)
+  },
+  getRedPacketClaims: async (packetId: number, page = 1, pageSize = 20): Promise<IMRedPacketClaimsResponse> => {
+    const query = `packetId=${encodeURIComponent(String(packetId))}&page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`
+    return request<IMRedPacketClaimsResponse>(`/portal/im/red-packets/claims?${query}`)
   }
 }
