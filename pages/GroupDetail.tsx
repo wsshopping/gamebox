@@ -6,6 +6,13 @@ import { useIm } from '../context/ImContext';
 import { IMConversationType } from '../services/im/client';
 import { useAuth } from '../context/AuthContext';
 
+const AUTO_DELETE_OPTIONS = [
+  { label: '关闭', value: 0 },
+  { label: '24小时', value: 24 * 60 * 60 },
+  { label: '7天', value: 7 * 24 * 60 * 60 },
+  { label: '30天', value: 30 * 24 * 60 * 60 }
+] as const;
+
 const GroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -36,6 +43,11 @@ const GroupDetail: React.FC = () => {
   const [renameError, setRenameError] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMembersSheet, setShowMembersSheet] = useState(false);
+  const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(0);
+  const [canEditAutoDelete, setCanEditAutoDelete] = useState(false);
+  const [isAutoDeleteLoading, setIsAutoDeleteLoading] = useState(false);
+  const [autoDeleteError, setAutoDeleteError] = useState('');
+  const [showAutoDeleteSheet, setShowAutoDeleteSheet] = useState(false);
   const [showMemberActions, setShowMemberActions] = useState(false);
   const [selectedMember, setSelectedMember] = useState<{ id: string; name?: string } | null>(null);
   const [memberIsFriend, setMemberIsFriend] = useState(false);
@@ -64,6 +76,10 @@ const GroupDetail: React.FC = () => {
 
   const canRename = isOwner || isAdmin;
   const canManageMemberActions = isOwner || isAdmin;
+  const autoDeleteLabel = useMemo(() => {
+    const found = AUTO_DELETE_OPTIONS.find(item => item.value === autoDeleteSeconds);
+    return found?.label || '关闭';
+  }, [autoDeleteSeconds]);
   const currentUserId = user?.ID ? String(user.ID) : '';
   const selectedMemberId = selectedMember?.id || '';
   const selectedMemberNumericId = /^[0-9]+$/.test(selectedMemberId) ? Number(selectedMemberId) : 0;
@@ -157,6 +173,52 @@ const GroupDetail: React.FC = () => {
       active = false;
     };
   }, [getGroupInfo, getGroupMembers, id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    setIsAutoDeleteLoading(true);
+    setAutoDeleteError('');
+    api.im.getAutoDeletePolicy({
+      conversationType: IMConversationType.GROUP,
+      conversationId: id
+    }).then((res) => {
+      if (!active) return;
+      setAutoDeleteSeconds(res.seconds || 0);
+      setCanEditAutoDelete(Boolean(res.canEdit));
+    }).catch((err: any) => {
+      if (!active) return;
+      setAutoDeleteError(err?.message || '自动删除设置获取失败');
+      setAutoDeleteSeconds(0);
+      setCanEditAutoDelete(false);
+    }).finally(() => {
+      if (!active) return;
+      setIsAutoDeleteLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  const handleSetAutoDelete = async (seconds: number) => {
+    if (!id || !canEditAutoDelete) return;
+    setIsAutoDeleteLoading(true);
+    setAutoDeleteError('');
+    try {
+      const res = await api.im.setAutoDeletePolicy({
+        conversationType: IMConversationType.GROUP,
+        conversationId: id,
+        seconds
+      });
+      setAutoDeleteSeconds(res.seconds || 0);
+      setCanEditAutoDelete(Boolean(res.canEdit));
+      setShowAutoDeleteSheet(false);
+    } catch (err: any) {
+      setAutoDeleteError(err?.message || '自动删除设置更新失败');
+    } finally {
+      setIsAutoDeleteLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!showMemberActions || !canAddFriend) {
@@ -359,16 +421,16 @@ const GroupDetail: React.FC = () => {
   return (
     <div className="app-bg min-h-screen relative flex flex-col transition-colors duration-500">
        {/* Transparent Header */}
-       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 p-4 flex justify-between items-center">
+		       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 p-4 flex justify-between items-center">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/30 transition-colors border border-white/10">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <button
-            onClick={() => {
-              if (isJoined) {
-                setShowActions(true);
-              }
-            }}
+	          <button
+	            onClick={() => {
+	              if (isJoined) {
+	                setShowActions(true);
+	              }
+	            }}
             className={`w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white transition-colors border border-white/10 ${isJoined ? 'hover:bg-black/30' : 'opacity-50 cursor-not-allowed'}`}
           >
              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
@@ -489,28 +551,90 @@ const GroupDetail: React.FC = () => {
           </div>
        </div>
 
-       {showActions && (
+	       {showActions && (
          <>
            <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)}></div>
-           <div className="fixed top-16 right-4 z-50 card-bg border border-theme rounded-xl shadow-xl overflow-hidden w-40">
-             <button
-               onClick={() => handleActionSelect('leave')}
-               className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
+	           <div className="fixed top-16 right-4 z-50 card-bg border border-theme rounded-xl shadow-xl overflow-hidden w-40">
+	             <button
+	               onClick={() => {
+	                 setShowActions(false);
+	                 setShowAutoDeleteSheet(true);
+	               }}
+	               className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
+	               style={{ color: 'var(--text-primary)' }}
+	             >
+	               自动删除消息
+	             </button>
+	             <div className="h-px bg-white/5 mx-2"></div>
+	             <button
+	               onClick={() => handleActionSelect('leave')}
+	               className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
                style={{ color: 'var(--text-primary)' }}
              >
                退出群
              </button>
              <div className="h-px bg-white/5 mx-2"></div>
-             <button
-               onClick={() => handleActionSelect('disband')}
+	             <button
+	               onClick={() => handleActionSelect('disband')}
                disabled={!isOwner}
                className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${isOwner ? 'hover:bg-white/5 text-rose-400' : 'text-slate-500 cursor-not-allowed'}`}
-             >
-               解散群
-             </button>
-           </div>
-         </>
-       )}
+	             >
+	               解散群
+	             </button>
+	           </div>
+	         </>
+	       )}
+
+	       {showAutoDeleteSheet && (
+	         <div className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center">
+	           <div
+	             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+	             onClick={() => !isAutoDeleteLoading && setShowAutoDeleteSheet(false)}
+	           ></div>
+	           <div className="relative w-full sm:max-w-sm card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
+	             <div className="flex items-start justify-between">
+	               <div>
+	                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">自动删除消息</h3>
+	                 <p className="text-xs text-slate-500 mt-1">当前：{isAutoDeleteLoading ? '加载中...' : autoDeleteLabel}</p>
+	               </div>
+	             </div>
+
+	             {autoDeleteError && (
+	               <div className="mt-3 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+	                 {autoDeleteError}
+	               </div>
+	             )}
+
+	             <div className="mt-4 space-y-2">
+	               {AUTO_DELETE_OPTIONS.map((option) => {
+	                 const active = autoDeleteSeconds === option.value;
+	                 return (
+	                   <button
+	                     key={option.value}
+	                     onClick={() => handleSetAutoDelete(option.value)}
+	                     disabled={isAutoDeleteLoading || !canEditAutoDelete}
+	                     className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${active ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400' : 'border-theme text-[var(--text-primary)] hover:bg-white/5'} ${isAutoDeleteLoading || !canEditAutoDelete ? 'opacity-60 cursor-not-allowed' : ''}`}
+	                   >
+	                     {option.label}
+	                   </button>
+	                 );
+	               })}
+	               {!canEditAutoDelete && (
+	                 <div className="text-xs text-slate-500 bg-white/5 border border-theme rounded-xl px-3 py-2">
+	                   仅群主/管理员可修改自动删除设置
+	                 </div>
+	               )}
+	               <button
+	                 onClick={() => setShowAutoDeleteSheet(false)}
+	                 disabled={isAutoDeleteLoading}
+	                 className="w-full py-2.5 rounded-xl border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors"
+	               >
+	                 关闭
+	               </button>
+	             </div>
+	           </div>
+	         </div>
+	       )}
 
        {confirmAction && (
          <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">

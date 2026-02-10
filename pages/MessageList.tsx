@@ -10,6 +10,9 @@ interface MessageListProps {
   isEmbedded?: boolean;
 }
 
+// TODO: 互动消息功能尚未完成，完成后将该开关改为 true 并恢复入口展示。
+const INTERACTION_MESSAGES_ENABLED = false;
+
 // Define the available views for this page
 type ViewMode = 'main' | 'system' | 'interactions';
 
@@ -109,10 +112,13 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
       setIsLoading(true);
       const imItems = imReady ? mapImConversations() : [];
       try {
+        const interactionPromise = INTERACTION_MESSAGES_ENABLED
+          ? api.message.getInteractions('all', 1, 1)
+          : Promise.resolve<Interaction[]>([]);
         const unreadPromise = api.message.getUnreadCount().catch(() => null);
         const [systemList, interactionList, unreadCounts] = await Promise.all([
           api.message.getSystemNotifications('all', 1, 1),
-          api.message.getInteractions('all', 1, 1),
+          interactionPromise,
           unreadPromise
         ]);
         const summaryItems: Message[] = [];
@@ -129,7 +135,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
           });
         }
         const latestInteraction = interactionList[0];
-        if (latestInteraction) {
+        if (INTERACTION_MESSAGES_ENABLED && latestInteraction) {
           summaryItems.push({
             id: `interaction-latest-${latestInteraction.id}`,
             title: '互动消息',
@@ -295,7 +301,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
 
   // --- Main Render ---
 
-  const shouldPadTop = !isEmbedded || viewMode !== 'main';
+  const shouldPadTop = !isEmbedded;
 
   return (
     <div className={`app-bg min-h-full pb-20 transition-colors duration-500 ${shouldPadTop ? 'pt-[calc(5rem+env(safe-area-inset-top))]' : ''}`}>
@@ -314,9 +320,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                {viewMode === 'interactions' && '互动消息'}
              </h1>
            </div>
-           {viewMode === 'main' && (
-             <button className="text-sm text-slate-500 hover:text-accent transition-colors">清除未读</button>
-           )}
+           {/* TODO: 清除未读功能尚未实现，完成后恢复入口。 */}
         </div>
       )}
 
@@ -347,7 +351,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
       {viewMode === 'main' && (
         <>
            {/* Functional Grid */}
-           <div className="grid grid-cols-3 gap-3 p-4 pb-2">
+           <div className={`grid ${INTERACTION_MESSAGES_ENABLED ? 'grid-cols-3' : 'grid-cols-2'} gap-3 p-4 pb-2`}>
               <div 
                 onClick={() => setViewMode('system')}
                 className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-blue-500/30 transition-all"
@@ -368,17 +372,19 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
                  <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">聊天</span>
               </div>
 
-              <div 
-                onClick={() => setViewMode('interactions')}
-                className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-emerald-500/30 transition-all"
-              >
-                 <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg shadow-inner relative border border-emerald-500/20">
-                   @
-                   {/* Badge Mock */}
-                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-card)] text-[9px] text-white flex items-center justify-center shadow-sm">2</div>
-                 </div>
-                 <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">互动消息</span>
-              </div>
+              {INTERACTION_MESSAGES_ENABLED && (
+                <div 
+                  onClick={() => setViewMode('interactions')}
+                  className="flex flex-col items-center space-y-2 cursor-pointer group card-bg p-3 rounded-2xl border border-theme shadow-sm hover:border-emerald-500/30 transition-all"
+                >
+                   <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg shadow-inner relative border border-emerald-500/20">
+                     @
+                     {/* Badge Mock */}
+                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[var(--bg-card)] text-[9px] text-white flex items-center justify-center shadow-sm">2</div>
+                   </div>
+                   <span className="text-xs font-bold text-slate-500 group-hover:text-[var(--text-primary)] transition-colors">互动消息</span>
+                </div>
+              )}
            </div>
 
            {/* Message List */}
@@ -436,7 +442,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
 
       {/* Conditional Rendering of Sub-Views */}
       {viewMode === 'system' && renderSystemView()}
-      {viewMode === 'interactions' && renderInteractionsView()}
+      {INTERACTION_MESSAGES_ENABLED && viewMode === 'interactions' && renderInteractionsView()}
 
     </div>
   );

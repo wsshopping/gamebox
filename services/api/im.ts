@@ -40,6 +40,19 @@ export interface IMGroupRenameResponse {
   groupName: string
 }
 
+export interface IMAutoDeletePolicyPayload {
+  conversationType: number
+  conversationId: string
+}
+
+export interface IMAutoDeletePolicySetPayload extends IMAutoDeletePolicyPayload {
+  seconds: number
+}
+
+export interface IMAutoDeletePolicyResponse extends IMAutoDeletePolicySetPayload {
+  canEdit: boolean
+}
+
 export interface IMRedPacketSender {
   userId: number
   username: string
@@ -152,6 +165,16 @@ export const imApi = {
   },
   updateGroupName: async (payload: IMGroupRenameRequest): Promise<IMGroupRenameResponse> => {
     return request<IMGroupRenameResponse>('/portal/im/groups/name', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  getAutoDeletePolicy: async (payload: IMAutoDeletePolicyPayload): Promise<IMAutoDeletePolicyResponse> => {
+    const query = `conversationType=${encodeURIComponent(String(payload.conversationType))}&conversationId=${encodeURIComponent(payload.conversationId)}`
+    return request<IMAutoDeletePolicyResponse>(`/portal/im/auto-delete?${query}`)
+  },
+  setAutoDeletePolicy: async (payload: IMAutoDeletePolicySetPayload): Promise<IMAutoDeletePolicyResponse> => {
+    return request<IMAutoDeletePolicyResponse>('/portal/im/auto-delete', {
       method: 'POST',
       body: JSON.stringify(payload)
     })

@@ -44,6 +44,10 @@ type ImCreateGroupResponse = {
   groupId: string
 }
 
+type SendMessageOptions = {
+  lifeTime?: number
+}
+
 type ImDebugInfo = {
   lastRefreshAt: number | null
   lastConnectedAt: number | null
@@ -87,9 +91,9 @@ interface ImContextValue {
     messages: ImMessage[]
     isFinished: boolean
   }>
-  sendTextMessage: (conversationId: string, conversationType: number, text: string) => Promise<ImMessage | null>
-  sendCustomMessage: (conversationId: string, conversationType: number, name: string, content: Record<string, any>) => Promise<ImMessage | null>
-  sendImageMessage: (conversationId: string, conversationType: number, file: File) => Promise<ImMessage | null>
+  sendTextMessage: (conversationId: string, conversationType: number, text: string, options?: SendMessageOptions) => Promise<ImMessage | null>
+  sendCustomMessage: (conversationId: string, conversationType: number, name: string, content: Record<string, any>, options?: SendMessageOptions) => Promise<ImMessage | null>
+  sendImageMessage: (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => Promise<ImMessage | null>
   clearConversationUnread: (conversationId: string, conversationType: number, unreadIndex?: number) => Promise<void>
   removeConversation: (conversationId: string, conversationType: number) => Promise<void>
   setTopConversation: (conversationId: string, conversationType: number, isTop: boolean) => Promise<void>
@@ -357,14 +361,15 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return { messages: sorted, isFinished: Boolean(result.isFinished) }
   }, [])
 
-  const sendTextMessage = useCallback(async (conversationId: string, conversationType: number, text: string) => {
+  const sendTextMessage = useCallback(async (conversationId: string, conversationType: number, text: string, options?: SendMessageOptions) => {
     const client = clientRef.current
     if (!client) return null
     const payload = {
       conversationId,
       conversationType,
       name: IMMessageType.TEXT,
-      content: { text }
+      content: { text },
+      ...(options?.lifeTime ? { lifeTime: options.lifeTime * 1000 } : {})
     }
     const sent = await client.sendMessage(payload)
     setMessagesByConversation(prev => {
@@ -376,14 +381,15 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return sent
   }, [scheduleRefresh])
 
-  const sendCustomMessage = useCallback(async (conversationId: string, conversationType: number, name: string, content: Record<string, any>) => {
+  const sendCustomMessage = useCallback(async (conversationId: string, conversationType: number, name: string, content: Record<string, any>, options?: SendMessageOptions) => {
     const client = clientRef.current as any
     if (!client?.sendMessage) return null
     const payload = {
       conversationId,
       conversationType,
       name,
-      content
+      content,
+      ...(options?.lifeTime ? { lifeTime: options.lifeTime * 1000 } : {})
     }
     const sent = await client.sendMessage(payload)
     setMessagesByConversation(prev => {
@@ -395,15 +401,42 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return sent
   }, [scheduleRefresh])
 
-  const sendImageMessage = useCallback(async (conversationId: string, conversationType: number, file: File) => {
+  const sendImageMessage = useCallback(async (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => {
     const client = clientRef.current as any
-    if (!client?.sendImageMessage) return null
+    if (!client) {
+      throw new Error('IM 客户端未初始化')
+    }
+    if (!client?.sendImageMessage) {
+      throw new Error('当前 IM SDK 不支持图片消息')
+    }
     const payload = {
       conversationId,
       conversationType,
-      content: { file }
+      content: { file },
+      ...(options?.lifeTime ? { lifeTime: options.lifeTime * 1000 } : {})
     }
-    const sent = await client.sendImageMessage(payload)
+    const sent = await withTimeout(new Promise((resolve, reject) => {
+      let settled = false
+      const finalize = (handler: (value: any) => void, value: any) => {
+        if (settled) return
+        settled = true
+        handler(value)
+      }
+
+      try {
+        const task = client.sendImageMessage(payload, {
+          onerror: (error: any) => {
+            const message = error?.msg || error?.message || '图片上传失败'
+            finalize(reject, new Error(message))
+          }
+        })
+        Promise.resolve(task)
+          .then((result) => finalize(resolve, result))
+          .catch((error) => finalize(reject, error))
+      } catch (error) {
+        finalize(reject, error)
+      }
+    }), 15000, '图片发送超时')
     setMessagesByConversation(prev => {
       const key = buildKey(conversationId, conversationType)
       const list = mergeMessage(prev[key] || [], sent)
