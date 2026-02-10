@@ -415,36 +415,114 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       content: { file },
       ...(options?.lifeTime ? { lifeTime: options.lifeTime * 1000 } : {})
     }
-    const sent = await withTimeout(new Promise((resolve, reject) => {
-      let settled = false
-      const finalize = (handler: (value: any) => void, value: any) => {
-        if (settled) return
-        settled = true
-        handler(value)
-      }
-
-      try {
-        const task = client.sendImageMessage(payload, {
-          onerror: (error: any) => {
-            const message = error?.msg || error?.message || '图片上传失败'
-            finalize(reject, new Error(message))
-          }
-        })
-        Promise.resolve(task)
-          .then((result) => finalize(resolve, result))
-          .catch((error) => finalize(reject, error))
-      } catch (error) {
-        finalize(reject, error)
-      }
-    }), 15000, '图片发送超时')
-    setMessagesByConversation(prev => {
-      const key = buildKey(conversationId, conversationType)
-      const list = mergeMessage(prev[key] || [], sent)
-      return { ...prev, [key]: list }
+    const startAt = Date.now()
+    let lastProgressAt = 0
+    let lastProgress = 0
+    let progressBucket = -1
+    let sendTid = ''
+    appendDebugLog(`image send start: ${conversationType}:${conversationId}, file=${file.name}, size=${file.size}`)
+    logIm('sendImageMessage:start', {
+      conversationId,
+      conversationType,
+      fileName: file.name,
+      fileSize: file.size,
+      lifeTime: options?.lifeTime || 0
     })
-    scheduleRefresh()
-    return sent
-  }, [scheduleRefresh])
+
+    try {
+      const sent = await withTimeout(new Promise((resolve, reject) => {
+        let settled = false
+        const finalize = (handler: (value: any) => void, value: any) => {
+          if (settled) return
+          settled = true
+          handler(value)
+        }
+
+        try {
+          const task = client.sendImageMessage(payload, {
+            onbefore: (message: any) => {
+              sendTid = String(message?.tid || '')
+              appendDebugLog(`image send queued: tid=${sendTid || '-'}, file=${file.name}`)
+              logIm('sendImageMessage:onbefore', {
+                conversationId,
+                conversationType,
+                tid: sendTid,
+                fileName: file.name
+              })
+            },
+            onprogress: (event: any) => {
+              const percent = Number(event?.percent || 0)
+              if (Number.isNaN(percent)) return
+              lastProgress = percent
+              lastProgressAt = Date.now()
+              const nextBucket = Math.floor(percent / 25)
+              if (nextBucket !== progressBucket || percent >= 99) {
+                progressBucket = nextBucket
+                appendDebugLog(`image upload progress: ${Math.round(percent)}% (tid=${sendTid || '-'})`)
+                logIm('sendImageMessage:progress', {
+                  conversationId,
+                  conversationType,
+                  tid: sendTid,
+                  percent: Math.round(percent)
+                })
+              }
+            },
+            onerror: (error: any) => {
+              const message = error?.msg || error?.message || '图片上传失败'
+              const duration = Date.now() - startAt
+              appendDebugLog(`image send onerror: ${message}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
+              logIm('sendImageMessage:onerror', {
+                conversationId,
+                conversationType,
+                tid: sendTid,
+                message,
+                progress: Math.round(lastProgress),
+                duration
+              })
+              finalize(reject, new Error(message))
+            }
+          })
+          Promise.resolve(task)
+            .then((result) => finalize(resolve, result))
+            .catch((error) => finalize(reject, error))
+        } catch (error) {
+          finalize(reject, error)
+        }
+      }), 45000, '图片发送超时（未收到上传进度，请检查 OSS CORS）')
+
+      const duration = Date.now() - startAt
+      appendDebugLog(`image send success: cost=${duration}ms, tid=${sendTid || '-'}`)
+      logIm('sendImageMessage:success', {
+        conversationId,
+        conversationType,
+        tid: sendTid,
+        duration
+      })
+
+      setMessagesByConversation(prev => {
+        const key = buildKey(conversationId, conversationType)
+        const list = mergeMessage(prev[key] || [], sent)
+        return { ...prev, [key]: list }
+      })
+      scheduleRefresh()
+      return sent
+    } catch (error: any) {
+      const duration = Date.now() - startAt
+      const stalledMs = lastProgressAt ? (Date.now() - lastProgressAt) : duration
+      const message = error?.message || '图片发送失败'
+      appendDebugLog(`image send failed: ${message}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
+      logIm('sendImageMessage:failed', {
+        conversationId,
+        conversationType,
+        tid: sendTid,
+        message,
+        progress: Math.round(lastProgress),
+        stalledMs,
+        duration
+      })
+      throw error
+    }
+  }, [appendDebugLog, scheduleRefresh])
 
   const clearConversationUnread = useCallback(async (conversationId: string, conversationType: number, unreadIndex?: number) => {
     const client = clientRef.current as any

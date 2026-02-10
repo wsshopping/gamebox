@@ -48,6 +48,26 @@ interface ChatMessage {
   isLocal?: boolean;
 }
 
+const isSameChatMessage = (left: ChatMessage, right: ChatMessage) => {
+  return left.id === right.id
+    && left.text === right.text
+    && left.sender === right.sender
+    && left.senderName === right.senderName
+    && left.senderId === right.senderId
+    && left.time === right.time
+    && left.type === right.type
+    && left.imageUrl === right.imageUrl
+    && left.sentAt === right.sentAt
+    && left.status === right.status
+    && left.redPacketId === right.redPacketId
+    && left.redPacketTitle === right.redPacketTitle
+    && left.redPacketStatus === right.redPacketStatus
+    && left.redPacketClaimedAmount === right.redPacketClaimedAmount
+    && left.redPacketRemainingAmount === right.redPacketRemainingAmount
+    && left.redPacketRemainingCount === right.redPacketRemainingCount
+    && left.redPacketError === right.redPacketError
+}
+
 const EMOJIS = ['😀', '😂', '🤣', '😍', '😭', '😡', '👍', '🙏', '🎉', '🔥', '❤️', '💔', '💩', '👻', '💀', '👽', '🤖', '🎃', '🎄', '🎁', '🎈', '💪', '👀', '👂', '👃', '🧠', '🦷', '🦴', '🤝', '👋'];
 
 const ACTION_ITEMS = [
@@ -267,16 +287,30 @@ const Chat: React.FC = () => {
     return new Date(item.claimedAt).toLocaleString();
   };
 
-  const updateRedPacketMessage = useCallback((packetId: number, patch: Partial<ChatMessage>) => {
-    if (!packetId) return;
-    setRedPacketPatches(prev => ({
-      ...prev,
-      [packetId]: {
-        ...(prev[packetId] || {}),
-        ...patch
+	const updateRedPacketMessage = useCallback((packetId: number, patch: Partial<ChatMessage>) => {
+	  if (!packetId) return;
+	  setRedPacketPatches(prev => {
+	    const current = prev[packetId] || {};
+	    const keys = Object.keys(patch) as Array<keyof ChatMessage>;
+	    let changed = false;
+	    for (const key of keys) {
+	      if (current[key] !== patch[key]) {
+          changed = true;
+          break;
+        }
       }
-    }));
-  }, []);
+      if (!changed) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [packetId]: {
+          ...current,
+	        ...patch
+	      }
+	    };
+	  });
+	}, []);
 
   const toInt = (value: any) => {
     const parsed = Number(value);
@@ -827,7 +861,12 @@ const Chat: React.FC = () => {
       };
     });
     const combined = [...mapped, ...localMessages].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0));
-    setMessages(combined);
+    setMessages(prev => {
+      if (prev.length === combined.length && prev.every((item, index) => isSameChatMessage(item, combined[index]))) {
+        return prev;
+      }
+      return combined;
+    });
   }, [imMessages, localMessages, redPacketPatches]);
 
   useEffect(() => {

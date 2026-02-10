@@ -6868,7 +6868,7 @@ function WebRequest () {
     });
     let body = option.body || {};
     let isSuccess = () => {
-      return /^(200|202)$/.test(xhr.status);
+      return /^(200|202|204)$/.test(xhr.status);
     };
     let timeout = option.timeout;
     if (timeout) {
@@ -6880,7 +6880,14 @@ function WebRequest () {
           responseText
         } = xhr;
         responseText = responseText || '{}';
-        let result = JSON.parse(responseText);
+        let result = {};
+        try {
+          result = JSON.parse(responseText);
+        } catch (e) {
+          result = {
+            raw: responseText
+          };
+        }
         if (isSuccess()) {
           callback.success(result, xhr);
         } else {
@@ -6902,6 +6909,12 @@ function WebRequest () {
     };
     xhr.onerror = error => {
       callback.fail(error);
+    };
+    xhr.ontimeout = () => {
+      callback.fail({
+        status: xhr.status,
+        message: 'xhr timeout'
+      });
     };
     xhr.send(body);
     return xhr;
@@ -7141,6 +7154,7 @@ function Uploder (uploader, {
     jrequest.uploadFile(url, {
       ...option,
       method: 'PUT',
+      timeout: 30000,
       headers: {
         'Content-Type': ''
       },
@@ -15070,12 +15084,51 @@ function Message$1 (io, emitter, logger) {
         ...params,
         userId
       };
-      io.sendCommand(SIGNAL_CMD.QUERY, data, ({
-        cred,
-        code
-      }) => {
+      let settled = false;
+      let finish = payload => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(payload || {});
+      };
+      let timer = setTimeout(() => {
+        console.log('[IM][UPLOAD] file_cred timeout', {
+          userId,
+          params
+        });
+        finish({
+          code: ErrorType.COMMAND_FAILED.code,
+          msg: 'file_cred timeout'
+        });
+      }, 10000);
+      io.sendCommand(SIGNAL_CMD.QUERY, data, result => {
+        clearTimeout(timer);
+        result = result || {};
+        let code = result.code;
+        let msg = result.msg;
+        let cred = result.cred || {};
+        if (!utils.isUndefined(code) && !utils.isEqual(code, ErrorType.COMMAND_SUCCESS.code)) {
+          let error = {
+            code,
+            msg: msg || `file_cred failed(${code})`
+          };
+          console.log('[IM][UPLOAD] file_cred failed', {
+            userId,
+            params,
+            code,
+            msg
+          });
+          return finish(error);
+        }
         cred = cred || {};
-        resolve(cred);
+        if (typeof cred.code === 'undefined') {
+          cred.code = code;
+        }
+        if (!cred.msg) {
+          cred.msg = msg;
+        }
+        finish(cred);
       });
     });
   };
@@ -15116,11 +15169,33 @@ function Message$1 (io, emitter, logger) {
       let {
         type
       } = auth;
+      console.log('[IM][UPLOAD] file_cred', {
+        authType: type,
+        authCode: auth.code,
+        authMsg: auth.msg,
+        uploadType,
+        url: auth.url,
+        downloadUrl: auth.downloadUrl,
+        ext
+      });
+      if (!utils.isUndefined(auth.code) && !utils.isEqual(auth.code, ErrorType.COMMAND_SUCCESS.code)) {
+        return _callbacks.onerror({
+          code: auth.code,
+          msg: auth.msg || `file_cred failed(${auth.code})`
+        });
+      }
       if (utils.isEqual(ErrorType.COMMAND_FAILED.code, auth.code)) {
         return _callbacks.onerror(ErrorType.COMMAND_FAILED);
       }
-      if (!utils.isEqual(type, uploadType)) {
-        return _callbacks.onerror(ErrorType.UPLOAD_PLUGIN_NOTMATCH);
+      let serverUploadType = Number(type);
+      let localUploadType = Number(uploadType);
+      if (!Number.isNaN(serverUploadType) && !utils.isEqual(serverUploadType, localUploadType)) {
+        if (utils.isEqual(serverUploadType, UPLOAD_TYPE.QINIU) && !(upload && upload.QiniuError)) {
+          return _callbacks.onerror(ErrorType.UPLOAD_PLUGIN_NOTMATCH);
+        }
+        uploader = Uploder(upload, {
+          type: serverUploadType
+        });
       }
       let params = utils.extend(auth, {
         file: content.file,
@@ -15147,10 +15222,14 @@ function Message$1 (io, emitter, logger) {
             ...cred,
             content
           }, (error, thumbnail, args) => {
+            if (error) {
+              return _callbacks.onerror(error);
+            }
+            args = args || {};
             let {
-              height,
-              width,
-              isUniWebThumbnail
+              height = 0,
+              width = 0,
+              isUniWebThumbnail = false
             } = args;
             utils.extend(message.content, {
               thumbnail,
@@ -15185,10 +15264,14 @@ function Message$1 (io, emitter, logger) {
             ...cred,
             content
           }, (error, poster, args) => {
+            if (error) {
+              return _callbacks.onerror(error);
+            }
+            args = args || {};
             let {
-              height,
-              width,
-              duration
+              height = 0,
+              width = 0,
+              duration = 0
             } = args;
             utils.extend(message.content, {
               poster,
@@ -15234,6 +15317,12 @@ function Message$1 (io, emitter, logger) {
           _callbacks.oncompleted(message);
         },
         onerror: error => {
+          console.log('[IM][UPLOAD] uploader error', {
+            messageType: name,
+            uploadType,
+            authType: option && option.type,
+            error
+          });
           _callbacks.onerror(ErrorType.UPLOADING_FILE_ERROR, error);
         }
       };
