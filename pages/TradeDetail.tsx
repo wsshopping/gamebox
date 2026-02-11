@@ -9,6 +9,7 @@ const TradeDetail: React.FC = () => {
   const [listing, setListing] = useState<TradeListing | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
+  const [previewImage, setPreviewImage] = useState('');
   const noticeTimer = useRef<number | null>(null);
 
   const showNotice = (message: string) => {
@@ -73,6 +74,15 @@ const TradeDetail: React.FC = () => {
     }
   };
 
+  const openImagePreview = (image: string) => {
+    if (!image) return;
+    setPreviewImage(image);
+  };
+
+  const closeImagePreview = () => {
+    setPreviewImage('');
+  };
+
   return (
     <div className="app-bg min-h-full transition-colors duration-500 pt-[calc(5rem+env(safe-area-inset-top))]">
       {notice && (
@@ -83,6 +93,19 @@ const TradeDetail: React.FC = () => {
               <span className="text-xs font-semibold text-slate-100">{notice}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+          onClick={closeImagePreview}
+        >
+          <img
+            src={previewImage}
+            className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={(event) => event.stopPropagation()}
+          />
         </div>
       )}
 
@@ -106,7 +129,14 @@ const TradeDetail: React.FC = () => {
             <div className="card-bg rounded-2xl border border-theme overflow-hidden">
               <div className="flex gap-2 overflow-x-auto p-3">
                 {listing.images.map((img, idx) => (
-                  <img key={idx} src={img} className="w-28 h-20 rounded-xl object-cover border border-theme" />
+                  <button
+                    type="button"
+                    key={idx}
+                    onClick={() => openImagePreview(img)}
+                    className="shrink-0 active:scale-[0.98] transition-transform"
+                  >
+                    <img src={img} className="w-28 h-20 rounded-xl object-cover border border-theme" />
+                  </button>
                 ))}
               </div>
             </div>
