@@ -12,6 +12,7 @@ const Register: React.FC = () => {
     phone: '', 
     password: '', 
     confirmPassword: '',
+    secondPassword: '',
     inviteCode: ''
   });
   const [error, setError] = useState('');
@@ -22,7 +23,7 @@ const Register: React.FC = () => {
     setError('');
 
     // Validation
-    if (!formData.username || !formData.phone || !formData.password || !formData.inviteCode) {
+    if (!formData.username || !formData.phone || !formData.password || !formData.secondPassword || !formData.inviteCode) {
       setError('请填写所有必填项');
       return;
     }
@@ -34,11 +35,15 @@ const Register: React.FC = () => {
       setError('密码长度至少为 6 位');
       return;
     }
+    if (formData.secondPassword.length < 6) {
+      setError('二级密码长度至少为 6 位');
+      return;
+    }
     
     setIsSubmitting(true);
 
     try {
-      await register(formData.username, formData.phone, formData.password, formData.inviteCode);
+      await register(formData.username, formData.phone, formData.password, formData.secondPassword, formData.inviteCode);
       // Register logic automatically logs user in via AuthContext
       navigate('/user'); 
     } catch (err: any) {
@@ -57,7 +62,6 @@ const Register: React.FC = () => {
 
       <div className="mb-8 animate-fade-in-up">
         <h1 className="text-3xl font-black tracking-tight" style={{color: 'var(--text-primary)'}}>创建账号</h1>
-        <p className="text-slate-500 text-sm mt-2">免费加入 贪玩盒子，畅享游戏世界</p>
       </div>
 
       <form onSubmit={handleRegister} className="space-y-5 animate-fade-in-up delay-100">
@@ -134,6 +138,20 @@ const Register: React.FC = () => {
                className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
                style={{color: 'var(--text-primary)'}}
                placeholder="再次输入密码" 
+             />
+           </div>
+        </div>
+
+        <div>
+           <label className="block text-xs font-bold mb-1.5 ml-1" style={{color: 'var(--text-primary)'}}>二级密码</label>
+           <div className="card-bg rounded-2xl px-4 py-3 border border-theme focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/10 transition-all">
+             <input 
+               type="password" 
+               value={formData.secondPassword}
+               onChange={(e) => setFormData({...formData, secondPassword: e.target.value})}
+               className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
+               style={{color: 'var(--text-primary)'}}
+               placeholder="至少6位" 
              />
            </div>
         </div>

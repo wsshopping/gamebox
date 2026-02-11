@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Trade from './Trade';
 import MessageList from './MessageList';
 import Agency, { SuperAdminPage } from './Agency';
+import UserCenter from './UserCenter';
 import { useAuth } from '../context/AuthContext';
 
 const Social: React.FC = () => {
@@ -11,7 +12,7 @@ const Social: React.FC = () => {
   const isSuperAdmin = roleId === 1;
   const isAgent = roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5;
   const tabs = useMemo(() => {
-    const base = ['trade', 'message'];
+    const base = ['trade', 'message', 'player'];
     if (isSuperAdmin || isAgent) {
       base.push('agency');
     }
@@ -20,7 +21,7 @@ const Social: React.FC = () => {
     }
     return base;
   }, [isAgent, isSuperAdmin]);
-  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'agency' | 'superadmin'>(tabs[0] as any);
+  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'player' | 'agency' | 'superadmin'>(tabs[0] as any);
   const tabCount = tabs.length;
   const activeIndex = tabs.indexOf(activeTab);
   useEffect(() => {
@@ -53,7 +54,15 @@ const Social: React.FC = () => {
                      : 'text-slate-500 hover:text-[var(--text-primary)]'
                    }`}
                  >
-                   {tab === 'trade' ? '市场交易' : tab === 'message' ? '消息中心' : tab === 'agency' ? '代理中心' : '超管中心'}
+                   {tab === 'trade'
+                     ? '市场交易'
+                     : tab === 'message'
+                       ? '消息中心'
+                       : tab === 'player'
+                         ? '玩家中心'
+                         : tab === 'agency'
+                           ? '代理中心'
+                           : '超管中心'}
                  </button>
              ))}
            </div>
@@ -64,6 +73,7 @@ const Social: React.FC = () => {
       <div className="flex-1">
         {activeTab === 'trade' && <Trade isEmbedded={true} />}
         {activeTab === 'message' && <MessageList isEmbedded={true} />}
+        {activeTab === 'player' && <UserCenter isEmbedded={true} />}
         {activeTab === 'agency' && <Agency />}
         {activeTab === 'superadmin' && <SuperAdminPage />}
       </div>

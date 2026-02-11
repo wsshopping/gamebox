@@ -6,7 +6,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (phone: string, password: string, captcha: string, captchaId: string) => Promise<void>;
-  register: (username: string, phone: string, password: string, inviteCode: string) => Promise<void>;
+  register: (username: string, phone: string, password: string, secondPassword: string, inviteCode: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (patch: Partial<User>) => void;
 }
@@ -36,10 +36,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (username: string, phone: string, password: string, inviteCode: string) => {
+  const register = async (username: string, phone: string, password: string, secondPassword: string, inviteCode: string) => {
     setIsLoading(true);
     try {
-      const user = await authService.register(username, phone, password, inviteCode);
+      const user = await authService.register(username, phone, password, secondPassword, inviteCode);
       setUser(user);
     } finally {
       setIsLoading(false);

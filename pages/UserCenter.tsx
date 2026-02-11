@@ -423,19 +423,6 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
           </button>
         </div>
 
-        <div className="flex justify-between mt-6 px-4 relative z-10 border-t border-theme pt-6">
-          {[
-            { label: 'Games', value: '12' },
-            { label: 'Following', value: '5' },
-            { label: 'Posts', value: '128' },
-            { label: 'Fans', value: '2.5k' }
-          ].map((stat) => (
-             <div key={stat.label} className="flex flex-col items-center group cursor-pointer">
-               <span className="text-lg font-bold mb-1 group-hover:text-accent transition-colors" style={{color: 'var(--text-primary)'}}>{stat.value}</span>
-               <span className="text-[10px] text-slate-500 uppercase tracking-widest font-medium">{stat.label}</span>
-             </div>
-          ))}
-        </div>
       </div>
 
       {/* Assets Card */}
@@ -516,7 +503,7 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
   );
 }
 
-const UserCenter: React.FC = () => {
+const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isLoading } = useAuth();
@@ -536,6 +523,10 @@ const UserCenter: React.FC = () => {
          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
       </div>
     );
+  }
+
+  if (isEmbedded) {
+    return <UserCenterMain />;
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';

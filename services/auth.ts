@@ -50,10 +50,10 @@ export const authService = {
     return userWithRole
   },
 
-  async register(username: string, phone: string, password: string, inviteCode: string): Promise<User> {
+  async register(username: string, phone: string, password: string, secondPassword: string, inviteCode: string): Promise<User> {
     const data = await request<LoginResponse>('/portal/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ username, phone, password, inviteCode }),
+      body: JSON.stringify({ username, phone, password, secondPassword, inviteCode }),
       skipAuth: true
     })
 

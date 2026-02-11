@@ -5,11 +5,13 @@ import { useIm } from '../context/ImContext';
 import { friendApi, FriendItem, FriendProfile } from '../services/api/friend';
 import {
   imApi,
+  IMMediaDownloadRequest,
   IMAutoDeletePolicyResponse,
   IMGroupAnnouncementResponse,
   IMRedPacketClaimItem,
   IMRedPacketDetailResponse
 } from '../services/api/im';
+import { authStorage } from '../services/http';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 
 const RED_PACKET_MESSAGE = 'jg:redpacket';
@@ -29,8 +31,18 @@ interface ChatMessage {
   senderName?: string;
   senderId?: string;
   time: string;
-  type: 'text' | 'image' | 'redpacket' | 'tip';
+  type: 'text' | 'image' | 'video' | 'file' | 'redpacket' | 'tip';
   imageUrl?: string;
+  videoUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileType?: string;
+  isRead?: boolean;
+  readCount?: number;
+  unreadCount?: number;
+  messageIndex?: number;
+  unreadIndex?: number;
   redPacketId?: number;
   redPacketTitle?: string;
   redPacketAmount?: number;
@@ -57,6 +69,16 @@ const isSameChatMessage = (left: ChatMessage, right: ChatMessage) => {
     && left.time === right.time
     && left.type === right.type
     && left.imageUrl === right.imageUrl
+    && left.videoUrl === right.videoUrl
+    && left.fileUrl === right.fileUrl
+    && left.fileName === right.fileName
+    && left.fileSize === right.fileSize
+    && left.fileType === right.fileType
+    && left.isRead === right.isRead
+    && left.readCount === right.readCount
+    && left.unreadCount === right.unreadCount
+    && left.messageIndex === right.messageIndex
+    && left.unreadIndex === right.unreadIndex
     && left.sentAt === right.sentAt
     && left.status === right.status
     && left.redPacketId === right.redPacketId
@@ -72,16 +94,9 @@ const EMOJIS = ['😀', '😂', '🤣', '😍', '😭', '😡', '👍', '🙏', 
 
 const ACTION_ITEMS = [
   { name: '相册', icon: '🖼️', action: 'album' },
-  { name: '拍摄', icon: '📷' },
-  { name: '位置', icon: '📍' },
-  { name: '红包', icon: '🧧', action: 'redpacket' },
-  { name: '文件', icon: '📁' },
-  { name: '收藏', icon: '⭐' },
-  { name: '名片', icon: '🎫' },
-  { name: '语音', icon: '🎤' }
+  { name: '红包', icon: '🧧', action: 'redpacket' }
 ];
-const IMAGE_MAX_SIZE = 2 * 1024 * 1024;
-const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png'];
+const IMAGE_MAX_SIZE = 10 * 1024 * 1024;
 const MAX_ANNOUNCEMENT_LENGTH = 100;
 const RED_PACKET_MIN_AMOUNT = 1;
 const RED_PACKET_MAX_AMOUNT = 20000;
@@ -89,6 +104,14 @@ const RED_PACKET_MIN_COUNT = 1;
 const RED_PACKET_MAX_COUNT = 100;
 const RED_PACKET_MAX_GREETING = 50;
 const RED_PACKET_OPENING_MIN_MS = 1000;
+const VIDEO_FILE_EXT_RE = /\.(mp4|mov|m4v|webm|ogg|ogv|avi|mkv)$/i;
+
+const isVideoLikeFile = (content?: Record<string, any>) => {
+  const mimeType = String(content?.type || '').toLowerCase();
+  if (mimeType.startsWith('video/')) return true;
+  const maybeName = String(content?.name || content?.fileName || content?.url || '');
+  return VIDEO_FILE_EXT_RE.test(maybeName);
+};
 const RED_PACKET_OPENING_MAX_MS = 2000;
 
 const Chat: React.FC = () => {
@@ -96,8 +119,11 @@ const Chat: React.FC = () => {
   const { id } = useParams();
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialScrollDoneRef = useRef(false);
   const cutoffTimeRef = useRef(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const lastReadReceiptIndexRef = useRef<Record<string, number>>({});
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const localMessagesRef = useRef<ChatMessage[]>([]);
   const enableImDebug = false;
   const logIm = (...args: any[]) => {
@@ -113,6 +139,15 @@ const Chat: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imagePreviewName, setImagePreviewName] = useState('');
+  const imagePreviewOwnedUrlRef = useRef('');
+  const [isVideoPreviewOpen, setIsVideoPreviewOpen] = useState(false);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
+  const [videoPreviewName, setVideoPreviewName] = useState('');
+  const [videoPreviewSaveUrl, setVideoPreviewSaveUrl] = useState('');
+  const videoPreviewOwnedUrlRef = useRef('');
   const [groupTitle, setGroupTitle] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState<IMGroupAnnouncementResponse | null>(null);
@@ -164,6 +199,7 @@ const Chat: React.FC = () => {
   const {
     ready,
     connected,
+    reconnect,
     conversations,
     messagesByConversation,
     loadMessages,
@@ -171,6 +207,7 @@ const Chat: React.FC = () => {
     sendTextMessage,
     sendCustomMessage,
     sendImageMessage,
+    sendFileMessage,
     clearConversationUnread,
     refreshConversations,
     getGroupInfo,
@@ -235,6 +272,199 @@ const Chat: React.FC = () => {
   const revokeImageUrl = (url?: string) => {
     if (url && url.startsWith('blob:')) {
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const formatFileSize = (sizeInKB?: number) => {
+    if (!sizeInKB || Number.isNaN(sizeInKB) || sizeInKB <= 0) return '';
+    if (sizeInKB >= 1024) {
+      return `${(sizeInKB / 1024).toFixed(2)} MB`;
+    }
+    return `${sizeInKB.toFixed(2)} KB`;
+  };
+
+  const isMessageRead = (msg: ChatMessage) => {
+    if (msg.sender !== 'me') return false;
+    if (isGroup) return false;
+    if (msg.status === 'failed' || msg.status === 'sending') return false;
+    if (msg.isRead) return true;
+
+    const latestReadIndex = Number(conversation?.latestReadIndex || 0);
+    if (!latestReadIndex) return false;
+
+    const messageReadIndex = Number(msg.unreadIndex || msg.messageIndex || 0);
+    if (messageReadIndex > 0) {
+      return messageReadIndex <= latestReadIndex;
+    }
+
+    const latestMessage = conversation?.latestMessage;
+    const latestMessageId = String(latestMessage?.messageId || latestMessage?.tid || '');
+    if (latestMessageId && latestMessageId === msg.id && Boolean(latestMessage?.isRead)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const getMessageReadIndicator = (msg: ChatMessage) => {
+    if (msg.sender !== 'me') return '';
+    if (isGroup) return '';
+    if (msg.status === 'failed') return '';
+    if (msg.status === 'sending') return '⌛';
+    return isMessageRead(msg) ? '✓✓' : '✓';
+  };
+
+  const getMessageReadIndicatorClass = (msg: ChatMessage) => {
+    if (msg.sender !== 'me') return '';
+    const base = 'inline-flex items-center font-semibold text-[11px] leading-none select-none';
+    if (msg.status === 'sending') return `${base} text-amber-300`;
+    if (isMessageRead(msg)) return `${base} text-sky-400`;
+    return `${base} text-slate-500/90`;
+  };
+
+  const guessFileName = (url: string, fallback = 'file') => {
+    try {
+      const parsed = new URL(url, window.location.origin);
+      const byAttname = parsed.searchParams.get('attname');
+      if (byAttname) return decodeURIComponent(byAttname);
+      const pathName = parsed.pathname || '';
+      const fileName = pathName.split('/').pop() || '';
+      return fileName || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const triggerDownload = (url: string, fileName: string) => {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  };
+
+  const downloadByUrl = async (url: string, fileName?: string) => {
+    if (!url) return;
+    const finalName = fileName || guessFileName(url);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`download failed: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      triggerDownload(blobUrl, finalName);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
+      return;
+    } catch {
+      window.alert('保存失败：浏览器下载受限，请重试或更换浏览器。');
+    }
+  };
+
+  const resolveMediaDownloadPayload = (url: string, fileName?: string): IMMediaDownloadRequest | null => {
+    if (!url) return null;
+    try {
+      const parsed = new URL(url, window.location.origin);
+      const objectKey = (parsed.searchParams.get('key') || '').trim() || parsed.pathname.replace(/^\/+/, '');
+      if (!objectKey) return null;
+      const fallbackName = fileName || parsed.searchParams.get('attname') || guessFileName(url, 'file');
+      return {
+        key: objectKey,
+        fileName: fallbackName
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const downloadMediaByBackend = async (url: string, fileName?: string) => {
+    const payload = resolveMediaDownloadPayload(url, fileName);
+    if (!payload) {
+      window.alert('保存失败：媒体地址无效');
+      return;
+    }
+    const apiPath = imApi.getMediaDownloadUrl(payload);
+    try {
+      const response = await fetch(`/api/v1${apiPath}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        throw new Error(`download failed: ${response.status}`);
+      }
+      const contentType = (response.headers.get('content-type') || '').toLowerCase();
+      if (contentType.includes('application/json')) {
+        throw new Error('response json');
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      triggerDownload(blobUrl, payload.fileName || 'download');
+      window.setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 5000);
+    } catch {
+      window.alert('保存失败：当前环境不支持直接保存，请联系管理员。');
+    }
+  };
+
+  const getMediaPreviewBackendUrl = (url: string, fileName?: string) => {
+    const payload = resolveMediaDownloadPayload(url, fileName);
+    if (!payload) return '';
+    return `/api/v1${imApi.getMediaPreviewUrl(payload)}`;
+  };
+
+  const getAuthHeaders = () => {
+    const token = authStorage.getToken();
+    const user = authStorage.getUser();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['x-token'] = token;
+    }
+    if (user?.ID) {
+      headers['x-user-id'] = String(user.ID);
+    }
+    return headers;
+  };
+
+  const fetchMediaPreviewBlobUrl = async (url: string, fileName?: string, preferType?: string) => {
+    const payload = resolveMediaDownloadPayload(url, fileName);
+    if (!payload) {
+      throw new Error('媒体地址无效');
+    }
+    const apiPath = imApi.getMediaPreviewUrl(payload);
+    const response = await fetch(`/api/v1${apiPath}`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) {
+      throw new Error(`preview failed: ${response.status}`);
+    }
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    if (contentType.includes('application/json')) {
+      throw new Error('preview failed: json response');
+    }
+    let blob = await response.blob();
+    if (preferType && preferType.startsWith('video/') && (!blob.type || blob.type === 'application/octet-stream')) {
+      blob = new Blob([blob], { type: preferType });
+    }
+    return URL.createObjectURL(blob);
+  };
+
+  const openMediaInNewTab = (url?: string) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const releaseImagePreviewOwnedUrl = () => {
+    if (imagePreviewOwnedUrlRef.current) {
+      URL.revokeObjectURL(imagePreviewOwnedUrlRef.current);
+      imagePreviewOwnedUrlRef.current = '';
+    }
+  };
+
+  const releaseVideoPreviewOwnedUrl = () => {
+    if (videoPreviewOwnedUrlRef.current) {
+      URL.revokeObjectURL(videoPreviewOwnedUrlRef.current);
+      videoPreviewOwnedUrlRef.current = '';
     }
   };
 
@@ -662,6 +892,7 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     if (!id || !ready) return;
+    initialScrollDoneRef.current = false;
     setIsLoading(true);
     setHasMore(true);
     setIsLoadingMore(false);
@@ -689,6 +920,36 @@ const Chat: React.FC = () => {
     conversation?.latestReadIndex,
     clearConversationUnread
   ]);
+
+  useEffect(() => {
+    if (!id || !ready || isGroup) return;
+    const latestIncoming = [...imMessages].reverse().find((item: any) => !item?.isSender && Number(item?.unreadIndex || item?.messageIndex || 0) > 0);
+    if (!latestIncoming) return;
+    const readIndex = Number(latestIncoming?.unreadIndex || latestIncoming?.messageIndex || 0);
+    if (!readIndex) return;
+    const receiptKey = `${conversationType}:${id}`;
+    const lastSent = Number(lastReadReceiptIndexRef.current[receiptKey] || 0);
+    if (readIndex <= lastSent) return;
+    lastReadReceiptIndexRef.current[receiptKey] = readIndex;
+    clearConversationUnread(id, conversationType, readIndex).catch(() => null);
+  }, [
+    id,
+    ready,
+    isGroup,
+    conversationType,
+    imMessages,
+    clearConversationUnread
+  ]);
+
+  useEffect(() => {
+    if (!id || !ready || isGroup) return;
+    const timer = window.setInterval(() => {
+      refreshConversations().catch(() => null);
+    }, 4000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [id, ready, isGroup, refreshConversations]);
 
   useEffect(() => {
     if (!id || !isGroup) {
@@ -783,10 +1044,16 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     const cutoffTime = cutoffTimeRef.current;
-    const filtered = imMessages.filter((msg: any) => {
+    let filtered = imMessages.filter((msg: any) => {
       const sentTime = msg?.sentTime || 0;
       return sentTime === 0 || sentTime >= cutoffTime;
     });
+    if (filtered.length === 0 && imMessages.length > 0) {
+      const latest = imMessages[imMessages.length - 1];
+      if (latest) {
+        filtered = [latest];
+      }
+    }
     logIm('messages updated', {
       total: imMessages.length,
       filtered: filtered.length,
@@ -855,8 +1122,22 @@ const Chat: React.FC = () => {
         senderName: msg.sender?.name || msg.senderName,
         senderId: msg.sender?.id || msg.senderId,
         time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        type: msg.name === IMMessageType.IMAGE ? 'image' : 'text',
+        type: msg.name === IMMessageType.IMAGE
+          ? 'image'
+          : (msg.name === IMMessageType.VIDEO || (msg.name === IMMessageType.FILE && isVideoLikeFile(msg.content))
+            ? 'video'
+            : (msg.name === IMMessageType.FILE ? 'file' : 'text')),
         imageUrl: msg.content?.imageUri || msg.content?.url,
+        videoUrl: msg.content?.videoUri || msg.content?.url,
+        fileUrl: msg.content?.url,
+        fileName: msg.content?.name || msg.content?.fileName || '文件',
+        fileSize: Number(msg.content?.size || 0),
+        fileType: msg.content?.type || '',
+        isRead: Boolean(msg.isRead),
+        readCount: Number(msg.readCount || 0),
+        unreadCount: Number(msg.unreadCount || 0),
+        messageIndex: Number(msg.messageIndex || 0),
+        unreadIndex: Number(msg.unreadIndex || 0),
         sentAt: msg.sentTime || 0
       };
     });
@@ -882,6 +1163,7 @@ const Chat: React.FC = () => {
   }, [isOffline, messages, syncRedPacketDetail]);
 
   useEffect(() => {
+    initialScrollDoneRef.current = false;
     setLocalMessages([]);
   }, [id]);
 
@@ -891,6 +1173,8 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     return () => {
+      releaseImagePreviewOwnedUrl();
+      releaseVideoPreviewOwnedUrl();
       localMessagesRef.current.forEach((msg) => {
         if (msg.type === 'image') {
           revokeImageUrl(msg.imageUrl);
@@ -900,10 +1184,36 @@ const Chat: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
-    if (!isLoading && !isLoadingMore) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isLoading || isLoadingMore) return;
+    const behavior: ScrollBehavior = initialScrollDoneRef.current ? 'smooth' : 'auto';
+    endRef.current?.scrollIntoView({ behavior, block: 'end' });
+    if (!initialScrollDoneRef.current) {
+      initialScrollDoneRef.current = true;
     }
-  }, [messages, isLoading, isLoadingMore, showActionMenu, showEmojiPicker]);
+  }, [messages, isLoading, id]);
+
+  useEffect(() => {
+    const handleResume = () => {
+      if (!connected) {
+        reconnect();
+      }
+    };
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        handleResume();
+      }
+    };
+
+    window.addEventListener('focus', handleResume);
+    window.addEventListener('pageshow', handleResume);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', handleResume);
+      window.removeEventListener('pageshow', handleResume);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [connected, reconnect]);
 
   const getOldestTimeInWindow = (list: any[], cutoffTime: number) => {
     let oldest = 0;
@@ -961,7 +1271,7 @@ const Chat: React.FC = () => {
 
   const handleScroll = () => {
     const container = scrollRef.current;
-    if (!container || isLoadingMore || !hasMore) return;
+    if (!container || isLoading || isLoadingMore || !hasMore || !initialScrollDoneRef.current) return;
     if (container.scrollTop <= 60) {
       logIm('scroll top reached', { scrollTop: container.scrollTop });
       handleLoadMore();
@@ -1028,6 +1338,28 @@ const Chat: React.FC = () => {
           return;
         }
         await sendImageMessage(id, conversationType, msg.localFile, {
+          lifeTime: autoDeletePolicy?.seconds || 0
+        });
+      } else if (msg.type === 'video') {
+        if (!msg.localFile) {
+          window.alert('视频已失效，请重新选择');
+          setLocalMessages(prev => prev.map(item => (
+            item.id === msg.id ? { ...item, status: 'failed' } : item
+          )));
+          return;
+        }
+        await sendFileMessage(id, conversationType, msg.localFile, {
+          lifeTime: autoDeletePolicy?.seconds || 0
+        });
+      } else if (msg.type === 'file') {
+        if (!msg.localFile) {
+          window.alert('文件已失效，请重新选择');
+          setLocalMessages(prev => prev.map(item => (
+            item.id === msg.id ? { ...item, status: 'failed' } : item
+          )));
+          return;
+        }
+        await sendFileMessage(id, conversationType, msg.localFile, {
           lifeTime: autoDeletePolicy?.seconds || 0
         });
       } else {
@@ -1257,6 +1589,9 @@ const Chat: React.FC = () => {
       if (target?.type === 'image') {
         revokeImageUrl(target.imageUrl);
       }
+      if (target?.type === 'video' && target.videoUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(target.videoUrl);
+      }
       return prev.filter(item => item.id !== messageId);
     });
   };
@@ -1270,13 +1605,22 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleFileClick = () => {
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
   const validateImageFile = (file: File) => {
-    if (!IMAGE_MIME_TYPES.includes(file.type)) {
-      window.alert('仅支持 JPG/PNG 图片');
+    if (!file.type.startsWith('image/')) {
+      window.alert('仅支持图片文件');
       return false;
     }
     if (file.size > IMAGE_MAX_SIZE) {
-      window.alert('图片大小不能超过 2MB');
+      window.alert('图片大小不能超过 10MB');
       return false;
     }
     return true;
@@ -1294,6 +1638,50 @@ const Chat: React.FC = () => {
         time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         type: 'image',
         imageUrl,
+        sentAt: now,
+        status,
+        isLocal: true,
+        localFile: file
+      }
+    ]));
+  };
+
+  const addLocalVideoMessage = (file: File, status: 'failed' | 'sending') => {
+    const now = Date.now();
+    const videoUrl = URL.createObjectURL(file);
+    setLocalMessages(prev => ([
+      ...prev,
+      {
+        id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        text: '[视频]',
+        sender: 'me',
+        time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'video',
+        videoUrl,
+        fileName: file.name,
+        fileSize: Number((file.size / 1024).toFixed(2)),
+        fileType: file.type || 'video/mp4',
+        sentAt: now,
+        status,
+        isLocal: true,
+        localFile: file
+      }
+    ]));
+  };
+
+  const addLocalFileMessage = (file: File, status: 'failed' | 'sending') => {
+    const now = Date.now();
+    setLocalMessages(prev => ([
+      ...prev,
+      {
+        id: `local-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        text: '[文件]',
+        sender: 'me',
+        time: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'file',
+        fileName: file.name,
+        fileSize: Number((file.size / 1024).toFixed(2)),
+        fileType: file.type || 'application/octet-stream',
         sentAt: now,
         status,
         isLocal: true,
@@ -1321,11 +1709,68 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleSendVideo = async (file: File) => {
+    if (!id) return;
+    if (!file.type.startsWith('video/')) {
+      window.alert('仅支持视频文件');
+      return;
+    }
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (isOffline) {
+      addLocalVideoMessage(file, 'failed');
+      return;
+    }
+    try {
+      await sendFileMessage(id, conversationType, file, {
+        lifeTime: autoDeletePolicy?.seconds || 0
+      });
+    } catch (e) {
+      addLocalVideoMessage(file, 'failed');
+      const message = e instanceof Error ? e.message : '视频发送失败，请稍后重试';
+      window.alert(message);
+    }
+  };
+
+  const handleSendFile = async (file: File) => {
+    if (!id) return;
+    setShowEmojiPicker(false);
+    setShowActionMenu(false);
+    if (isOffline) {
+      addLocalFileMessage(file, 'failed');
+      return;
+    }
+    try {
+      await sendFileMessage(id, conversationType, file, {
+        lifeTime: autoDeletePolicy?.seconds || 0
+      });
+    } catch (e) {
+      addLocalFileMessage(file, 'failed');
+      const message = e instanceof Error ? e.message : '文件发送失败，请稍后重试';
+      window.alert(message);
+    }
+  };
+
   const handleImageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    handleSendImage(file);
+    if (file.type.startsWith('video/')) {
+      handleSendVideo(file);
+      return;
+    }
+    if (file.type.startsWith('image/')) {
+      handleSendImage(file);
+      return;
+    }
+    window.alert('仅支持图片或视频文件');
+  };
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    handleSendFile(file);
   };
 
   const handleActionItemClick = (item: { name: string; action?: string }) => {
@@ -1337,7 +1782,111 @@ const Chat: React.FC = () => {
       openRedPacketModal();
       return;
     }
+    if (item.action === 'file') {
+      handleFileClick();
+      return;
+    }
     handleUnsupported(item.name);
+  };
+
+  const handleOpenFile = (msg: ChatMessage) => {
+    if (msg.fileUrl) {
+      void downloadMediaByBackend(msg.fileUrl, msg.fileName);
+      return;
+    }
+    if (!msg.localFile) return;
+    const localUrl = URL.createObjectURL(msg.localFile);
+    downloadByUrl(localUrl, msg.fileName || msg.localFile.name);
+    window.setTimeout(() => {
+      URL.revokeObjectURL(localUrl);
+    }, 5000);
+  };
+
+  const closeImagePreview = () => {
+    setIsImagePreviewOpen(false);
+    setImagePreviewUrl('');
+    setImagePreviewName('');
+    releaseImagePreviewOwnedUrl();
+  };
+
+  const closeVideoPreview = () => {
+    setIsVideoPreviewOpen(false);
+    setVideoPreviewUrl('');
+    setVideoPreviewName('');
+    setVideoPreviewSaveUrl('');
+    releaseVideoPreviewOwnedUrl();
+  };
+
+  const handleOpenImage = (msg: ChatMessage) => {
+    releaseImagePreviewOwnedUrl();
+    if (msg.imageUrl) {
+      setImagePreviewUrl(msg.imageUrl);
+      setImagePreviewName(msg.fileName || guessFileName(msg.imageUrl, 'image'));
+      setIsImagePreviewOpen(true);
+      return;
+    }
+    if (!msg.localFile) return;
+    const localUrl = URL.createObjectURL(msg.localFile);
+    imagePreviewOwnedUrlRef.current = localUrl;
+    setImagePreviewUrl(localUrl);
+    setImagePreviewName(msg.localFile.name || 'image');
+    setIsImagePreviewOpen(true);
+  };
+
+  const handleOpenVideo = async (msg: ChatMessage) => {
+    releaseVideoPreviewOwnedUrl();
+    if (msg.videoUrl) {
+      if (msg.videoUrl.startsWith('blob:')) {
+        setVideoPreviewUrl(msg.videoUrl);
+        setVideoPreviewName(msg.fileName || '视频预览');
+        setVideoPreviewSaveUrl(msg.videoUrl);
+        setIsVideoPreviewOpen(true);
+        return;
+      }
+      try {
+        const previewBlobUrl = await fetchMediaPreviewBlobUrl(msg.videoUrl, msg.fileName || 'video', msg.fileType);
+        videoPreviewOwnedUrlRef.current = previewBlobUrl;
+        setVideoPreviewUrl(previewBlobUrl);
+        setVideoPreviewName(msg.fileName || '视频预览');
+        setVideoPreviewSaveUrl(msg.videoUrl);
+        setIsVideoPreviewOpen(true);
+      } catch {
+        const previewUrl = getMediaPreviewBackendUrl(msg.videoUrl, msg.fileName || 'video');
+        if (!previewUrl) {
+          window.alert('预览失败：媒体地址无效');
+          return;
+        }
+        setVideoPreviewUrl(previewUrl);
+        setVideoPreviewName(msg.fileName || '视频预览');
+        setVideoPreviewSaveUrl(msg.videoUrl);
+        setIsVideoPreviewOpen(true);
+      }
+      return;
+    }
+    if (!msg.localFile) return;
+    const localUrl = URL.createObjectURL(msg.localFile);
+    videoPreviewOwnedUrlRef.current = localUrl;
+    setVideoPreviewUrl(localUrl);
+    setVideoPreviewName(msg.localFile.name || '视频预览');
+    setVideoPreviewSaveUrl(localUrl);
+    setIsVideoPreviewOpen(true);
+  };
+
+  const handleSaveVideo = (msg: ChatMessage) => {
+    if (msg.videoUrl) {
+      if (msg.videoUrl.startsWith('blob:')) {
+        void downloadByUrl(msg.videoUrl, msg.fileName || 'video');
+        return;
+      }
+      void downloadMediaByBackend(msg.videoUrl, msg.fileName || 'video');
+      return;
+    }
+    if (!msg.localFile) return;
+    const localUrl = URL.createObjectURL(msg.localFile);
+    downloadByUrl(localUrl, msg.localFile.name || 'video');
+    window.setTimeout(() => {
+      URL.revokeObjectURL(localUrl);
+    }, 5000);
   };
 
   const canClaimRedPacket = (msg: ChatMessage) => {
@@ -1398,7 +1947,7 @@ const Chat: React.FC = () => {
          </button>
       </div>
 
-      {!connected && (
+      {!connected && !isImagePreviewOpen && !isVideoPreviewOpen && (
         <div className="flex-none bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs px-4 py-2 flex items-center gap-2">
           <span className="font-bold">离线</span>
           <span>消息发送失败可点击叹号重试</span>
@@ -1487,9 +2036,86 @@ const Chat: React.FC = () => {
                       )}
 
                       {msg.type === 'image' && msg.imageUrl ? (
-                        <div className={`rounded-xl overflow-hidden border border-theme shadow-sm max-w-[200px] ${msg.sender === 'me' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
-                          <img src={msg.imageUrl} alt="sent" className="w-full h-auto" />
+                        <div className={`rounded-xl overflow-hidden border border-theme shadow-sm max-w-[220px] ${msg.sender === 'me' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                          <button
+                            type="button"
+                            className="block w-full"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenImage(msg);
+                            }}
+                          >
+                            <img src={msg.imageUrl} alt="sent" className="w-full h-auto" />
+                          </button>
+                          <div className="px-2 py-1 bg-black/20 text-[10px] text-right text-slate-300 flex items-center justify-end gap-1">
+                            {getMessageReadIndicator(msg) && (
+                              <span className={getMessageReadIndicatorClass(msg)}>{getMessageReadIndicator(msg)}</span>
+                            )}
+                            <span>{msg.time}</span>
+                          </div>
                         </div>
+                      ) : msg.type === 'video' ? (
+                        <div className={`max-w-[240px] rounded-xl overflow-hidden border border-theme shadow-sm ${msg.sender === 'me' ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-3 flex items-center gap-3 text-left bg-[var(--bg-card)]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenVideo(msg);
+                            }}
+                          >
+                            <span className="text-2xl leading-none">🎬</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold truncate">视频消息</div>
+                              <div className="text-[11px] text-slate-400 mt-1">点击打开播放</div>
+                            </div>
+                          </button>
+                          <div className="flex items-center justify-end gap-3 px-2 py-1 bg-black/20 text-[10px]">
+                            <button
+                              type="button"
+                              className="text-slate-200 hover:text-white"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleSaveVideo(msg);
+                              }}
+                            >
+                              保存
+                            </button>
+                            {getMessageReadIndicator(msg) && (
+                              <span className={getMessageReadIndicatorClass(msg)}>{getMessageReadIndicator(msg)}</span>
+                            )}
+                            <span className="text-slate-300">{msg.time}</span>
+                          </div>
+                        </div>
+                      ) : msg.type === 'file' ? (
+                        <button
+                          type="button"
+                          className={`max-w-[75vw] px-4 py-3 rounded-2xl text-left shadow-sm border transition-all ${
+                            msg.sender === 'me'
+                              ? 'bg-accent-gradient text-black rounded-tr-sm border-transparent'
+                              : 'card-bg text-[var(--text-primary)] border border-theme rounded-tl-sm'
+                          } ${msg.fileUrl || msg.localFile ? 'hover:brightness-110 active:scale-[0.99]' : ''}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenFile(msg);
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="text-2xl leading-none">📁</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold break-all">{msg.fileName || '文件'}</div>
+                              <div className={`text-[11px] mt-1 ${msg.sender === 'me' ? 'text-black/70' : 'text-slate-400'}`}>
+                                {formatFileSize(msg.fileSize) || msg.fileType || '文件'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`text-[9px] mt-2 text-right opacity-60 flex items-center justify-end gap-1 ${msg.sender === 'me' ? 'text-black' : 'text-slate-400'}`}>
+                            {getMessageReadIndicator(msg) && (
+                              <span className={getMessageReadIndicatorClass(msg)}>{getMessageReadIndicator(msg)}</span>
+                            )}
+                            <span>{msg.time}</span>
+                          </div>
+                        </button>
                       ) : msg.type === 'redpacket' ? (
                         <button
                           type="button"
@@ -1531,8 +2157,11 @@ const Chat: React.FC = () => {
                           }`}
                         >
                           {msg.text}
-                          <div className={`text-[9px] mt-1 text-right opacity-60 ${msg.sender === 'me' ? 'text-black' : 'text-slate-400'}`}>
-                             {msg.time}
+                          <div className={`text-[9px] mt-1 text-right opacity-60 flex items-center justify-end gap-1 ${msg.sender === 'me' ? 'text-black' : 'text-slate-400'}`}>
+                             {getMessageReadIndicator(msg) && (
+                               <span className={getMessageReadIndicatorClass(msg)}>{getMessageReadIndicator(msg)}</span>
+                             )}
+                             <span>{msg.time}</span>
                           </div>
                         </div>
                       )}
@@ -1569,9 +2198,15 @@ const Chat: React.FC = () => {
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/jpeg,image/png"
+            accept="image/*,video/*"
             className="hidden"
             onChange={handleImageInputChange}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileInputChange}
           />
           <div className="flex items-center space-x-2">
               <button
@@ -1653,6 +2288,33 @@ const Chat: React.FC = () => {
           </div>
         )}
       </div>
+
+      {isImagePreviewOpen && (
+        <div className="fixed inset-0 z-[95] bg-black/95 flex flex-col" onClick={closeImagePreview}>
+          <div className="flex-1 flex items-center justify-center p-4">
+            {imagePreviewUrl ? (
+              <img src={imagePreviewUrl} alt="preview" className="max-w-[92vw] max-h-[80vh] object-contain rounded-lg" />
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {isVideoPreviewOpen && (
+        <div className="fixed inset-0 z-[96] bg-black/95 flex flex-col" onClick={closeVideoPreview}>
+          <div className="flex-1 flex items-center justify-center p-4">
+            {videoPreviewUrl ? (
+              <video
+                src={videoPreviewUrl}
+                controls
+                playsInline
+                preload="metadata"
+                onClick={(event) => event.stopPropagation()}
+                className="max-w-[92vw] max-h-[80vh] rounded-lg bg-black"
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {showMemberMenu && isGroup && (
         <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">

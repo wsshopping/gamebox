@@ -17,6 +17,11 @@ export interface IMGroupActionRequest {
   groupId: string
 }
 
+export interface IMMediaDownloadRequest {
+  key: string
+  fileName?: string
+}
+
 export interface IMGroupAnnouncementResponse {
   groupId: string
   content: string
@@ -197,5 +202,21 @@ export const imApi = {
   getRedPacketClaims: async (packetId: number, page = 1, pageSize = 20): Promise<IMRedPacketClaimsResponse> => {
     const query = `packetId=${encodeURIComponent(String(packetId))}&page=${encodeURIComponent(String(page))}&pageSize=${encodeURIComponent(String(pageSize))}`
     return request<IMRedPacketClaimsResponse>(`/portal/im/red-packets/claims?${query}`)
+  },
+  getMediaDownloadUrl: (payload: IMMediaDownloadRequest): string => {
+    const params = new URLSearchParams()
+    params.set('key', payload.key)
+    if (payload.fileName) {
+      params.set('fileName', payload.fileName)
+    }
+    return `/portal/im/media/download?${params.toString()}`
+  },
+  getMediaPreviewUrl: (payload: IMMediaDownloadRequest): string => {
+    const params = new URLSearchParams()
+    params.set('key', payload.key)
+    if (payload.fileName) {
+      params.set('fileName', payload.fileName)
+    }
+    return `/portal/im/media/preview?${params.toString()}`
   }
 }

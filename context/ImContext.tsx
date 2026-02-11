@@ -5,6 +5,7 @@ import {
   createIMClient,
   IMConnectionState,
   IMConversationOrder,
+  IMConversationType,
   IMEvent,
   IMMessageType,
   IMClient
@@ -94,6 +95,7 @@ interface ImContextValue {
   sendTextMessage: (conversationId: string, conversationType: number, text: string, options?: SendMessageOptions) => Promise<ImMessage | null>
   sendCustomMessage: (conversationId: string, conversationType: number, name: string, content: Record<string, any>, options?: SendMessageOptions) => Promise<ImMessage | null>
   sendImageMessage: (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => Promise<ImMessage | null>
+  sendFileMessage: (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => Promise<ImMessage | null>
   clearConversationUnread: (conversationId: string, conversationType: number, unreadIndex?: number) => Promise<void>
   removeConversation: (conversationId: string, conversationType: number) => Promise<void>
   setTopConversation: (conversationId: string, conversationType: number, isTop: boolean) => Promise<void>
@@ -308,23 +310,38 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     const client = clientRef.current
     if (!client) return []
     const fetchMessages = async () => client.getMessages({ conversationId, conversationType })
+
     let result = await fetchMessages()
     let sorted = sortMessages(result.messages || [])
+
     if (sorted.length === 0) {
-      await new Promise(resolve => setTimeout(resolve, 80))
-      const retry = await fetchMessages()
-      const retrySorted = sortMessages(retry.messages || [])
-      if (retrySorted.length > 0) {
-        result = retry
-        sorted = retrySorted
+      const retryDelays = [80, 200]
+      for (const delay of retryDelays) {
+        await new Promise(resolve => setTimeout(resolve, delay))
+        const retry = await fetchMessages()
+        const retrySorted = sortMessages(retry.messages || [])
+        if (retrySorted.length > 0) {
+          result = retry
+          sorted = retrySorted
+          break
+        }
       }
     }
+
     const range = getSentTimeRange(sorted)
     logIm('loadMessages', { conversationId, conversationType, count: sorted.length, range })
-    setMessagesByConversation(prev => ({
-      ...prev,
-      [buildKey(conversationId, conversationType)]: sorted
-    }))
+    const key = buildKey(conversationId, conversationType)
+    setMessagesByConversation(prev => {
+      const existing = prev[key] || []
+      if (sorted.length === 0 && existing.length > 0) {
+        logIm('loadMessages keep cache on empty result', { conversationId, conversationType, cached: existing.length })
+        return prev
+      }
+      return {
+        ...prev,
+        [key]: sorted
+      }
+    })
     return sorted
   }, [])
 
@@ -524,12 +541,144 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }, [appendDebugLog, scheduleRefresh])
 
+  const sendFileMessage = useCallback(async (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => {
+    const client = clientRef.current as any
+    if (!client) {
+      throw new Error('IM 客户端未初始化')
+    }
+    if (!client?.sendFileMessage) {
+      throw new Error('当前 IM SDK 不支持文件消息')
+    }
+
+    const fileSizeInKB = Number((file.size / 1024).toFixed(2))
+    const payload = {
+      conversationId,
+      conversationType,
+      content: {
+        file,
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: fileSizeInKB
+      },
+      ...(options?.lifeTime ? { lifeTime: options.lifeTime * 1000 } : {})
+    }
+
+    const startAt = Date.now()
+    let lastProgressAt = 0
+    let lastProgress = 0
+    let progressBucket = -1
+    let sendTid = ''
+    appendDebugLog(`file send start: ${conversationType}:${conversationId}, file=${file.name}, size=${file.size}`)
+    logIm('sendFileMessage:start', {
+      conversationId,
+      conversationType,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type || 'application/octet-stream',
+      lifeTime: options?.lifeTime || 0
+    })
+
+    try {
+      const sent = await withTimeout(new Promise((resolve, reject) => {
+        let settled = false
+        const finalize = (handler: (value: any) => void, value: any) => {
+          if (settled) return
+          settled = true
+          handler(value)
+        }
+
+        try {
+          const task = client.sendFileMessage(payload, {
+            onbefore: (message: any) => {
+              sendTid = String(message?.tid || '')
+              appendDebugLog(`file send queued: tid=${sendTid || '-'}, file=${file.name}`)
+              logIm('sendFileMessage:onbefore', {
+                conversationId,
+                conversationType,
+                tid: sendTid,
+                fileName: file.name
+              })
+            },
+            onprogress: (event: any) => {
+              const percent = Number(event?.percent || 0)
+              if (Number.isNaN(percent)) return
+              lastProgress = percent
+              lastProgressAt = Date.now()
+              const nextBucket = Math.floor(percent / 25)
+              if (nextBucket !== progressBucket || percent >= 99) {
+                progressBucket = nextBucket
+                appendDebugLog(`file upload progress: ${Math.round(percent)}% (tid=${sendTid || '-'})`)
+                logIm('sendFileMessage:progress', {
+                  conversationId,
+                  conversationType,
+                  tid: sendTid,
+                  percent: Math.round(percent)
+                })
+              }
+            },
+            onerror: (error: any) => {
+              const message = error?.msg || error?.message || '文件上传失败'
+              const duration = Date.now() - startAt
+              appendDebugLog(`file send onerror: ${message}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
+              logIm('sendFileMessage:onerror', {
+                conversationId,
+                conversationType,
+                tid: sendTid,
+                message,
+                progress: Math.round(lastProgress),
+                duration
+              })
+              finalize(reject, new Error(message))
+            }
+          })
+          Promise.resolve(task)
+            .then((result) => finalize(resolve, result))
+            .catch((error) => finalize(reject, error))
+        } catch (error) {
+          finalize(reject, error)
+        }
+      }), 120000, '文件发送超时，请稍后重试')
+
+      const duration = Date.now() - startAt
+      appendDebugLog(`file send success: cost=${duration}ms, tid=${sendTid || '-'}`)
+      logIm('sendFileMessage:success', {
+        conversationId,
+        conversationType,
+        tid: sendTid,
+        duration
+      })
+
+      setMessagesByConversation(prev => {
+        const key = buildKey(conversationId, conversationType)
+        const list = mergeMessage(prev[key] || [], sent)
+        return { ...prev, [key]: list }
+      })
+      scheduleRefresh()
+      return sent
+    } catch (error: any) {
+      const duration = Date.now() - startAt
+      const stalledMs = lastProgressAt ? (Date.now() - lastProgressAt) : duration
+      const message = error?.message || '文件发送失败'
+      appendDebugLog(`file send failed: ${message}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
+      logIm('sendFileMessage:failed', {
+        conversationId,
+        conversationType,
+        tid: sendTid,
+        message,
+        progress: Math.round(lastProgress),
+        stalledMs,
+        duration
+      })
+      throw error
+    }
+  }, [appendDebugLog, scheduleRefresh])
+
   const clearConversationUnread = useCallback(async (conversationId: string, conversationType: number, unreadIndex?: number) => {
     const client = clientRef.current as any
-    if (!client?.clearUnreadcount) return
+    if (!client) return
+    const current = conversations.find((item: any) => item.conversationId === conversationId && item.conversationType === conversationType)
     let nextIndex = unreadIndex || 0
     if (!nextIndex) {
-      const current = conversations.find((item: any) => item.conversationId === conversationId && item.conversationType === conversationType)
       const latestUnread = Number(current?.latestUnreadIndex || 0)
       const latestRead = Number(current?.latestReadIndex || 0)
       const unreadCount = Number(current?.unreadCount || 0)
@@ -539,14 +688,59 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         nextIndex = latestRead + unreadCount
       }
     }
-    if (!nextIndex) return
-    await client.clearUnreadcount([{
-      conversationId,
-      conversationType,
-      unreadIndex: nextIndex
-    }])
+    if (nextIndex && client?.clearUnreadcount) {
+      await client.clearUnreadcount([{
+        conversationId,
+        conversationType,
+        unreadIndex: nextIndex
+      }])
+    }
+
+    if (conversationType === IMConversationType.PRIVATE && client?.readMessage) {
+      const key = buildKey(conversationId, conversationType)
+      const cachedMessages = Array.isArray(messagesByConversation[key]) ? messagesByConversation[key] : []
+      let readTarget: any = null
+
+      for (let index = cachedMessages.length - 1; index >= 0; index -= 1) {
+        const item = cachedMessages[index]
+        if (!item || item?.isSender) continue
+
+        const itemIndex = Number(item?.unreadIndex || item?.messageIndex || 0)
+        if (nextIndex > 0 && itemIndex > 0 && itemIndex > nextIndex) continue
+
+        const itemMessageId = String(item?.messageId || item?.tid || '')
+        const itemSentTime = Number(item?.sentTime || 0)
+        if (!itemMessageId || !itemSentTime) continue
+
+        readTarget = item
+        break
+      }
+
+      if (!readTarget) {
+        const latestMessage = current?.latestMessage || {}
+        const latestMessageId = String(latestMessage?.messageId || latestMessage?.tid || '')
+        const latestSentTime = Number(latestMessage?.sentTime || 0)
+        if (latestMessageId && latestSentTime && !latestMessage?.isSender) {
+          readTarget = latestMessage
+        }
+      }
+
+      const sentTime = Number(readTarget?.sentTime || 0)
+      const messageId = String(readTarget?.messageId || readTarget?.tid || '')
+      const readCursor = Number(readTarget?.unreadIndex || readTarget?.messageIndex || nextIndex || current?.latestReadIndex || 0) || 1
+      if (messageId && sentTime > 0) {
+        client.readMessage([{
+          conversationId,
+          conversationType,
+          sentTime,
+          unreadIndex: readCursor,
+          messageId
+        }]).catch(() => null)
+      }
+    }
+
     scheduleRefresh()
-  }, [conversations, scheduleRefresh])
+  }, [conversations, messagesByConversation, scheduleRefresh])
 
   const removeConversation = useCallback(async (conversationId: string, conversationType: number) => {
     const client = clientRef.current as any
@@ -606,6 +800,56 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       })
       scheduleRefresh()
     })
+    client.on(IMEvent.MESSAGE_READ, (notify: any) => {
+      const conversationId = String(notify?.conversationId || '')
+      const conversationType = Number(notify?.conversationType || 0)
+      const readMessages = Array.isArray(notify?.messages) ? notify.messages : []
+      if (!conversationId || !conversationType || readMessages.length === 0) {
+        return
+      }
+
+      const readMap = new Map<string, any>()
+      readMessages.forEach((item: any) => {
+        const messageId = String(item?.messageId || item?.msgId || '')
+        if (messageId) {
+          readMap.set(messageId, item)
+        }
+      })
+      if (readMap.size === 0) {
+        return
+      }
+
+      setMessagesByConversation(prev => {
+        const key = buildKey(conversationId, conversationType)
+        const current = prev[key] || []
+        if (current.length === 0) return prev
+
+        let changed = false
+        const next = current.map((msg: any) => {
+          const messageId = String(msg?.messageId || msg?.tid || '')
+          const readItem = readMap.get(messageId)
+          if (!readItem) return msg
+
+          changed = true
+          const patch: any = { ...msg, isRead: true }
+          if (typeof notify?.readTime === 'number' && notify.readTime > 0) {
+            patch.readTime = notify.readTime
+          }
+          if (typeof readItem?.readCount === 'number') {
+            patch.readCount = Number(readItem.readCount)
+          }
+          if (typeof readItem?.unreadCount === 'number') {
+            patch.unreadCount = Number(readItem.unreadCount)
+          }
+          return patch
+        })
+
+        if (!changed) return prev
+        return { ...prev, [key]: next }
+      })
+
+      scheduleRefresh()
+    })
     client.on(IMEvent.CONVERSATION_CHANGED, scheduleRefresh)
     client.on(IMEvent.CONVERSATION_ADDED, scheduleRefresh)
     client.on(IMEvent.CONVERSATION_REMOVED, scheduleRefresh)
@@ -614,6 +858,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const detachListeners = useCallback((client: IMClient) => {
     client.off(IMEvent.STATE_CHANGED)
     client.off(IMEvent.MESSAGE_RECEIVED)
+    client.off(IMEvent.MESSAGE_READ)
     client.off(IMEvent.CONVERSATION_CHANGED)
     client.off(IMEvent.CONVERSATION_ADDED)
     client.off(IMEvent.CONVERSATION_REMOVED)
@@ -887,6 +1132,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     sendTextMessage,
     sendCustomMessage,
     sendImageMessage,
+    sendFileMessage,
     clearConversationUnread,
     removeConversation,
     setTopConversation,
