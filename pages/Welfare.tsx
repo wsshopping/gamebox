@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { WelfareLedgerItem, WelfareOverview, WelfareReward } from '../types';
 
+const SIGNIN_MILESTONES = [5, 10, 15, 20, 30];
+
 const Welfare: React.FC = () => {
   const [overview, setOverview] = useState<WelfareOverview | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -97,6 +99,12 @@ const Welfare: React.FC = () => {
   const renderAmount = (amount: number) => {
     return amount > 0 ? `+${amount}` : String(amount);
   };
+
+  const streakDays = overview?.streakDays ?? 0;
+  const cycleDays = overview?.cycleDays ?? 30;
+  const cycleProgress = Math.min(100, Math.round((streakDays / cycleDays) * 100));
+  const nextMilestoneDay = overview?.nextMilestoneDay ?? 0;
+  const daysToNextMilestone = nextMilestoneDay > 0 ? Math.max(nextMilestoneDay - streakDays, 0) : 0;
 
   return (
     <div className="app-bg min-h-full transition-colors duration-500">
@@ -225,30 +233,78 @@ const Welfare: React.FC = () => {
         </div>
 
         {/* Daily Sign In */}
-        <div className="card-bg rounded-[24px] border border-theme p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
-              每日签到
-            </h3>
-            <span className="text-xs font-bold text-accent bg-[var(--bg-primary)] border border-theme px-2 py-1 rounded-md">
-              +{overview?.signinRewardPoints ?? 0} 积分
-            </span>
+        <div className="card-bg rounded-[24px] border border-theme p-5 mb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
+                每日签到
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1">
+                今日签到可得
+                <span className="text-amber-300 font-semibold ml-1">
+                  +{overview?.todayPreviewPoints ?? overview?.signinRewardPoints ?? 0} 积分
+                </span>
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="text-[10px] text-slate-500">连续签到</p>
+              <p className="text-2xl leading-none font-black text-white mt-1">{streakDays}</p>
+              <p className="text-[10px] text-slate-500 mt-1">/ {cycleDays} 天</p>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="mt-4">
+            <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500"
+                style={{ width: `${cycleProgress}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-5 gap-2">
+            {SIGNIN_MILESTONES.map((day) => {
+              const reached = streakDays >= day;
+              const isNextTarget = nextMilestoneDay === day;
+              return (
+                <div
+                  key={day}
+                  className={`rounded-lg border px-1.5 py-1.5 text-center transition-all ${
+                    isNextTarget
+                      ? 'border-amber-400/60 bg-amber-400/10 text-amber-300'
+                      : reached
+                        ? 'border-slate-500/40 bg-slate-700/20 text-slate-200'
+                        : 'border-white/10 bg-slate-900/30 text-slate-500'
+                  }`}
+                >
+                  <div className="text-[10px] font-semibold">{day}天</div>
+                  <div className="text-[9px] mt-0.5">{day === 30 ? '翻倍' : '加分'}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4">
             <div>
               <p className="text-xs text-slate-400">{overview?.signedIn ? '今日已签到' : '今日未签到'}</p>
               {overview?.signedIn && overview?.signedAt ? (
                 <p className="text-[10px] text-slate-500 mt-1">{overview.signedAt}</p>
               ) : null}
+              <p className="text-[10px] text-slate-500 mt-1">
+                {nextMilestoneDay > 0
+                  ? `再签 ${daysToNextMilestone} 天解锁第 ${nextMilestoneDay} 天奖励`
+                  : '已达成30天，次日自动重置并开启新周期'}
+              </p>
             </div>
+
             <button
               onClick={handleSignIn}
               disabled={overview?.signedIn || isSigning}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`min-w-[96px] px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 overview?.signedIn
                   ? 'bg-[var(--bg-primary)] text-slate-400 border border-theme'
-                  : 'bg-accent-gradient text-black shadow-lg hover:brightness-110'
+                  : 'bg-accent-gradient text-black shadow-md hover:brightness-110'
               }`}
             >
               {overview?.signedIn ? '已签到' : isSigning ? '签到中...' : '立即签到'}

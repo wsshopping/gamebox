@@ -95,6 +95,10 @@ export interface Task {
 export interface WelfareOverview {
   balance: number;
   signinRewardPoints: number;
+  streakDays: number;
+  cycleDays: number;
+  todayPreviewPoints: number;
+  nextMilestoneDay: number;
   signedIn: boolean;
   signedAt: string;
   blindboxCostPoints: number;
@@ -110,6 +114,7 @@ export interface WelfareReward {
 export interface WelfareSignInResponse {
   rewardPoints: number;
   balance: number;
+  streakDays: number;
 }
 
 export interface WelfareDrawResponse {
