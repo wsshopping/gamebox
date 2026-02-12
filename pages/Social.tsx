@@ -160,6 +160,7 @@ const MusicPlayerModal: React.FC<{ open: boolean; onClose: () => void }> = ({ op
   const [error, setError] = useState('');
   const [currentMeta, setCurrentMeta] = useState<Pick<MusicTrack, 'title' | 'artist' | 'vibe'> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const updateMetaByIndex = (index: number) => {
     const player = playerRef.current;
@@ -281,23 +282,71 @@ const MusicPlayerModal: React.FC<{ open: boolean; onClose: () => void }> = ({ op
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open) {
+      setIsMinimized(false);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-5">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose}></div>
+    <div className={`fixed inset-0 z-[80] flex ${isMinimized ? 'items-end justify-end p-4 pointer-events-none' : 'items-center justify-center px-5'}`}>
+      {!isMinimized && <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose}></div>}
 
-      <div className="relative w-full max-w-sm bg-[#0f172a] rounded-[28px] p-6 border border-white/10 shadow-2xl overflow-hidden">
+      {isMinimized && (
+        <div className="pointer-events-auto relative w-[170px] rounded-xl border border-white/15 bg-[#0f172a]/95 backdrop-blur-md px-2 py-1.5 shadow-2xl">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] text-slate-300 truncate leading-tight">{currentMeta?.title || '网易云演示播放器'}</div>
+            </div>
+            <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleTogglePlay}
+              className="w-6 h-6 rounded-full bg-white/10 border border-white/15 text-slate-200 text-[10px]"
+              aria-label={isPlaying ? '暂停播放' : '继续播放'}
+            >
+              {isPlaying ? '❚❚' : '▶'}
+            </button>
+            <button
+              onClick={() => setIsMinimized(false)}
+              className="w-6 h-6 rounded-full bg-white/10 border border-white/15 text-slate-200 text-[11px]"
+              aria-label="展开播放器"
+            >
+              □
+            </button>
+            <button
+              onClick={onClose}
+              className="w-6 h-6 rounded-full bg-white/10 border border-white/15 text-slate-200 text-[11px]"
+              aria-label="关闭播放器"
+            >
+              ✕
+            </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`relative w-full max-w-sm bg-[#0f172a] rounded-[28px] p-6 border border-white/10 shadow-2xl overflow-hidden ${isMinimized ? 'hidden' : ''}`}>
         <div className="absolute top-0 right-0 w-44 h-44 bg-amber-500/10 rounded-full blur-3xl -mr-12 -mt-12"></div>
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl -ml-12 -mb-12"></div>
 
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 border border-white/15 text-slate-300 hover:text-white"
-          aria-label="关闭播放器"
-        >
-          ✕
-        </button>
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <button
+            onClick={() => setIsMinimized(true)}
+            className="w-8 h-8 rounded-full bg-white/10 border border-white/15 text-slate-300 hover:text-white"
+            aria-label="缩小播放器"
+          >
+            —
+          </button>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/10 border border-white/15 text-slate-300 hover:text-white"
+            aria-label="关闭播放器"
+          >
+            ✕
+          </button>
+        </div>
 
         <div className="relative z-10 text-white">
           <div className="text-[11px] uppercase tracking-[0.2em] text-amber-400/90 font-bold mb-4">APlayer · 网易云演示</div>
@@ -340,9 +389,8 @@ const MusicPlayerModal: React.FC<{ open: boolean; onClose: () => void }> = ({ op
   );
 };
 
-const PlayerHub: React.FC = () => {
+const PlayerHub: React.FC<{ onOpenMusic: () => void }> = ({ onOpenMusic }) => {
   const navigate = useNavigate();
-  const [musicOpen, setMusicOpen] = useState(false);
 
   return (
     <>
@@ -350,7 +398,7 @@ const PlayerHub: React.FC = () => {
         <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme">
           <div className="grid grid-cols-2 gap-4">
             <button
-              onClick={() => setMusicOpen(true)}
+              onClick={onOpenMusic}
               className="card-bg rounded-2xl border border-theme p-4 text-left group hover:border-accent/40 transition-all"
             >
               <div className="w-11 h-11 rounded-2xl bg-[var(--bg-primary)] border border-theme flex items-center justify-center text-xl mb-3 group-hover:text-accent">
@@ -373,8 +421,6 @@ const PlayerHub: React.FC = () => {
           </div>
         </div>
       </div>
-
-      <MusicPlayerModal open={musicOpen} onClose={() => setMusicOpen(false)} />
     </>
   );
 };
@@ -397,6 +443,7 @@ const Social: React.FC = () => {
   }, [isAgent, isSuperAdmin]);
 
   const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'player' | 'agency' | 'superadmin'>(tabs[0] as any);
+  const [musicOpen, setMusicOpen] = useState(false);
   const tabCount = tabs.length;
   const activeIndex = tabs.indexOf(activeTab);
 
@@ -411,9 +458,9 @@ const Social: React.FC = () => {
 
   return (
     <div className="app-bg min-h-full pt-[calc(5rem+env(safe-area-inset-top))] flex flex-col transition-colors duration-500">
-      <div className="glass-bg fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 border-b border-theme pt-[calc(1rem+env(safe-area-inset-top))] pb-3 transition-colors duration-500">
-        <div className="flex justify-center px-4">
-          <div className="relative flex w-full max-w-sm bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
+      <div className="glass-bg fixed top-0 left-0 w-full z-40 border-b border-theme pt-[calc(1rem+env(safe-area-inset-top))] pb-3 transition-colors duration-500">
+        <div className="px-4">
+          <div className="relative flex w-full bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
             <div
               className="absolute top-1 bottom-1 bg-accent-color/20 rounded-xl shadow-sm border border-accent/20 transition-all duration-300 ease-out"
               style={{ width: sliderWidth, left: sliderLeft }}
@@ -447,10 +494,12 @@ const Social: React.FC = () => {
       <div className="flex-1">
         {activeTab === 'trade' && <Trade isEmbedded={true} />}
         {activeTab === 'message' && <MessageList isEmbedded={true} />}
-        {activeTab === 'player' && <PlayerHub />}
+        {activeTab === 'player' && <PlayerHub onOpenMusic={() => setMusicOpen(true)} />}
         {activeTab === 'agency' && <Agency />}
         {activeTab === 'superadmin' && <SuperAdminPage />}
       </div>
+
+      <MusicPlayerModal open={musicOpen} onClose={() => setMusicOpen(false)} />
     </div>
   );
 };

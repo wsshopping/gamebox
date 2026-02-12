@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Game } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +23,10 @@ const GameCard: React.FC<GameCardProps> = ({ game, compact = false }) => {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-[15px] font-semibold truncate tracking-tight group-hover:text-accent transition-colors" style={{ color: 'var(--text-primary)' }}>
+          <h3
+            className={`${compact ? 'text-[16px]' : 'text-[19px]'} font-bold truncate leading-tight tracking-tight group-hover:text-accent transition-colors`}
+            style={{ color: 'var(--text-primary)' }}
+          >
             {game.title}
           </h3>
           <button

@@ -112,7 +112,7 @@ const BottomNav: React.FC = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50">
+    <div className="fixed bottom-0 left-0 w-full z-50">
       {/* 
         Premium Aesthetics: Dark Glass
       */}
@@ -122,7 +122,7 @@ const BottomNav: React.FC = () => {
           <NavLink
             key={item.name}
             to={item.path}
-            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1 group ${isActive ? item.activeColor : 'text-slate-500 hover:text-slate-300'}`}
+            className={({ isActive }) => `relative flex flex-col items-center justify-center w-full py-1.5 group ${isActive ? item.activeColor : 'text-slate-500 hover:text-slate-300'}`}
           >
             {({ isActive }) => (
               <>
@@ -131,13 +131,13 @@ const BottomNav: React.FC = () => {
                     <div className={`absolute -inset-4 bg-gradient-to-tr ${item.glowColor} rounded-full blur-xl transition-all duration-500 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}></div>
                     
                     {/* Icon Container */}
-                    <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] -translate-y-0.5' : 'scale-100'}`}>
+                    <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-[1.25] drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] -translate-y-0.5' : 'scale-[1.1]'}`}>
                       {isActive ? item.activeIcon : item.icon}
                     </div>
                  </div>
                  
                  {/* Label */}
-                 <span className={`text-[10px] font-medium tracking-wide mt-1 transition-all duration-300 ${isActive ? `${item.activeColor} font-bold scale-105 drop-shadow-sm` : 'text-slate-600'}`}>
+                 <span className={`text-[12px] font-medium tracking-wide mt-1 transition-all duration-300 ${isActive ? `${item.activeColor} font-bold scale-105 drop-shadow-sm` : 'text-slate-600'}`}>
                     {item.name}
                  </span>
               </>

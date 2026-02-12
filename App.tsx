@@ -98,7 +98,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation
-    <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto app-bg shadow-2xl overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500">
+    <div className="flex flex-col h-[100dvh] w-full app-bg overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500">
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>

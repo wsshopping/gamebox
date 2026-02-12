@@ -4,10 +4,15 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const allowedHosts = (env.VITE_ALLOWED_HOSTS || 'twhz.ahqlhkj.top')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts,
         proxy: {
           '/api/v1': {
             target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8888',
