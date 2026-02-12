@@ -10,8 +10,53 @@ import { userApi } from '../services/api/user';
 import { useIm } from '../context/ImContext';
 import { TradeOrder } from '../types';
 
+const PLAYER_MUSIC_PLAYLIST = [
+  {
+    id: 'm1',
+    title: '城市夜航',
+    artist: 'Lo-Fi Session',
+    cover: '🌃',
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+  },
+  {
+    id: 'm2',
+    title: '热血开团',
+    artist: 'Game Beat Lab',
+    cover: '🔥',
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
+  },
+  {
+    id: 'm3',
+    title: '清晨公会',
+    artist: 'Morning Pop',
+    cover: '☀️',
+    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
+  }
+];
+
+const PLAYER_VIDEO_FEED = [
+  {
+    id: 'v1',
+    title: '高能团战片段',
+    creator: '盒子热视频',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+  },
+  {
+    id: 'v2',
+    title: '新游画面实录',
+    creator: '游戏前线',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4'
+  },
+  {
+    id: 'v3',
+    title: '一分钟速看',
+    creator: '掌上评测',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+  }
+];
+
 // Sub-page Component
-const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'default' }> = ({ title, type }) => {
+const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'music' | 'video' | 'default' }> = ({ title, type }) => {
   const navigate = useNavigate();
   const [tradeOrders, setTradeOrders] = useState<TradeOrder[]>([]);
   const [tradeLoading, setTradeLoading] = useState(false);
@@ -110,6 +155,51 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
                 </div>
              ))}
            </div>
+        )}
+
+        {type === 'music' && (
+          <div className="space-y-3">
+            {PLAYER_MUSIC_PLAYLIST.map((track) => (
+              <div key={track.id} className="card-bg rounded-[20px] p-4 border border-theme">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[var(--bg-primary)] border border-theme flex items-center justify-center text-xl">
+                    {track.cover}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{track.title}</div>
+                    <div className="text-xs text-slate-500 truncate">{track.artist}</div>
+                  </div>
+                </div>
+                <audio controls preload="none" className="w-full mt-3 h-10">
+                  <source src={track.url} type="audio/mpeg" />
+                </audio>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {type === 'video' && (
+          <div className="space-y-4">
+            {PLAYER_VIDEO_FEED.map((video) => (
+              <div key={video.id} className="card-bg rounded-[20px] border border-theme overflow-hidden">
+                <div className="aspect-[9/16] bg-black">
+                  <video
+                    src={video.url}
+                    controls
+                    playsInline
+                    muted
+                    loop
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-3">
+                  <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{video.title}</div>
+                  <div className="text-xs text-slate-500 mt-1">{video.creator}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {(type === 'gift' || type === 'default') && (
@@ -449,6 +539,30 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
       {/* Menu List */}
       <div className="px-6 pt-8 pb-32 space-y-6">
          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Player Hub</h4>
+            <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme">
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { name: '听音乐', icon: '🎵', desc: '点击即听', path: '/user/music' },
+                  { name: '刷视频', icon: '🎬', desc: '热门速刷', path: '/user/video' }
+                ].map((item) => (
+                  <button
+                    key={item.name}
+                    onClick={() => navigate(item.path)}
+                    className="card-bg rounded-2xl border border-theme p-4 text-left group hover:border-accent/40 transition-all"
+                  >
+                    <div className="w-11 h-11 rounded-2xl bg-[var(--bg-primary)] border border-theme flex items-center justify-center text-xl mb-3 group-hover:text-accent">
+                      {item.icon}
+                    </div>
+                    <div className="text-sm font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{item.name}</div>
+                    <div className="text-xs text-slate-500">{item.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+         </div>
+
+         <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Entertainment</h4>
             <div className="card-bg rounded-[24px] border border-theme overflow-hidden shadow-sm">
                {[
@@ -540,6 +654,10 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
     content = <UserSubPage title="交易记录" type="trade" />;
   } else if (normalizedPath === '/user/gift') {
     content = <UserSubPage title="我的礼包" type="gift" />;
+  } else if (normalizedPath === '/user/music') {
+    content = <UserSubPage title="听音乐" type="music" />;
+  } else if (normalizedPath === '/user/video') {
+    content = <UserSubPage title="刷视频" type="video" />;
   } else if (normalizedPath === '/user/username') {
     content = <UserCenterMain initialModal="username" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/password') {

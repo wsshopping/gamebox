@@ -91,10 +91,6 @@ const GameCenter: React.FC = () => {
             {games.map(game => (
               <GameCard key={game.id} game={game} />
             ))}
-            {/* Mock Duplication for scroll test if list is short */}
-            {activeTab === 'hot' && games.map(game => (
-              <GameCard key={`dup-${game.id}`} game={game} />
-            ))}
           </>
         )}
       </div>

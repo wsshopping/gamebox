@@ -5,8 +5,10 @@ type PortalBanner = {
   id?: number
   ID?: number
   title?: string
-  imageUrl: string
+  imageUrl?: string
+  image_url?: string
   linkUrl?: string
+  link_url?: string
   position?: string
   sort?: number
   status?: number
@@ -18,8 +20,8 @@ export const bannerApi = {
     return data.map((item) => ({
       id: item.id ?? item.ID ?? 0,
       title: item.title || '',
-      imageUrl: item.imageUrl,
-      linkUrl: item.linkUrl || ''
+      imageUrl: item.imageUrl || item.image_url || '',
+      linkUrl: item.linkUrl || item.link_url || ''
     }))
   }
 }

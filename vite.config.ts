@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => {
             target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8888',
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api\/v1/, '')
+          },
+          '/uploads': {
+            target: env.VITE_PROXY_TARGET || 'http://127.0.0.1:8888',
+            changeOrigin: true
           }
         }
       },

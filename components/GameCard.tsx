@@ -12,42 +12,45 @@ const GameCard: React.FC<GameCardProps> = ({ game, compact = false }) => {
   const navigate = useNavigate();
 
   return (
-    <div 
+    <div
       onClick={() => navigate(`/game/${game.id}`)}
-      // Premium Card: Uses card-bg variable
-      className="relative card-bg rounded-[20px] p-4 flex items-center space-x-4 cursor-pointer group border border-theme shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:border-accent hover:shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:translate-y-[-2px] transition-all duration-500 ease-out"
+      className="relative card-bg rounded-[18px] p-3 flex items-center gap-3 cursor-pointer group border border-theme shadow-[0_2px_10px_rgba(0,0,0,0.18)] hover:border-accent/60 hover:shadow-[0_6px_18px_rgba(0,0,0,0.24)] hover:translate-y-[-1px] transition-all duration-300 ease-out"
     >
-      <img 
-        src={game.icon} 
-        alt={game.title} 
-        className={`${compact ? 'w-12 h-12' : 'w-18 h-18'} rounded-2xl object-cover shadow-lg border border-theme group-hover:scale-105 transition-transform duration-500`} 
+      <img
+        src={game.icon}
+        alt={game.title}
+        className={`${compact ? 'w-14 h-14' : 'w-[88px] h-[88px]'} shrink-0 rounded-2xl object-cover border border-theme group-hover:scale-[1.02] transition-transform duration-300`}
       />
-      
+
       <div className="flex-1 min-w-0">
-        <h3 className="text-[17px] font-bold truncate tracking-tight group-hover:text-accent transition-colors" style={{color: 'var(--text-primary)'}}>{game.title}</h3>
-        
-        <div className="flex items-center space-x-2 mt-1.5">
-          {/* Tag Design: Darker background with light text */}
-          <span className="bg-black/10 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md tracking-wide uppercase border border-theme">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[15px] font-semibold truncate tracking-tight group-hover:text-accent transition-colors" style={{ color: 'var(--text-primary)' }}>
+            {game.title}
+          </h3>
+          <button
+            type="button"
+            className="shrink-0 text-accent text-[11px] font-semibold px-3 py-1.5 rounded-full border border-accent/40 bg-transparent hover:bg-accent/10 transition-colors duration-300"
+          >
+            进入
+          </button>
+        </div>
+
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500">
+          <span className="inline-flex items-center text-amber-500 font-semibold">
+            ★ {game.rating || '0.0'}
+          </span>
+          <span className="w-1 h-1 rounded-full bg-slate-500/40" />
+          <span className="bg-black/10 text-slate-500 text-[10px] font-medium px-2 py-0.5 rounded-md tracking-wide border border-theme truncate max-w-[96px]">
             {game.category}
           </span>
-          <div className="flex items-center text-accent">
-             <span className="text-xs">★</span>
-             <span className="text-xs font-bold ml-0.5 text-slate-400">{game.rating}</span>
-          </div>
+          {game.downloads ? (
+            <>
+              <span className="w-1 h-1 rounded-full bg-slate-500/40" />
+              <span className="truncate">{game.downloads}</span>
+            </>
+          ) : null}
         </div>
-        
-        {!compact && (
-           <p className="text-xs text-slate-500 mt-2 truncate pr-2 font-light">{game.description}</p>
-        )}
       </div>
-      
-      {/* Premium Button: Gold Outline or Gradient */}
-      <button className="relative overflow-hidden group/btn">
-        <div className="bg-accent-gradient text-black text-xs font-bold px-5 py-2.5 rounded-full hover:brightness-110 transition-all duration-300 border border-theme shadow-lg shadow-black/20">
-          <span className="relative z-10">开始</span>
-        </div>
-      </button>
     </div>
   );
 };
