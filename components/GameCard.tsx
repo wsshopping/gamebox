@@ -31,7 +31,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, compact = false }) => {
           </h3>
           <button
             type="button"
-            className="shrink-0 text-accent text-[11px] font-semibold px-3 py-1.5 rounded-full border border-accent/40 bg-transparent hover:bg-accent/10 transition-colors duration-300"
+            className="shrink-0 text-accent text-[14px] font-bold px-3.5 py-2 rounded-full border border-accent/50 bg-transparent hover:bg-accent/10 transition-colors duration-300"
           >
             进入
           </button>

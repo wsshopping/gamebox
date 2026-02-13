@@ -9,6 +9,8 @@ import { api } from '../services/api';
 import { userApi } from '../services/api/user';
 import { useIm } from '../context/ImContext';
 import { TradeOrder } from '../types';
+import PlayerMusicModal from '../components/PlayerMusicModal';
+import PlayerVideoModal from '../components/PlayerVideoModal';
 
 const PLAYER_MUSIC_PLAYLIST = [
   {
@@ -34,29 +36,8 @@ const PLAYER_MUSIC_PLAYLIST = [
   }
 ];
 
-const PLAYER_VIDEO_FEED = [
-  {
-    id: 'v1',
-    title: '高能团战片段',
-    creator: '盒子热视频',
-    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
-  },
-  {
-    id: 'v2',
-    title: '新游画面实录',
-    creator: '游戏前线',
-    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4'
-  },
-  {
-    id: 'v3',
-    title: '一分钟速看',
-    creator: '掌上评测',
-    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-  }
-];
-
 // Sub-page Component
-const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'music' | 'video' | 'default' }> = ({ title, type }) => {
+const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | 'music' | 'default' }> = ({ title, type }) => {
   const navigate = useNavigate();
   const [tradeOrders, setTradeOrders] = useState<TradeOrder[]>([]);
   const [tradeLoading, setTradeLoading] = useState(false);
@@ -107,7 +88,7 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
     }
     return date.toLocaleDateString();
   };
-  
+
   return (
     <div className="min-h-screen app-bg pb-20 pt-20">
       <div className="glass-bg px-4 py-3 fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme">
@@ -173,30 +154,6 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
                 <audio controls preload="none" className="w-full mt-3 h-10">
                   <source src={track.url} type="audio/mpeg" />
                 </audio>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {type === 'video' && (
-          <div className="space-y-4">
-            {PLAYER_VIDEO_FEED.map((video) => (
-              <div key={video.id} className="card-bg rounded-[20px] border border-theme overflow-hidden">
-                <div className="aspect-[9/16] bg-black">
-                  <video
-                    src={video.url}
-                    controls
-                    playsInline
-                    muted
-                    loop
-                    preload="metadata"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-3">
-                  <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{video.title}</div>
-                  <div className="text-xs text-slate-500 mt-1">{video.creator}</div>
-                </div>
               </div>
             ))}
           </div>
@@ -399,18 +356,31 @@ const UsernameModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open,
   );
 };
 
-const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: () => void }> = ({
+const UserCenterMain: React.FC<{
+  initialModal?: UserCenterModal;
+  onModalClose?: () => void;
+  initialVideoOpen?: boolean;
+  onVideoClose?: () => void;
+}> = ({
   initialModal = null,
-  onModalClose
+  onModalClose,
+  initialVideoOpen = false,
+  onVideoClose
 }) => {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const [activeModal, setActiveModal] = useState<UserCenterModal>(initialModal);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(initialVideoOpen);
 
   useEffect(() => {
     setActiveModal(initialModal);
   }, [initialModal]);
+
+  useEffect(() => {
+    setVideoOpen(initialVideoOpen);
+  }, [initialVideoOpen]);
 
   const handleLogout = async () => {
     await logout();
@@ -442,6 +412,13 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
     setActiveModal(null);
     if (onModalClose) {
       onModalClose();
+    }
+  };
+
+  const handleVideoClose = () => {
+    setVideoOpen(false);
+    if (onVideoClose) {
+      onVideoClose();
     }
   };
 
@@ -495,14 +472,14 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
                  <button 
                    key={t.id}
                    onClick={() => handleThemeChange(t.id)}
-                   className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center space-x-1 ${
+                   className={`px-3.5 py-1.5 rounded-md text-[12px] font-bold transition-all flex items-center space-x-1 ${
                      theme === t.id 
                      ? 'bg-accent-gradient text-black shadow-sm' 
                      : 'text-slate-500 hover:text-[var(--text-primary)]'
                    }`}
                  >
-                   <span>{t.icon}</span>
-                   <span>{t.label}</span>
+                   <span className="text-[15px] leading-none">{t.icon}</span>
+                   <span className="leading-none">{t.label}</span>
                  </button>
                ))}
             </div>
@@ -522,12 +499,11 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
             <div className="relative z-10">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1 flex items-center">
                  <span className="w-1.5 h-1.5 rounded-full bg-accent-gradient mr-2 shadow-[0_0_5px_rgba(245,158,11,0.8)]"></span>
-                 Total Assets
+                 Total Points
               </p>
               <div className="flex items-baseline">
-                <span className="text-xl font-medium text-accent mr-1">¥</span>
                 <span className="text-3xl font-black tracking-tight" style={{color: 'var(--text-primary)'}}>{(user.assets || 0).toLocaleString()}</span>
-                <span className="text-lg font-medium text-slate-500">.00</span>
+                <span className="text-sm font-medium text-slate-500 ml-2">积分</span>
               </div>
             </div>
             <button className="bg-accent-gradient text-black text-xs font-bold px-6 py-3 rounded-2xl hover:shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-all active:scale-95 relative z-10">
@@ -543,12 +519,18 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
             <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme">
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { name: '听音乐', icon: '🎵', desc: '点击即听', path: '/user/music' },
-                  { name: '刷视频', icon: '🎬', desc: '热门速刷', path: '/user/video' }
+                  { name: '听音乐', icon: '🎵', desc: '开源播放器 · 随机播放', action: () => setMusicOpen(true) },
+                  { name: '刷视频', icon: '🎬', desc: '随机刷视频 · 自动下一条', action: () => setVideoOpen(true) }
                 ].map((item) => (
                   <button
                     key={item.name}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => {
+                      if (item.action) {
+                        item.action();
+                      } else if (item.path) {
+                        navigate(item.path);
+                      }
+                    }}
                     className="card-bg rounded-2xl border border-theme p-4 text-left group hover:border-accent/40 transition-all"
                   >
                     <div className="w-11 h-11 rounded-2xl bg-[var(--bg-primary)] border border-theme flex items-center justify-center text-xl mb-3 group-hover:text-accent">
@@ -613,6 +595,8 @@ const UserCenterMain: React.FC<{ initialModal?: UserCenterModal; onModalClose?: 
 
       <UsernameModal open={activeModal === 'username'} onClose={handleModalClose} />
       <PasswordModal open={activeModal === 'password'} onClose={handleModalClose} />
+      <PlayerMusicModal open={musicOpen} onClose={() => setMusicOpen(false)} />
+      <PlayerVideoModal open={videoOpen} onClose={handleVideoClose} />
     </div>
   );
 }
@@ -657,7 +641,7 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
   } else if (normalizedPath === '/user/music') {
     content = <UserSubPage title="听音乐" type="music" />;
   } else if (normalizedPath === '/user/video') {
-    content = <UserSubPage title="刷视频" type="video" />;
+    content = <UserCenterMain initialVideoOpen={true} onVideoClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/username') {
     content = <UserCenterMain initialModal="username" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/password') {
