@@ -75,6 +75,21 @@ type BossItem = {
   createdAt: string;
 };
 
+type BossOverview = {
+  games: { id: number; name: string }[];
+  gameCount: number;
+  totalAmount: string;
+  totalOrderCount: number;
+};
+
+type BossFlowItem = {
+  statDate: string;
+  gameId: string;
+  gameName: string;
+  totalAmount: string;
+  orderCount: number;
+};
+
 type PerformanceOverviewEntry = {
   inviteCode: string;
   amount: string;
@@ -155,6 +170,7 @@ const ROLE_TOP_PROMOTER = 2;
 const ROLE_GENERAL_AGENT = 3;
 const ROLE_SUB_AGENT = 4;
 const ROLE_STREAMER = 5;
+const ROLE_BOSS = 7;
 
 const ROLE_OPTIONS: Record<number, { id: number; name: string }[]> = {
   [ROLE_SUPER_ADMIN]: [
@@ -3029,12 +3045,251 @@ const EmptyState = ({ title }: { title: string }) => (
    </div>
 );
 
+const BossCenter: React.FC = () => {
+  const [overview, setOverview] = useState<BossOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'flow' | 'order'>('flow');
+
+  const [flowGameId, setFlowGameId] = useState('');
+  const [flowStartDate, setFlowStartDate] = useState('');
+  const [flowEndDate, setFlowEndDate] = useState('');
+  const [flowList, setFlowList] = useState<BossFlowItem[]>([]);
+  const [flowTotal, setFlowTotal] = useState(0);
+  const [flowPage, setFlowPage] = useState(1);
+  const [flowLoading, setFlowLoading] = useState(false);
+
+  const [orderKeyword, setOrderKeyword] = useState('');
+  const [orderStatus, setOrderStatus] = useState('');
+  const [orderGameId, setOrderGameId] = useState('');
+  const [orderStartDate, setOrderStartDate] = useState('');
+  const [orderEndDate, setOrderEndDate] = useState('');
+  const [orderList, setOrderList] = useState<OrderItem[]>([]);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderLoading, setOrderLoading] = useState(false);
+
+  const loadOverview = async () => {
+    setOverviewLoading(true);
+    try {
+      const data = await api.agency.getBossOverview();
+      setOverview((data || null) as BossOverview | null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  const loadFlows = async (nextPage = 1) => {
+    setFlowLoading(true);
+    try {
+      const data = await api.agency.getBossFlows({
+        gameId: flowGameId || undefined,
+        startDate: flowStartDate || undefined,
+        endDate: flowEndDate || undefined,
+        page: nextPage,
+        pageSize: PAGE_SIZE
+      });
+      setFlowList((data.list || []) as BossFlowItem[]);
+      setFlowTotal(data.total || 0);
+      setFlowPage(nextPage);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFlowLoading(false);
+    }
+  };
+
+  const loadOrders = async (nextPage = 1) => {
+    setOrderLoading(true);
+    try {
+      const data = await api.agency.getBossOrders({
+        keyword: orderKeyword || undefined,
+        status: orderStatus || undefined,
+        gameId: orderGameId || undefined,
+        startDate: orderStartDate || undefined,
+        endDate: orderEndDate || undefined,
+        page: nextPage,
+        pageSize: PAGE_SIZE
+      });
+      setOrderList((data.list || []) as OrderItem[]);
+      setOrderTotal(data.total || 0);
+      setOrderPage(nextPage);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOrderLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOverview();
+    loadFlows(1);
+  }, []);
+
+  return (
+    <div className="flex flex-col min-h-full app-bg pb-24 transition-colors duration-500">
+      <div className="px-5 pt-6 space-y-6">
+        <div className="bg-[#0f172a] rounded-[24px] p-6 border border-white/10 relative overflow-hidden shadow-xl">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-white">老板中心</h2>
+                <p className="text-xs text-slate-400 mt-1">仅展示分配给你的游戏流水与充值记录</p>
+              </div>
+              <button
+                onClick={loadOverview}
+                className="text-[11px] px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 hover:text-amber-300"
+              >
+                刷新概览
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-5">
+              <div className="bg-slate-900/60 rounded-xl border border-white/10 p-3">
+                <div className="text-[10px] text-slate-500">已分配游戏</div>
+                <div className="text-lg font-black text-white">{overviewLoading ? '--' : (overview?.gameCount || 0)}</div>
+              </div>
+              <div className="bg-slate-900/60 rounded-xl border border-white/10 p-3">
+                <div className="text-[10px] text-slate-500">累计流水</div>
+                <div className="text-lg font-black text-amber-400">¥ {overviewLoading ? '--' : (overview?.totalAmount || '0.00')}</div>
+              </div>
+              <div className="bg-slate-900/60 rounded-xl border border-white/10 p-3">
+                <div className="text-[10px] text-slate-500">累计充值单</div>
+                <div className="text-lg font-black text-white">{overviewLoading ? '--' : (overview?.totalOrderCount || 0)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card-bg rounded-[24px] p-5 border border-theme">
+          <div className="flex p-1 bg-[var(--bg-primary)] rounded-xl mb-5 border border-theme">
+            <button
+              onClick={() => setActiveTab('flow')}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'flow' ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-slate-500 hover:text-[var(--text-primary)]'}`}
+            >
+              游戏流水
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('order');
+                if (orderList.length === 0) {
+                  loadOrders(1);
+                }
+              }}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'order' ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-slate-500 hover:text-[var(--text-primary)]'}`}
+            >
+              充值记录
+            </button>
+          </div>
+
+          {(overview?.games || []).length === 0 ? (
+            <div className="text-sm text-slate-500 py-10 text-center">当前未分配游戏，请联系超管配置后查看数据。</div>
+          ) : (
+            <>
+              {activeTab === 'flow' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <select value={flowGameId} onChange={(e) => setFlowGameId(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
+                      <option value="">全部游戏</option>
+                      {(overview?.games || []).map((item) => (
+                        <option key={item.id} value={String(item.id)}>{item.name || item.id}</option>
+                      ))}
+                    </select>
+                    <input type="date" value={flowStartDate} onChange={(e) => setFlowStartDate(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                    <input type="date" value={flowEndDate} onChange={(e) => setFlowEndDate(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                    <button onClick={() => loadFlows(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
+                  </div>
+                  {flowLoading ? (
+                    <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-16 rounded-xl border border-theme card-bg animate-pulse"></div>)}</div>
+                  ) : flowList.length === 0 ? (
+                    <div className="text-xs text-slate-500 py-6 text-center">暂无流水数据</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {flowList.map((item) => (
+                        <div key={`${item.statDate}-${item.gameId}`} className="card-bg rounded-2xl border border-theme p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.gameName || item.gameId}</div>
+                              <div className="text-[10px] text-slate-500 mt-1">{item.statDate}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-black text-amber-500">¥ {item.totalAmount}</div>
+                              <div className="text-[10px] text-slate-500">{item.orderCount} 单</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Pagination page={flowPage} total={flowTotal} onChange={loadFlows} />
+                </div>
+              )}
+
+              {activeTab === 'order' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input value={orderKeyword} onChange={(e) => setOrderKeyword(e.target.value)} placeholder="订单号/账号" className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                    <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
+                      <option value="">全部状态</option>
+                      <option value="paid">paid</option>
+                      <option value="pending">pending</option>
+                      <option value="failed">failed</option>
+                    </select>
+                    <select value={orderGameId} onChange={(e) => setOrderGameId(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
+                      <option value="">全部游戏</option>
+                      {(overview?.games || []).map((item) => (
+                        <option key={item.id} value={String(item.id)}>{item.name || item.id}</option>
+                      ))}
+                    </select>
+                    <input type="date" value={orderStartDate} onChange={(e) => setOrderStartDate(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                    <input type="date" value={orderEndDate} onChange={(e) => setOrderEndDate(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                    <button onClick={() => loadOrders(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
+                  </div>
+                  {orderLoading ? (
+                    <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-16 rounded-xl border border-theme card-bg animate-pulse"></div>)}</div>
+                  ) : orderList.length === 0 ? (
+                    <div className="text-xs text-slate-500 py-6 text-center">暂无充值记录</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {orderList.map((item) => (
+                        <div key={item.orderNo} className="card-bg rounded-2xl border border-theme p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-xs font-bold text-slate-300">{item.orderNo}</div>
+                              <div className="text-[10px] text-slate-500 mt-1">{item.gameName || item.gameId} · {item.account}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-black text-emerald-500">¥ {item.amount}</div>
+                              <div className="text-[10px] text-slate-500">{item.payTime || '--'} · {item.status}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Pagination page={orderPage} total={orderTotal} onChange={loadOrders} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 const Agency: React.FC = () => {
   const { user } = useAuth();
+  const roleId = Number(user?.role?.id || user?.roleId || 0);
   const [activeTab, setActiveTab] = useState<TabMode>('结算中心');
   const [stats, setStats] = useState<AgencyStats | null>(null);
   const roleOptions = ROLE_OPTIONS[user?.role?.id || user?.roleId || 0] || [];
+
+  if (roleId === ROLE_BOSS) {
+    return <BossCenter />;
+  }
 
   // Menu Configuration - Unified Gold/Black Theme
   const menuItems: { id: TabMode; icon: string }[] = [

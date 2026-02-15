@@ -46,17 +46,18 @@ const Social: React.FC = () => {
   const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
   const isSuperAdmin = roleId === 1;
   const isAgent = roleId === 2 || roleId === 3 || roleId === 4 || roleId === 5;
+  const isBoss = roleId === 7;
 
   const tabs = useMemo(() => {
     const base = ['trade', 'message', 'player'];
-    if (isSuperAdmin || isAgent) {
+    if (isSuperAdmin || isAgent || isBoss) {
       base.push('agency');
     }
     if (isSuperAdmin) {
       base.push('superadmin');
     }
     return base;
-  }, [isAgent, isSuperAdmin]);
+  }, [isAgent, isBoss, isSuperAdmin]);
 
   const defaultTab = useMemo(() => {
     if (tabs.includes('message')) {
@@ -207,7 +208,7 @@ const Social: React.FC = () => {
                     : tab === 'player'
                       ? '玩家中心'
                       : tab === 'agency'
-                        ? '代理中心'
+                        ? (isBoss ? '老板中心' : '代理中心')
                         : '超管中心'}
               </button>
             ))}

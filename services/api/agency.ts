@@ -129,6 +129,15 @@ export const agencyApi = {
       body: JSON.stringify(data)
     })
   },
+  getBossOverview: async () => {
+    return request('/portal/agency/boss/overview')
+  },
+  getBossFlows: async (params?: { gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/boss/flows${buildQuery(params)}`)
+  },
+  getBossOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/boss/orders${buildQuery(params)}`)
+  },
   getSuperRebates: async () => {
     return request<{ gameId: number; gameName?: string; rebateRatePct: number }[]>('/portal/agency/super/rebates')
   },
