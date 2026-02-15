@@ -19,5 +19,19 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify({ username })
     })
+  },
+  updateAvatar: async (avatar: string): Promise<User> => {
+    return request<User>('/portal/user/avatar', {
+      method: 'PUT',
+      body: JSON.stringify({ avatar })
+    })
+  },
+  uploadAvatar: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request<{ url: string }>('/portal/user/avatar/upload', {
+      method: 'POST',
+      body: formData
+    })
   }
 }

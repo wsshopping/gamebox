@@ -46,10 +46,18 @@ export type SystemNotificationUpsert = {
 
 export const messageAdminApi = {
   listSystemNotifications: async (params: SystemNotificationListParams): Promise<PageResult<SystemNotificationAdminItem>> => {
-    return request<PageResult<SystemNotificationAdminItem>>('/portal-admin/message/system/list', {
+    const data = await request<PageResult<SystemNotificationAdminItem & { ID?: number }>>('/portal-admin/message/system/list', {
       method: 'POST',
       body: JSON.stringify(params)
     })
+    return {
+      ...data,
+      list: (data.list || []).map((item) => ({
+        ...item,
+        // Backend legacy payload may expose primary key as `ID`.
+        id: Number(item.id ?? item.ID ?? 0)
+      }))
+    }
   },
   createSystemNotification: async (payload: SystemNotificationUpsert): Promise<boolean> => {
     await request('/portal-admin/message/system/create', {
@@ -65,8 +73,8 @@ export const messageAdminApi = {
     })
     return true
   },
-  revokeSystemNotification: async (id: number): Promise<boolean> => {
-    await request('/portal-admin/message/system/revoke', {
+  deleteSystemNotification: async (id: number): Promise<boolean> => {
+    await request('/portal-admin/message/system/delete', {
       method: 'POST',
       body: JSON.stringify({ id })
     })

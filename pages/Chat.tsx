@@ -163,6 +163,7 @@ const Chat: React.FC = () => {
   const [friendProfile, setFriendProfile] = useState<FriendItem | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [isRemovingFriend, setIsRemovingFriend] = useState(false);
+  const [isUpdatingFriendRemark, setIsUpdatingFriendRemark] = useState(false);
   const [friendActionError, setFriendActionError] = useState('');
   const [showMemberMenu, setShowMemberMenu] = useState(false);
   const [showMemberProfile, setShowMemberProfile] = useState(false);
@@ -237,8 +238,9 @@ const Chat: React.FC = () => {
   const canStartPrivateChat = isGroupOwnerOrAdmin && selectedMemberNumericId > 0;
   const friendDisplayName = friendProfile?.displayName
     || friendProfile?.username
+    || chatTitle
     || friendProfile?.phone
-    || (hasFriendId ? `用户${friendId}` : chatTitle);
+    || (hasFriendId ? `用户${friendId}` : '私聊');
   const memberDisplayName = memberProfile?.username
     || selectedMember?.name
     || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
@@ -1073,6 +1075,7 @@ const Chat: React.FC = () => {
   useEffect(() => {
     setFriendProfile(null);
     setFriendActionError('');
+    setIsUpdatingFriendRemark(false);
     setShowFriendMenu(false);
     setShowFriendProfile(false);
     setSelectedMember(null);
@@ -1095,6 +1098,11 @@ const Chat: React.FC = () => {
     if (!showFriendMenu && !showFriendProfile) return;
     loadFriendProfile().catch(() => null);
   }, [showFriendMenu, showFriendProfile, loadFriendProfile]);
+
+  useEffect(() => {
+    if (!id || !ready || isGroup) return;
+    loadFriendProfile().catch(() => null);
+  }, [id, ready, isGroup, loadFriendProfile]);
 
   useEffect(() => {
     if (!showMemberMenu && !showMemberProfile) return;
@@ -1494,6 +1502,33 @@ const Chat: React.FC = () => {
   const handleViewFriendProfile = () => {
     setShowFriendMenu(false);
     setShowFriendProfile(true);
+  };
+
+  const handleSetFriendRemark = async () => {
+    if (!hasFriendId) {
+      setFriendActionError('无法识别好友信息');
+      return;
+    }
+    const currentRemark = friendProfile?.displayName || '';
+    const input = window.prompt('请输入好友备注', currentRemark);
+    if (input === null) return;
+    const remark = input.trim();
+    if (!remark) {
+      setFriendActionError('备注不能为空');
+      return;
+    }
+
+    setIsUpdatingFriendRemark(true);
+    setFriendActionError('');
+    try {
+      await friendApi.setRemark(friendId, remark);
+      await loadFriendProfile();
+      await refreshConversations().catch(() => null);
+    } catch (err: any) {
+      setFriendActionError(err?.message || '备注设置失败');
+    } finally {
+      setIsUpdatingFriendRemark(false);
+    }
   };
 
   const handleRemoveFriend = async () => {
@@ -1991,7 +2026,7 @@ const Chat: React.FC = () => {
               </svg>
             </button>
             <div>
-               <h1 className="text-lg font-bold leading-none max-w-[200px] truncate" style={{color: 'var(--text-primary)'}}>{chatTitle}</h1>
+               <h1 className="text-lg font-bold leading-none max-w-[200px] truncate" style={{color: 'var(--text-primary)'}}>{isGroup ? chatTitle : friendDisplayName}</h1>
                <span className="text-[10px] text-slate-500 flex items-center mt-0.5">
                  {statusLabel}
                </span>
@@ -2246,7 +2281,10 @@ const Chat: React.FC = () => {
                    {msg.sender === 'me' && (
                      <div className="flex-shrink-0 ml-2">
                         <div className="w-10 h-10 rounded-full bg-slate-800 overflow-hidden shadow-sm border border-theme">
-                          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" className="w-full h-full object-cover" />
+                          <img
+                            src={user?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username || 'user'}`}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
                      </div>
                    )}
@@ -2514,6 +2552,13 @@ const Chat: React.FC = () => {
                 查看资料
               </button>
               <button
+                onClick={handleSetFriendRemark}
+                disabled={isUpdatingFriendRemark || !hasFriendId}
+                className={`w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors ${isUpdatingFriendRemark || !hasFriendId ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {isUpdatingFriendRemark ? '保存中...' : '好友备注'}
+              </button>
+              <button
                 onClick={handleOpenAutoDeleteSheet}
                 className="w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors flex items-center justify-between px-4"
               >
@@ -2575,6 +2620,10 @@ const Chat: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span>手机号</span>
                 <span className="text-[var(--text-primary)]">{friendProfile?.phone || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>备注</span>
+                <span className="text-[var(--text-primary)]">{friendProfile?.displayName || '-'}</span>
               </div>
             </div>
           </div>

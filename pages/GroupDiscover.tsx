@@ -55,6 +55,7 @@ const GroupDiscover: React.FC = () => {
   const [incomingRequests, setIncomingRequests] = useState<FriendRequestItem[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<FriendRequestItem[]>([]);
   const [friendList, setFriendList] = useState<FriendItem[]>([]);
+  const [friendDisplayMap, setFriendDisplayMap] = useState<Record<string, string>>({});
   const [incomingPendingCount, setIncomingPendingCount] = useState(0);
   const [requestActionId, setRequestActionId] = useState<number | null>(null);
   const [createError, setCreateError] = useState('');
@@ -98,12 +99,41 @@ const GroupDiscover: React.FC = () => {
       ]);
       setIncomingRequests(incomingRes.list || []);
       setOutgoingRequests(outgoingRes.list || []);
-      setFriendList(friendsRes.items || []);
+      const friends = friendsRes.items || [];
+      setFriendList(friends);
+      const map: Record<string, string> = {};
+      friends.forEach((item) => {
+        const name = String(item.displayName || '').trim();
+        if (name) {
+          map[String(item.id)] = name;
+        }
+      });
+      setFriendDisplayMap(map);
       setIncomingPendingCount(Number(incomingRes.total || (incomingRes.list || []).length));
     } catch (e: any) {
       setContactsError(e?.message || '加载失败');
     } finally {
       setContactsLoading(false);
+    }
+  }, [user?.ID]);
+
+  const loadFriendDisplayMap = useCallback(async () => {
+    if (!user?.ID) {
+      setFriendDisplayMap({});
+      return;
+    }
+    try {
+      const res = await friendApi.listFriends(500);
+      const map: Record<string, string> = {};
+      (res.items || []).forEach((item) => {
+        const name = String(item.displayName || '').trim();
+        if (name) {
+          map[String(item.id)] = name;
+        }
+      });
+      setFriendDisplayMap(map);
+    } catch {
+      // ignore display map refresh errors
     }
   }, [user?.ID]);
 
@@ -124,6 +154,11 @@ const GroupDiscover: React.FC = () => {
     if (activeTab !== 'contacts') return;
     loadContacts();
   }, [activeTab, loadContacts]);
+
+  useEffect(() => {
+    if (activeTab !== 'chats') return;
+    loadFriendDisplayMap();
+  }, [activeTab, loadFriendDisplayMap]);
 
   useEffect(() => {
     loadPendingRequestCount();
@@ -167,6 +202,19 @@ const GroupDiscover: React.FC = () => {
       idSet.add(id);
     });
     return Array.from(idSet).sort((a, b) => Number(a) - Number(b));
+  }, [conversations]);
+
+  const privateConversationNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    conversations.forEach((conv: any) => {
+      if (conv.conversationType !== IMConversationType.PRIVATE) return;
+      const id = String(conv.conversationId || '').trim();
+      if (!/^\d+$/.test(id)) return;
+      const title = String(conv.conversationTitle || '').trim();
+      if (!title) return;
+      map[id] = title;
+    });
+    return map;
   }, [conversations]);
 
   useEffect(() => {
@@ -214,9 +262,10 @@ const GroupDiscover: React.FC = () => {
     const list = conversations.map((conv: any) => {
       const isGroup = conv.conversationType === IMConversationType.GROUP;
       const latest = conv.latestMessage;
+      const friendDisplayName = !isGroup ? (friendDisplayMap[String(conv.conversationId)] || '') : '';
       return {
         id: conv.conversationId,
-        title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
+        title: friendDisplayName || conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
         content: formatImPreview(latest),
         time: formatImTime(latest?.sentTime || conv.sortTime),
         type: isGroup ? 'group' : 'social',
@@ -235,7 +284,7 @@ const GroupDiscover: React.FC = () => {
       const id = (item.id || '').toLowerCase();
       return title.includes(keyword) || id.includes(keyword);
     });
-  }, [conversations, headerSearch]);
+  }, [conversations, headerSearch, friendDisplayMap]);
 
   const handleChatClick = (chatId: string) => {
     if (openSwipeId === chatId) {
@@ -796,7 +845,8 @@ const GroupDiscover: React.FC = () => {
                 <div className="text-sm text-slate-500 px-2">暂无好友</div>
               ) : (
                 friendList.map(item => {
-                  const name = item.displayName || item.username || item.phone || `用户${item.id}`;
+                  const conversationName = privateConversationNameMap[String(item.id)] || '';
+                  const name = item.displayName || conversationName || item.username || item.phone || `用户${item.id}`;
                   return (
                     <div
                       key={item.id}
@@ -991,7 +1041,7 @@ const GroupDiscover: React.FC = () => {
             <div className="mb-4">
               <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>好友操作</h3>
               <p className="text-xs text-slate-500 mt-1">
-                {selectedFriend.displayName || selectedFriend.username || selectedFriend.phone || `用户${selectedFriend.id}`}
+                {selectedFriend.displayName || privateConversationNameMap[String(selectedFriend.id)] || selectedFriend.username || selectedFriend.phone || `用户${selectedFriend.id}`}
               </p>
             </div>
 

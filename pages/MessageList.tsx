@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { friendApi } from '../services/api/friend';
 import { Message, SystemNotification, Interaction } from '../types';
 import { useIm } from '../context/ImContext';
 import { IMConversationType, IMMessageType } from '../services/im/client';
@@ -89,14 +90,15 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
     }
   };
 
-  const mapImConversations = () => {
+  const mapImConversations = (friendDisplayMap: Record<string, string>) => {
     return imConversations.map((conv: any) => {
       const isGroup = conv.conversationType === IMConversationType.GROUP;
       const latest = conv.latestMessage;
       const senderName = latest?.sender?.name || latest?.senderName || latest?.sender?.id || '';
+      const privateDisplayName = !isGroup ? (friendDisplayMap[String(conv.conversationId)] || '') : '';
       return {
         id: conv.conversationId,
-        title: conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
+        title: privateDisplayName || conv.conversationTitle || (isGroup ? `群聊 ${conv.conversationId}` : conv.conversationId),
         content: formatImPreview(latest),
         time: formatImTime(latest?.sentTime || conv.sortTime),
         sortTime: Number(latest?.sentTime || conv.sortTime || 0),
@@ -122,17 +124,29 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const fetchData = async () => {
     if (viewMode === 'main') {
       setIsLoading(true);
-      const imItems = imReady ? mapImConversations() : [];
       try {
+        const friendPromise = imReady
+          ? friendApi.listFriends(500).catch(() => ({ items: [], offset: '' }))
+          : Promise.resolve({ items: [], offset: '' });
         const interactionPromise = INTERACTION_MESSAGES_ENABLED
           ? api.message.getInteractions('all', 1, 1)
           : Promise.resolve<Interaction[]>([]);
         const unreadPromise = api.message.getUnreadCount().catch(() => null);
-        const [systemList, interactionList, unreadCounts] = await Promise.all([
+        const [systemList, interactionList, unreadCounts, friendRes] = await Promise.all([
           api.message.getSystemNotifications('all', 1, 1),
           interactionPromise,
-          unreadPromise
+          unreadPromise,
+          friendPromise
         ]);
+        const friendDisplayMap: Record<string, string> = {};
+        (friendRes.items || []).forEach((item: any) => {
+          const name = String(item?.displayName || '').trim();
+          const friendId = String(item?.id || '').trim();
+          if (name && friendId) {
+            friendDisplayMap[friendId] = name;
+          }
+        });
+        const imItems = imReady ? mapImConversations(friendDisplayMap) : [];
         const summaryItems: Message[] = [];
         const latestSystem = systemList[0];
         if (latestSystem) {
@@ -162,7 +176,8 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         setMessages(merged);
       } catch (error) {
         console.error('Failed to load messages', error);
-        setMessages(imItems);
+        const fallbackImItems = imReady ? mapImConversations({}) : [];
+        setMessages(fallbackImItems);
       } finally {
         setIsLoading(false);
       }

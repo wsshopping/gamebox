@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -170,7 +170,7 @@ const UserSubPage: React.FC<{ title: string; type: 'game' | 'trade' | 'gift' | '
   );
 };
 
-type UserCenterModal = 'username' | 'password' | null;
+type UserCenterModal = 'avatar' | 'username' | 'password' | null;
 
 const ModalShell: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({
   title,
@@ -190,6 +190,123 @@ const ModalShell: React.FC<{ title: string; onClose: () => void; children: React
     </div>
   </div>
 );
+
+const AvatarModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const { user, updateUser } = useAuth();
+  const { refreshConversations } = useIm();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setFile(null);
+    setPreviewUrl('');
+    setError('');
+  }, [open]);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl('');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  const pickFile = () => {
+    if (saving) return;
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.files?.[0] || null;
+    setError('');
+    setFile(next);
+  };
+
+  const submit = async () => {
+    setError('');
+    if (!file) {
+      setError('请先选择头像图片');
+      return;
+    }
+    setSaving(true);
+    try {
+      const uploaded = await userApi.uploadAvatar(file);
+      const avatarUrl = String(uploaded?.url || '').trim();
+      if (!avatarUrl) {
+        throw new Error('上传失败');
+      }
+      const updated = await userApi.updateAvatar(avatarUrl);
+      updateUser({ avatar: updated?.avatar || avatarUrl });
+      await refreshConversations().catch(() => null);
+      window.alert('头像已更新');
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || '修改失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <ModalShell title="修改头像" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="card-bg rounded-[24px] p-5 border border-theme space-y-3">
+          <div className="flex items-center gap-4">
+            <img
+              src={previewUrl || user?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username || 'user'}`}
+              alt="avatar-preview"
+              className="w-16 h-16 rounded-full object-cover border border-theme"
+            />
+            <div className="min-w-0">
+              <div className="text-xs text-slate-500">支持 JPG / PNG / WEBP，最大 2MB</div>
+              <div className="text-xs text-slate-400 truncate mt-1">{file?.name || '未选择文件'}</div>
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={onFileChange}
+          />
+          <button
+            type="button"
+            onClick={pickFile}
+            disabled={saving}
+            className="w-full border border-theme text-[var(--text-primary)] py-3 rounded-xl text-sm font-semibold hover:bg-[var(--bg-glass)] transition-colors disabled:opacity-60"
+          >
+            选择本地图片
+          </button>
+          <p className="text-[11px] text-slate-500">上传后会自动同步到 IM 聊天头像</p>
+        </div>
+
+        {error && (
+          <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={saving}
+          className="w-full bg-gradient-to-r from-slate-800 to-slate-900 text-amber-500 py-4 rounded-2xl font-bold shadow-lg shadow-black/20 transition-all disabled:opacity-60"
+        >
+          {saving ? '提交中...' : '确认修改'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+};
 
 const PasswordModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const navigate = useNavigate();
@@ -441,6 +558,7 @@ const UserCenterMain: React.FC<{
   };
 
   const settingsItems = [
+    { id: 'avatar', name: '修改头像', icon: '🖼️', action: () => setActiveModal('avatar') },
     { id: 'username', name: '修改用户名', icon: '✏️', action: () => setActiveModal('username') },
     { id: 'password', name: '修改密码', icon: '🔒', action: () => setActiveModal('password') },
     { id: 'realname', name: '实名认证', icon: '🆔', path: '/user/realname' },
@@ -455,7 +573,7 @@ const UserCenterMain: React.FC<{
         <div className="absolute bottom-0 left-0 w-[200px] h-[200px] bg-indigo-500/5 rounded-full blur-[60px] -ml-10 -mb-10 pointer-events-none"></div>
         
         <div className="relative z-10 flex items-center space-x-6">
-          <div className="relative group cursor-pointer">
+          <div className="relative group cursor-pointer" onClick={() => setActiveModal('avatar')}>
              <div className="absolute -inset-1 bg-accent-gradient rounded-full opacity-70 blur group-hover:opacity-100 transition duration-500"></div>
              <div className="relative w-20 h-20 rounded-full p-[3px] bg-[var(--bg-primary)]">
                 <img
@@ -611,6 +729,7 @@ const UserCenterMain: React.FC<{
          </button>
       </div>
 
+      <AvatarModal open={activeModal === 'avatar'} onClose={handleModalClose} />
       <UsernameModal open={activeModal === 'username'} onClose={handleModalClose} />
       <PasswordModal open={activeModal === 'password'} onClose={handleModalClose} />
       <PlayerMusicModal open={musicOpen} onClose={() => setMusicOpen(false)} />
@@ -660,6 +779,8 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
     content = <UserSubPage title="听音乐" type="music" />;
   } else if (normalizedPath === '/user/video') {
     content = <UserCenterMain initialVideoOpen={true} onVideoClose={() => navigate('/user')} />;
+  } else if (normalizedPath === '/user/avatar') {
+    content = <UserCenterMain initialModal="avatar" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/username') {
     content = <UserCenterMain initialModal="username" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/password') {

@@ -98,6 +98,13 @@ export const friendApi = {
     }
     return request<FriendListResponse>(`/portal/friends/list?${params.toString()}`)
   },
+  setRemark: async (targetId: number, remark: string): Promise<boolean> => {
+    await request('/portal/friends/remark', {
+      method: 'POST',
+      body: JSON.stringify({ targetId, remark })
+    })
+    return true
+  },
   removeFriend: async (targetId: number): Promise<boolean> => {
     await request('/portal/friends/remove', {
       method: 'POST',

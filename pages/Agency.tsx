@@ -1241,12 +1241,18 @@ const SystemNotificationAdmin = () => {
     }
   };
 
-  const handleRevoke = async (id: number) => {
+  const handleDelete = async (id: number) => {
+    if (!id) {
+      setFormError('通知ID缺失，删除失败');
+      return;
+    }
     try {
-      await api.messageAdmin.revokeSystemNotification(id);
+      setFormError('');
+      await api.messageAdmin.deleteSystemNotification(id);
       load(page);
     } catch (err) {
       console.error(err);
+      setFormError(err instanceof Error ? err.message : '删除失败');
     }
   };
 
@@ -1268,7 +1274,7 @@ const SystemNotificationAdmin = () => {
             <option value="all">全部状态</option>
             <option value="draft">草稿</option>
             <option value="published">已发布</option>
-            <option value="revoked">已撤销</option>
+            <option value="revoked">已撤回</option>
           </select>
           <select
             value={levelFilter}
@@ -1319,11 +1325,10 @@ const SystemNotificationAdmin = () => {
                     编辑
                   </button>
                   <button
-                    onClick={() => handleRevoke(item.id)}
+                    onClick={() => handleDelete(item.id)}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold border border-theme text-red-400 hover:text-red-300"
-                    disabled={item.status === 'revoked'}
                   >
-                    撤回
+                    删除
                   </button>
                 </div>
               </div>
