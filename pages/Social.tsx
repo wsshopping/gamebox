@@ -58,7 +58,14 @@ const Social: React.FC = () => {
     return base;
   }, [isAgent, isSuperAdmin]);
 
-  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'player' | 'agency' | 'superadmin'>(tabs[0] as any);
+  const defaultTab = useMemo(() => {
+    if (tabs.includes('message')) {
+      return 'message';
+    }
+    return tabs[0] as 'trade' | 'message' | 'player' | 'agency' | 'superadmin';
+  }, [tabs]);
+
+  const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'player' | 'agency' | 'superadmin'>(defaultTab);
   const [musicOpen, setMusicOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
   const [super2FALoading, setSuper2FALoading] = useState(false);
@@ -75,9 +82,9 @@ const Social: React.FC = () => {
 
   useEffect(() => {
     if (activeIndex === -1) {
-      setActiveTab(tabs[0] as any);
+      setActiveTab(defaultTab);
     }
-  }, [activeIndex, tabs]);
+  }, [activeIndex, defaultTab]);
 
   const loadSuper2FAStatus = async () => {
     if (!isSuperAdmin) return;
@@ -162,6 +169,14 @@ const Social: React.FC = () => {
     }
   };
 
+  const handleStartEnableSuper2FA = () => {
+    setSuper2FAError('');
+    setSuper2FACode('');
+    setSuper2FASecret('');
+    setSuper2FAOtpAuthUrl('');
+    setSuper2FAPassed(false);
+  };
+
   const sliderWidth = `calc(${(100 / tabCount).toFixed(2)}% - 4px)`;
   const sliderLeft = `calc(${(100 / tabCount).toFixed(2)}% * ${activeIndex} + 2px)`;
 
@@ -216,13 +231,21 @@ const Social: React.FC = () => {
                       {super2FAEnabled ? '已开启谷歌认证，下次进入默认需要先校验。' : '谷歌认证已关闭，下次进入无需校验。'}
                     </div>
                   </div>
-                  {super2FAEnabled && (
+                  {super2FAEnabled ? (
                     <button
                       onClick={handleDisableSuper2FA}
                       disabled={super2FABusy}
                       className="px-4 py-2 rounded-xl border border-rose-300 text-rose-500 text-xs font-bold disabled:opacity-50"
                     >
                       {super2FABusy ? '关闭中...' : '关闭谷歌认证'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStartEnableSuper2FA}
+                      disabled={super2FABusy}
+                      className="px-4 py-2 rounded-xl border border-emerald-300 text-emerald-500 text-xs font-bold disabled:opacity-50"
+                    >
+                      开启谷歌认证
                     </button>
                   )}
                 </div>

@@ -382,6 +382,24 @@ const UserCenterMain: React.FC<{
     setVideoOpen(initialVideoOpen);
   }, [initialVideoOpen]);
 
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    api.welfare
+      .getOverview()
+      .then((overview) => {
+        if (!active) return;
+        const balance = Number(overview?.balance ?? 0);
+        if (!Number.isNaN(balance) && balance !== Number(user.assets || 0)) {
+          updateUser({ assets: balance });
+        }
+      })
+      .catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, [user?.ID]);
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
