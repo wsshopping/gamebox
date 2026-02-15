@@ -318,9 +318,9 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   return (
     <div className={`app-bg min-h-full pb-20 transition-colors duration-500 ${shouldPadTop ? 'pt-[calc(5rem+env(safe-area-inset-top))]' : ''}`}>
       {/* Header for Standalone Mode */}
-      {!isEmbedded && (
-        <div className="glass-bg p-4 pt-[calc(1rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
-           <div className="flex items-center space-x-2">
+	      {!isEmbedded && (
+	        <div className="glass-bg p-4 pt-[calc(1rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center justify-between border-b border-theme transition-colors duration-500">
+	           <div className="flex items-center space-x-2">
              {viewMode !== 'main' && (
                <button onClick={() => setViewMode('main')} className="mr-2 text-slate-400 hover:text-[var(--text-primary)] p-1 rounded-full transition-colors">
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -329,28 +329,35 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
              <h1 className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>
                {viewMode === 'main' && '消息中心'}
                {viewMode === 'system' && '系统通知'}
-               {viewMode === 'interactions' && '互动消息'}
-             </h1>
-           </div>
-           {/* TODO: 清除未读功能尚未实现，完成后恢复入口。 */}
-        </div>
-      )}
+	               {viewMode === 'interactions' && '互动消息'}
+	             </h1>
+	           </div>
+	           <div className={`inline-flex items-center gap-1.5 text-xs font-medium ${isOffline ? 'text-slate-500' : 'text-emerald-500'}`}>
+	             <span className={`inline-block h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-slate-400' : 'bg-emerald-500'}`}></span>
+	             <span>{isOffline ? '离线' : '在线'}</span>
+	           </div>
+	        </div>
+	      )}
 
       {/* Header for Embedded Mode (System & Interactions only) */}
-      {isEmbedded && (viewMode === 'system' || viewMode === 'interactions') && (
-        <div className="glass-bg p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
-           <button 
+	      {isEmbedded && (viewMode === 'system' || viewMode === 'interactions') && (
+	        <div className="glass-bg p-3 pt-[calc(0.75rem+env(safe-area-inset-top))] fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 shadow-sm flex items-center border-b border-theme transition-colors duration-500">
+	           <button 
              onClick={() => setViewMode('main')} 
              className="mr-3 text-slate-400 hover:text-[var(--text-primary)] p-1.5 rounded-full transition-colors"
            >
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
            </button>
-           <h1 className="text-base font-bold" style={{color: 'var(--text-primary)'}}>
-             {viewMode === 'system' && '系统通知'}
-             {viewMode === 'interactions' && '互动消息'}
-           </h1>
-        </div>
-      )}
+	           <h1 className="text-base font-bold" style={{color: 'var(--text-primary)'}}>
+	             {viewMode === 'system' && '系统通知'}
+	             {viewMode === 'interactions' && '互动消息'}
+	           </h1>
+	           <div className={`ml-auto inline-flex items-center gap-1.5 text-xs font-medium ${isOffline ? 'text-slate-500' : 'text-emerald-500'}`}>
+	             <span className={`inline-block h-1.5 w-1.5 rounded-full ${isOffline ? 'bg-slate-400' : 'bg-emerald-500'}`}></span>
+	             <span>{isOffline ? '离线' : '在线'}</span>
+	           </div>
+	        </div>
+	      )}
 
       {showOfflineBanner && (
         <div className="bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs px-4 py-2 flex items-center gap-2">
@@ -362,6 +369,12 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
       {/* Main View */}
       {viewMode === 'main' && (
         <>
+           <div className="px-4 pt-1 pb-1">
+             <div className={`inline-flex items-center gap-1.5 text-xs font-medium ${isOffline ? 'text-slate-500' : 'text-emerald-500'}`}>
+               <span className={`inline-block h-2 w-2 rounded-full ${isOffline ? 'bg-slate-400' : 'bg-emerald-500'} shadow-[0_0_6px_rgba(16,185,129,0.35)]`}></span>
+               <span>{isOffline ? '离线' : '在线'}</span>
+             </div>
+           </div>
            {/* Functional Grid */}
            <div className={`grid ${INTERACTION_MESSAGES_ENABLED ? 'grid-cols-3' : 'grid-cols-2'} gap-3 p-4 pb-2`}>
               <div 

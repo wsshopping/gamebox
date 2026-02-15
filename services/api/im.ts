@@ -17,6 +17,17 @@ export interface IMGroupActionRequest {
   groupId: string
 }
 
+export interface IMGroupOnlineStatsResponse {
+  groupId: string
+  totalCount: number
+  onlineCount: number
+}
+
+export interface IMUserOnlineStatusResponse {
+  userId: string
+  isOnline: boolean
+}
+
 export interface IMMediaDownloadRequest {
   key: string
   fileName?: string
@@ -158,6 +169,12 @@ export const imApi = {
       body: JSON.stringify(payload)
     })
     return true
+  },
+  getGroupOnlineStats: async (groupId: string): Promise<IMGroupOnlineStatsResponse> => {
+    return request<IMGroupOnlineStatsResponse>(`/portal/im/groups/online-stats?groupId=${encodeURIComponent(groupId)}`)
+  },
+  getUserOnlineStatus: async (userId: number): Promise<IMUserOnlineStatusResponse> => {
+    return request<IMUserOnlineStatusResponse>(`/portal/im/users/online-status?userId=${encodeURIComponent(String(userId))}`)
   },
   getGroupAnnouncement: async (groupId: string): Promise<IMGroupAnnouncementResponse> => {
     return request<IMGroupAnnouncementResponse>(`/portal/im/groups/announcement?groupId=${encodeURIComponent(groupId)}`)

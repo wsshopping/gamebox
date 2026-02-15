@@ -4,6 +4,7 @@ import { useIm } from '../context/ImContext';
 import { useAuth } from '../context/AuthContext';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 import { friendApi, FriendItem, FriendProfile, FriendRequestItem } from '../services/api/friend';
+import { imApi } from '../services/api/im';
 
 type ChatItem = {
   id: string;
@@ -59,6 +60,7 @@ const GroupDiscover: React.FC = () => {
   const [createError, setCreateError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [privateOnlineMap, setPrivateOnlineMap] = useState<Record<string, boolean | null>>({});
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
   const [swipeActionId, setSwipeActionId] = useState<string | null>(null);
   const swipeRef = useRef({ id: '', startX: 0, startY: 0, active: false });
@@ -144,6 +146,68 @@ const GroupDiscover: React.FC = () => {
     if (message.name === IMMessageType.VOICE) return '[语音]';
     return '[新消息]';
   };
+
+  const parseOnlineFlag = (value: unknown): boolean | null => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'online', 'yes', 'on'].includes(normalized)) return true;
+      if (['0', 'false', 'offline', 'no', 'off'].includes(normalized)) return false;
+    }
+    return null;
+  };
+
+  const privateChatIds = useMemo(() => {
+    const idSet = new Set<string>();
+    conversations.forEach((conv: any) => {
+      if (conv.conversationType !== IMConversationType.PRIVATE) return;
+      const id = String(conv.conversationId || '').trim();
+      if (!/^\d+$/.test(id)) return;
+      idSet.add(id);
+    });
+    return Array.from(idSet).sort((a, b) => Number(a) - Number(b));
+  }, [conversations]);
+
+  useEffect(() => {
+    if (!ready || activeTab !== 'chats') return;
+    if (privateChatIds.length === 0) {
+      setPrivateOnlineMap({});
+      return;
+    }
+
+    let active = true;
+    const fetchPrivateOnline = async () => {
+      const next: Record<string, boolean | null> = {};
+      const batchSize = 10;
+      for (let start = 0; start < privateChatIds.length; start += batchSize) {
+        const chunk = privateChatIds.slice(start, start + batchSize);
+        const results = await Promise.allSettled(
+          chunk.map((id) => imApi.getUserOnlineStatus(Number(id)))
+        );
+        if (!active) return;
+        results.forEach((result, index) => {
+          const id = chunk[index];
+          if (result.status === 'fulfilled') {
+            next[id] = parseOnlineFlag((result.value as any)?.isOnline);
+          } else {
+            next[id] = null;
+          }
+        });
+      }
+      if (!active) return;
+      setPrivateOnlineMap(next);
+    };
+
+    fetchPrivateOnline().catch(() => null);
+    const timer = window.setInterval(() => {
+      fetchPrivateOnline().catch(() => null);
+    }, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [activeTab, privateChatIds, ready]);
 
 
   const chatList = useMemo<ChatItem[]>(() => {
@@ -524,6 +588,8 @@ const GroupDiscover: React.FC = () => {
             <div className="flex flex-col">
               {chatList.map((chat) => {
                 const isOpen = openSwipeId === chat.id;
+                const isPrivateChat = chat.conversationType === IMConversationType.PRIVATE;
+                const privateOnline = isPrivateChat ? privateOnlineMap[chat.id] : null;
                 return (
                   <div key={chat.id} className="relative overflow-hidden">
                   <div
@@ -576,6 +642,12 @@ const GroupDiscover: React.FC = () => {
                         <div className="flex justify-between items-center mb-1">
                           <div className="flex items-center gap-2 min-w-0">
                             <h3 className="text-[16px] font-bold text-[var(--text-primary)] truncate">{chat.title}</h3>
+                            {isPrivateChat && (
+                              <span className={`inline-flex items-center gap-1 text-[10px] ${privateOnline === true ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                <span className={`inline-block h-1.5 w-1.5 rounded-full ${privateOnline === true ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                                <span>{privateOnline === true ? '在线' : privateOnline === false ? '离线' : '未知'}</span>
+                              </span>
+                            )}
                             {chat.isTop && (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
                                 置顶

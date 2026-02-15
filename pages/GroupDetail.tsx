@@ -30,6 +30,7 @@ const GroupDetail: React.FC = () => {
   } | null>(null);
   const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string }>>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const { conversations, refreshConversations, getGroupInfo, getGroupMembers, ensureConnected } = useIm();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,16 +104,19 @@ const GroupDetail: React.FC = () => {
     setIsLoading(true);
     setLoadError('');
     setMembersLoaded(false);
+    setOnlineCount(null);
 
     const loadGroup = async () => {
-      const [infoResult, membersResult] = await Promise.allSettled([
+      const [infoResult, membersResult, onlineResult] = await Promise.allSettled([
         getGroupInfo(id),
-        getGroupMembers(id)
+        getGroupMembers(id),
+        api.im.getGroupOnlineStats(id)
       ]);
       if (!active) return;
 
       const info = infoResult.status === 'fulfilled' ? infoResult.value : null;
       const memberResp = membersResult.status === 'fulfilled' ? membersResult.value : null;
+      const onlineStats = onlineResult.status === 'fulfilled' ? onlineResult.value : null;
 
       if (!info || !info.groupId) {
         const reason = infoResult.status === 'rejected' ? (infoResult.reason as any) : null;
@@ -143,6 +147,9 @@ const GroupDetail: React.FC = () => {
         displayName: item.grpDisplayName
       })));
       setMembersLoaded(membersResult.status === 'fulfilled');
+      if (onlineStats && typeof onlineStats.onlineCount === 'number') {
+        setOnlineCount(onlineStats.onlineCount);
+      }
       setGroup({
         id: info.groupId,
         name: info.groupName || info.groupId,
@@ -163,6 +170,7 @@ const GroupDetail: React.FC = () => {
         setGroup(null);
         setMembers([]);
         setMembersLoaded(false);
+        setOnlineCount(null);
         setLoadError(err?.message || '加载失败');
       })
       .finally(() => {
@@ -471,7 +479,7 @@ const GroupDetail: React.FC = () => {
                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">成员</p>
                 </div>
                 <div className="text-center">
-                   <p className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>{membersLoaded ? members.length : '--'}</p>
+                   <p className="text-lg font-bold" style={{color: 'var(--text-primary)'}}>{onlineCount === null ? '--' : onlineCount}</p>
                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">在线</p>
                 </div>
                 <div className="text-center">

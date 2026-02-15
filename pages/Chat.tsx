@@ -150,6 +150,8 @@ const Chat: React.FC = () => {
   const videoPreviewOwnedUrlRef = useRef('');
   const [groupTitle, setGroupTitle] = useState('');
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const [privateOnline, setPrivateOnline] = useState<boolean | null>(null);
   const [announcement, setAnnouncement] = useState<IMGroupAnnouncementResponse | null>(null);
   const [isAnnouncementLoading, setIsAnnouncementLoading] = useState(false);
   const [isAnnouncementEditorOpen, setIsAnnouncementEditorOpen] = useState(false);
@@ -482,6 +484,16 @@ const Chat: React.FC = () => {
       .split(/[,\s;|]+/)
       .map(item => item.trim())
       .filter(Boolean);
+  };
+  const parseOnlineFlag = (value: unknown): boolean | null => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['1', 'true', 'online', 'yes', 'on'].includes(normalized)) return true;
+      if (['0', 'false', 'offline', 'no', 'off'].includes(normalized)) return false;
+    }
+    return null;
   };
 
   const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -952,21 +964,68 @@ const Chat: React.FC = () => {
   }, [id, ready, isGroup, refreshConversations]);
 
   useEffect(() => {
+    if (!id || isGroup) {
+      setPrivateOnline(null);
+      return;
+    }
+    const targetId = Number(id);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      setPrivateOnline(null);
+      return;
+    }
+
+    let active = true;
+    const fetchStatus = () => {
+      imApi.getUserOnlineStatus(targetId)
+        .then(res => {
+          if (!active) return;
+          setPrivateOnline(parseOnlineFlag((res as any)?.isOnline));
+        })
+        .catch(() => {
+          if (!active) return;
+          setPrivateOnline(null);
+        });
+    };
+    fetchStatus();
+    const timer = window.setInterval(fetchStatus, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [id, isGroup]);
+
+  useEffect(() => {
     if (!id || !isGroup) {
       setGroupTitle('');
       setMemberCount(null);
+      setOnlineCount(null);
       setGroupOwnerId('');
       setGroupAdminIds([]);
       return;
     }
     let active = true;
-    Promise.all([
+    Promise.allSettled([
       getGroupInfo(id),
-      getGroupMembers(id)
-    ]).then(([info, members]) => {
+      getGroupMembers(id),
+      imApi.getGroupOnlineStats(id)
+    ]).then(([infoResult, membersResult, onlineResult]) => {
       if (!active) return;
+      const info = infoResult.status === 'fulfilled' ? infoResult.value : null;
+      const members = membersResult.status === 'fulfilled' ? membersResult.value : null;
+      const onlineStats = onlineResult.status === 'fulfilled' ? onlineResult.value : null;
       if (info?.groupName) setGroupTitle(info.groupName);
-      if (members?.items) setMemberCount(members.items.length);
+      if (onlineStats && typeof onlineStats.totalCount === 'number') {
+        setMemberCount(onlineStats.totalCount);
+      } else if (members?.items) {
+        setMemberCount(members.items.length);
+      } else {
+        setMemberCount(null);
+      }
+      if (onlineStats && typeof onlineStats.onlineCount === 'number') {
+        setOnlineCount(onlineStats.onlineCount);
+      } else {
+        setOnlineCount(null);
+      }
       const ext = info?.extFields || {};
       const settings = info?.settings || {};
       const ownerId = (ext.grp_creator || settings.grp_creator || '').trim();
@@ -1905,8 +1964,15 @@ const Chat: React.FC = () => {
   };
 
   const statusLabel = isGroup
-    ? (memberCount === null ? '群聊' : `${memberCount} 人在线`)
-    : <span className="text-emerald-500">● 在线</span>;
+    ? (onlineCount === null
+      ? (memberCount === null ? '群聊' : `${memberCount} 人`)
+      : `${onlineCount} 人在线`)
+    : (
+      <span className={`inline-flex items-center gap-1.5 ${privateOnline === true ? 'text-emerald-500' : 'text-slate-500'}`}>
+        <span className={`inline-block h-1.5 w-1.5 rounded-full ${privateOnline === true ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+        <span>{privateOnline === true ? '在线' : privateOnline === false ? '离线' : '状态未知'}</span>
+      </span>
+    );
 
   return (
     <div className="fixed inset-0 z-[50] app-bg flex flex-col transition-colors duration-500">
