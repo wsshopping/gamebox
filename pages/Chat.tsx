@@ -2522,19 +2522,29 @@ const Chat: React.FC = () => {
       )}
 
       {showFriendMenu && !isGroup && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center px-3 pb-3 sm:px-0 sm:pb-0">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowFriendMenu(false)}
           ></div>
-          <div className="relative w-full sm:max-w-sm card-bg rounded-t-2xl sm:rounded-2xl p-5 border border-theme shadow-2xl animate-fade-in-up">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">好友操作</h3>
-                <p className="text-xs text-slate-500 mt-1">{friendDisplayName}</p>
+          <div className="relative w-full sm:max-w-md card-bg rounded-[22px] p-5 border border-theme shadow-2xl animate-fade-in-up">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-full overflow-hidden border border-theme flex-shrink-0">
+                  <img
+                    src={friendProfile?.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${friendId || 'friend'}`}
+                    alt="friend-avatar"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)]">好友操作</h3>
+                  <p className="text-sm font-medium text-[var(--text-primary)] truncate mt-0.5">{friendDisplayName}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">ID: {hasFriendId ? friendId : '-'}</p>
+                </div>
               </div>
               {isProfileLoading && (
-                <span className="text-[10px] text-slate-500">资料加载中...</span>
+                <span className="text-[10px] text-slate-500 flex-shrink-0">资料加载中...</span>
               )}
             </div>
 
@@ -2544,23 +2554,25 @@ const Chat: React.FC = () => {
               </div>
             )}
 
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 onClick={handleViewFriendProfile}
-                className="w-full bg-accent-gradient text-black font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
+                className="col-span-1 bg-accent-gradient text-black font-semibold py-3 rounded-xl shadow-lg active:scale-95 transition-transform"
               >
                 查看资料
               </button>
               <button
                 onClick={handleSetFriendRemark}
                 disabled={isUpdatingFriendRemark || !hasFriendId}
-                className={`w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors ${isUpdatingFriendRemark || !hasFriendId ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`col-span-1 py-3 rounded-xl border border-theme text-sm font-medium text-[var(--text-primary)] hover:bg-white/5 transition-colors ${isUpdatingFriendRemark || !hasFriendId ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 {isUpdatingFriendRemark ? '保存中...' : '好友备注'}
               </button>
+            </div>
+            <div className="mt-2 space-y-2">
               <button
                 onClick={handleOpenAutoDeleteSheet}
-                className="w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors flex items-center justify-between px-4"
+                className="w-full py-3 rounded-xl border border-theme text-sm font-medium text-[var(--text-primary)] hover:bg-white/5 transition-colors flex items-center justify-between px-4"
               >
                 <span>自动删除消息</span>
                 <span className="text-slate-400 text-xs">{isAutoDeleteLoading ? '加载中...' : autoDeleteLabel}</span>
@@ -2568,7 +2580,7 @@ const Chat: React.FC = () => {
               <button
                 onClick={handleRemoveFriend}
                 disabled={isRemovingFriend || !hasFriendId}
-                className={`w-full text-white font-bold py-3 rounded-xl bg-rose-500/90 ${isRemovingFriend || !hasFriendId ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                className={`w-full text-white font-semibold py-3 rounded-xl bg-rose-500/90 ${isRemovingFriend || !hasFriendId ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
               >
                 {isRemovingFriend ? '删除中...' : '删除好友'}
               </button>

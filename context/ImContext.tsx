@@ -162,6 +162,74 @@ const logIm = (...args: any[]) => {
   console.log('[IM]', ...args)
 }
 
+const clipLogText = (text: string, max = 320) => {
+  if (!text) return ''
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}...`
+}
+
+const toLogText = (value: any) => {
+  if (typeof value === 'undefined') return ''
+  if (value === null) return 'null'
+  if (value instanceof Error) {
+    return `${value.name || 'Error'}: ${value.message || ''}`
+  }
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value, (_key, item) => {
+      if (item instanceof Error) {
+        return {
+          name: item.name,
+          message: item.message,
+          stack: item.stack
+        }
+      }
+      return item
+    })
+  } catch (_error) {
+    return String(value)
+  }
+}
+
+const parseUploadError = (...inputs: any[]) => {
+  const candidates: any[] = []
+  inputs.forEach((input) => {
+    if (typeof input === 'undefined') return
+    candidates.push(input)
+    const nested = input?.error
+    if (typeof nested !== 'undefined') {
+      candidates.push(nested)
+    }
+  })
+
+  let code: string | number | '' = ''
+  let message = ''
+  candidates.forEach((item) => {
+    if (!item) return
+    if (code === '' && typeof item?.code !== 'undefined' && item?.code !== null) {
+      code = item.code
+    }
+    if (!message) {
+      const rawMessage = item?.msg || item?.message
+      if (typeof rawMessage === 'string' && rawMessage.trim()) {
+        message = rawMessage.trim()
+      }
+    }
+  })
+
+  const detail = candidates
+    .map(item => clipLogText(toLogText(item)))
+    .filter(Boolean)
+    .join(' | ')
+
+  return {
+    code,
+    message,
+    detail
+  }
+}
+
 const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => {
   let timer: number | null = null
   try {
@@ -484,19 +552,30 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
                 })
               }
             },
-            onerror: (error: any) => {
-              const message = error?.msg || error?.message || '图片上传失败'
+            onerror: (error: any, payloadError: any) => {
+              const parsedError = parseUploadError(error, payloadError)
+              const message = parsedError.message || '图片上传失败'
+              const codeText = parsedError.code === '' ? '-' : String(parsedError.code)
               const duration = Date.now() - startAt
-              appendDebugLog(`image send onerror: ${message}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
+              appendDebugLog(`image send onerror: ${message}, code=${codeText}, detail=${parsedError.detail || '-'}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
               logIm('sendImageMessage:onerror', {
                 conversationId,
                 conversationType,
                 tid: sendTid,
                 message,
+                code: codeText,
+                detail: parsedError.detail,
+                rawError: error,
+                rawPayloadError: payloadError,
                 progress: Math.round(lastProgress),
                 duration
               })
-              finalize(reject, new Error(message))
+              const wrappedError: any = new Error(message)
+              wrappedError.code = parsedError.code
+              wrappedError.detail = parsedError.detail
+              wrappedError.rawError = error
+              wrappedError.rawPayloadError = payloadError
+              finalize(reject, wrappedError)
             }
           })
           Promise.resolve(task)
@@ -524,15 +603,20 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       scheduleRefresh()
       return sent
     } catch (error: any) {
+      const parsedError = parseUploadError(error, error?.rawError, error?.rawPayloadError)
       const duration = Date.now() - startAt
       const stalledMs = lastProgressAt ? (Date.now() - lastProgressAt) : duration
-      const message = error?.message || '图片发送失败'
-      appendDebugLog(`image send failed: ${message}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
+      const message = parsedError.message || error?.message || '图片发送失败'
+      const codeText = parsedError.code === '' ? '-' : String(parsedError.code)
+      appendDebugLog(`image send failed: ${message}, code=${codeText}, detail=${parsedError.detail || '-'}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
       logIm('sendImageMessage:failed', {
         conversationId,
         conversationType,
         tid: sendTid,
         message,
+        code: codeText,
+        detail: parsedError.detail,
+        rawError: error,
         progress: Math.round(lastProgress),
         stalledMs,
         duration
@@ -616,19 +700,30 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
                 })
               }
             },
-            onerror: (error: any) => {
-              const message = error?.msg || error?.message || '文件上传失败'
+            onerror: (error: any, payloadError: any) => {
+              const parsedError = parseUploadError(error, payloadError)
+              const message = parsedError.message || '文件上传失败'
+              const codeText = parsedError.code === '' ? '-' : String(parsedError.code)
               const duration = Date.now() - startAt
-              appendDebugLog(`file send onerror: ${message}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
+              appendDebugLog(`file send onerror: ${message}, code=${codeText}, detail=${parsedError.detail || '-'}, progress=${Math.round(lastProgress)}%, cost=${duration}ms, tid=${sendTid || '-'}`)
               logIm('sendFileMessage:onerror', {
                 conversationId,
                 conversationType,
                 tid: sendTid,
                 message,
+                code: codeText,
+                detail: parsedError.detail,
+                rawError: error,
+                rawPayloadError: payloadError,
                 progress: Math.round(lastProgress),
                 duration
               })
-              finalize(reject, new Error(message))
+              const wrappedError: any = new Error(message)
+              wrappedError.code = parsedError.code
+              wrappedError.detail = parsedError.detail
+              wrappedError.rawError = error
+              wrappedError.rawPayloadError = payloadError
+              finalize(reject, wrappedError)
             }
           })
           Promise.resolve(task)
@@ -656,15 +751,20 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       scheduleRefresh()
       return sent
     } catch (error: any) {
+      const parsedError = parseUploadError(error, error?.rawError, error?.rawPayloadError)
       const duration = Date.now() - startAt
       const stalledMs = lastProgressAt ? (Date.now() - lastProgressAt) : duration
-      const message = error?.message || '文件发送失败'
-      appendDebugLog(`file send failed: ${message}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
+      const message = parsedError.message || error?.message || '文件发送失败'
+      const codeText = parsedError.code === '' ? '-' : String(parsedError.code)
+      appendDebugLog(`file send failed: ${message}, code=${codeText}, detail=${parsedError.detail || '-'}, progress=${Math.round(lastProgress)}%, stalled=${stalledMs}ms, cost=${duration}ms, tid=${sendTid || '-'}`)
       logIm('sendFileMessage:failed', {
         conversationId,
         conversationType,
         tid: sendTid,
         message,
+        code: codeText,
+        detail: parsedError.detail,
+        rawError: error,
         progress: Math.round(lastProgress),
         stalledMs,
         duration

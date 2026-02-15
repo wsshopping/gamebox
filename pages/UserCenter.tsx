@@ -268,7 +268,7 @@ const AvatarModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, o
               className="w-16 h-16 rounded-full object-cover border border-theme"
             />
             <div className="min-w-0">
-              <div className="text-xs text-slate-500">支持 JPG / PNG / WEBP，最大 2MB</div>
+              <div className="text-xs text-slate-500">支持 JPG / PNG / WEBP，最大 5MB</div>
               <div className="text-xs text-slate-400 truncate mt-1">{file?.name || '未选择文件'}</div>
             </div>
           </div>
