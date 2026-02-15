@@ -5,6 +5,7 @@ import Agency, { SuperAdminPage } from './Agency';
 import { useAuth } from '../context/AuthContext';
 import PlayerMusicModal from '../components/PlayerMusicModal';
 import PlayerVideoModal from '../components/PlayerVideoModal';
+import { agencyApi } from '../services/api/agency';
 
 const PlayerHub: React.FC<{ onOpenMusic: () => void; onOpenVideo: () => void }> = ({ onOpenMusic, onOpenVideo }) => {
   return (
@@ -60,6 +61,15 @@ const Social: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'trade' | 'message' | 'player' | 'agency' | 'superadmin'>(tabs[0] as any);
   const [musicOpen, setMusicOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  const [super2FALoading, setSuper2FALoading] = useState(false);
+  const [super2FABusy, setSuper2FABusy] = useState(false);
+  const [super2FAEnabled, setSuper2FAEnabled] = useState(false);
+  const [super2FAPassed, setSuper2FAPassed] = useState(false);
+  const [super2FACooldown, setSuper2FACooldown] = useState(0);
+  const [super2FACode, setSuper2FACode] = useState('');
+  const [super2FASecret, setSuper2FASecret] = useState('');
+  const [super2FAOtpAuthUrl, setSuper2FAOtpAuthUrl] = useState('');
+  const [super2FAError, setSuper2FAError] = useState('');
   const tabCount = tabs.length;
   const activeIndex = tabs.indexOf(activeTab);
 
@@ -68,6 +78,89 @@ const Social: React.FC = () => {
       setActiveTab(tabs[0] as any);
     }
   }, [activeIndex, tabs]);
+
+  const loadSuper2FAStatus = async () => {
+    if (!isSuperAdmin) return;
+    setSuper2FALoading(true);
+    setSuper2FAError('');
+    try {
+      const status = await agencyApi.getSuper2FAStatus();
+      setSuper2FAEnabled(Boolean(status.enabled));
+      setSuper2FAPassed(Boolean(!status.enabled || status.verified));
+      setSuper2FACooldown(Number(status.cooldownSeconds || 0));
+    } catch (err: any) {
+      setSuper2FAError(err?.message || '获取谷歌验证状态失败');
+    } finally {
+      setSuper2FALoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdmin || activeTab !== 'superadmin') return;
+    loadSuper2FAStatus();
+  }, [activeTab, isSuperAdmin]);
+
+  const handleSetupSuper2FA = async () => {
+    setSuper2FABusy(true);
+    setSuper2FAError('');
+    try {
+      const data = await agencyApi.setupSuper2FA();
+      setSuper2FASecret(data.secret || '');
+      setSuper2FAOtpAuthUrl(data.otpauthUrl || '');
+    } catch (err: any) {
+      setSuper2FAError(err?.message || '生成绑定信息失败');
+    } finally {
+      setSuper2FABusy(false);
+    }
+  };
+
+  const handleEnableSuper2FA = async () => {
+    setSuper2FABusy(true);
+    setSuper2FAError('');
+    try {
+      await agencyApi.enableSuper2FA(super2FACode.trim());
+      setSuper2FACode('');
+      setSuper2FASecret('');
+      setSuper2FAOtpAuthUrl('');
+      await loadSuper2FAStatus();
+    } catch (err: any) {
+      setSuper2FAError(err?.message || '启用谷歌验证失败');
+      await loadSuper2FAStatus();
+    } finally {
+      setSuper2FABusy(false);
+    }
+  };
+
+  const handleVerifySuper2FA = async () => {
+    setSuper2FABusy(true);
+    setSuper2FAError('');
+    try {
+      await agencyApi.verifySuper2FA(super2FACode.trim());
+      setSuper2FACode('');
+      await loadSuper2FAStatus();
+    } catch (err: any) {
+      setSuper2FAError(err?.message || '谷歌验证失败');
+      await loadSuper2FAStatus();
+    } finally {
+      setSuper2FABusy(false);
+    }
+  };
+
+  const handleDisableSuper2FA = async () => {
+    setSuper2FABusy(true);
+    setSuper2FAError('');
+    try {
+      await agencyApi.disableSuper2FA();
+      setSuper2FACode('');
+      setSuper2FASecret('');
+      setSuper2FAOtpAuthUrl('');
+      await loadSuper2FAStatus();
+    } catch (err: any) {
+      setSuper2FAError(err?.message || '关闭谷歌验证失败');
+    } finally {
+      setSuper2FABusy(false);
+    }
+  };
 
   const sliderWidth = `calc(${(100 / tabCount).toFixed(2)}% - 4px)`;
   const sliderLeft = `calc(${(100 / tabCount).toFixed(2)}% * ${activeIndex} + 2px)`;
@@ -112,7 +205,106 @@ const Social: React.FC = () => {
         {activeTab === 'message' && <MessageList isEmbedded={true} />}
         {activeTab === 'player' && <PlayerHub onOpenMusic={() => setMusicOpen(true)} onOpenVideo={() => setVideoOpen(true)} />}
         {activeTab === 'agency' && <Agency />}
-        {activeTab === 'superadmin' && <SuperAdminPage />}
+        {activeTab === 'superadmin' && (
+          super2FAPassed ? (
+            <>
+              <div className="px-5 pt-6">
+                <div className="card-bg rounded-[20px] p-4 shadow-sm border border-theme flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>超管认证状态</div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {super2FAEnabled ? '已开启谷歌认证，下次进入默认需要先校验。' : '谷歌认证已关闭，下次进入无需校验。'}
+                    </div>
+                  </div>
+                  {super2FAEnabled && (
+                    <button
+                      onClick={handleDisableSuper2FA}
+                      disabled={super2FABusy}
+                      className="px-4 py-2 rounded-xl border border-rose-300 text-rose-500 text-xs font-bold disabled:opacity-50"
+                    >
+                      {super2FABusy ? '关闭中...' : '关闭谷歌认证'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <SuperAdminPage />
+            </>
+          ) : (
+            <div className="px-5 pt-6">
+              <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme">
+                <h3 className="text-base font-bold mb-2" style={{ color: 'var(--text-primary)' }}>超管中心安全校验</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  {super2FAEnabled ? '请输入谷歌验证码后进入超管中心。' : '请先绑定谷歌验证器，再进入超管中心。'}
+                </p>
+
+                {super2FALoading && (
+                  <div className="text-sm text-slate-400 mb-3">正在加载校验状态...</div>
+                )}
+
+                {!super2FALoading && !super2FAEnabled && (
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleSetupSuper2FA}
+                      disabled={super2FABusy}
+                      className="w-full py-2 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] text-sm font-bold disabled:opacity-50"
+                    >
+                      {super2FABusy ? '生成中...' : '生成谷歌绑定密钥'}
+                    </button>
+                    {super2FASecret && (
+                      <div className="rounded-xl border border-theme p-3 bg-[var(--bg-primary)]">
+                        <div className="text-xs text-slate-400 mb-1">密钥（Google Authenticator 手动输入）</div>
+                        <div className="text-sm font-mono break-all" style={{ color: 'var(--text-primary)' }}>{super2FASecret}</div>
+                        {super2FAOtpAuthUrl && (
+                          <a
+                            href={super2FAOtpAuthUrl}
+                            className="mt-2 inline-block text-xs text-accent underline break-all"
+                          >
+                            打开 otpauth 链接
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!super2FALoading && (
+                  <div className="space-y-3 mt-4">
+                    <input
+                      value={super2FACode}
+                      onChange={(e) => setSuper2FACode(e.target.value.replace(/\\D/g, '').slice(0, 6))}
+                      placeholder="请输入6位谷歌验证码"
+                      className="w-full px-3 py-2 rounded-xl border border-theme bg-[var(--bg-primary)] text-sm"
+                    />
+                    {!super2FAEnabled ? (
+                      <button
+                        onClick={handleEnableSuper2FA}
+                        disabled={super2FABusy || super2FACode.length !== 6}
+                        className="w-full py-2 rounded-xl bg-accent text-white text-sm font-bold disabled:opacity-50"
+                      >
+                        {super2FABusy ? '提交中...' : '完成绑定并进入'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleVerifySuper2FA}
+                        disabled={super2FABusy || super2FACode.length !== 6}
+                        className="w-full py-2 rounded-xl bg-accent text-white text-sm font-bold disabled:opacity-50"
+                      >
+                        {super2FABusy ? '校验中...' : '校验并进入超管中心'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {super2FACooldown > 0 && (
+                  <div className="mt-3 text-xs text-amber-400">尝试过多，请稍后重试（约 {super2FACooldown} 秒）。</div>
+                )}
+                {super2FAError && (
+                  <div className="mt-3 text-xs text-rose-400">{super2FAError}</div>
+                )}
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       <PlayerMusicModal open={musicOpen} onClose={() => setMusicOpen(false)} />

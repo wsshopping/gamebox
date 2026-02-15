@@ -5,6 +5,7 @@ import { gameApi } from '../services/api/game';
 import { useAuth } from '../context/AuthContext';
 import type { Game } from '../types';
 import type { SystemNotificationAdminItem, SystemNotificationUpsert } from '../services/api/messageAdmin';
+import type { PayoutAddressData } from '../services/api/agency';
 
 // --- Types ---
 type TabMode = '代理管理' | '玩家列表' | '订单查询' | '业绩详情' | '结算中心' | '手游排序';
@@ -168,6 +169,27 @@ const formatRatePct = (value: number) => {
   if (Number.isNaN(value)) return '--';
   const fixed = value.toFixed(2);
   return fixed.replace(/\.?0+$/, '');
+};
+
+const WITHDRAW_STATUS_LABELS: Record<string, string> = {
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '已拒绝',
+  paid: '已打款'
+};
+
+const formatWithdrawStatus = (status?: string) => {
+  const key = String(status || '').toLowerCase();
+  return WITHDRAW_STATUS_LABELS[key] || status || '--';
+};
+
+const formatCooldown = (seconds: number) => {
+  if (seconds <= 0) return '0秒';
+  const minute = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  if (minute <= 0) return `${sec}秒`;
+  if (sec === 0) return `${minute}分`;
+  return `${minute}分${sec}秒`;
 };
 
 // --- Components ---
@@ -832,7 +854,184 @@ const AgentManagement = ({ roleOptions }: { roleOptions: { id: number; name: str
   );
 };
 
-type SuperAdminTab = 'allAgents' | 'allPlayers' | 'boss' | 'approval' | 'notifications';
+const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
+  const [games, setGames] = useState<Game[]>([]);
+  const [rows, setRows] = useState<{ gameId: number; rebateRatePct: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [gameList, rebateList] = await Promise.all([
+        gameApi.getList('all', 1, 200),
+        api.agency.getSuperRebates()
+      ]);
+      setGames(gameList || []);
+      setRows(
+        Array.isArray(rebateList)
+          ? rebateList.map((item) => ({
+              gameId: Number(item.gameId) || 0,
+              rebateRatePct: String(item.rebateRatePct ?? '')
+            }))
+          : []
+      );
+    } catch (err: any) {
+      setError(err?.message || '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    load();
+  }, [isSuperAdmin]);
+
+  const addRow = () => {
+    const firstGameId = games[0] ? Number(games[0].id) : 0;
+    setRows((prev) => [...prev, { gameId: firstGameId, rebateRatePct: '' }]);
+  };
+
+  const updateRow = (index: number, key: 'gameId' | 'rebateRatePct', value: number | string) => {
+    const next = [...rows];
+    next[index] = { ...next[index], [key]: value };
+    setRows(next);
+  };
+
+  const removeRow = (index: number) => {
+    setRows((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const save = async () => {
+    setError('');
+    const filtered = rows.filter((item) => item.gameId);
+    const used = new Set<number>();
+    for (const item of filtered) {
+      const rate = Number(item.rebateRatePct);
+      if (Number.isNaN(rate) || rate < 0 || rate > 100) {
+        setError('分成比例需在0-100之间');
+        return;
+      }
+      if (used.has(item.gameId)) {
+        setError('同一游戏不能重复配置');
+        return;
+      }
+      used.add(item.gameId);
+    }
+    setSaving(true);
+    try {
+      await api.agency.updateSuperRebates(
+        filtered.map((item) => ({
+          gameId: item.gameId,
+          rebateRatePct: Number(item.rebateRatePct || '0')
+        }))
+      );
+      await load();
+      window.alert('保存成功');
+    } catch (err: any) {
+      setError(err?.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isSuperAdmin) {
+    return <EmptyState title="无权限" />;
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-in-up">
+      <div className="card-bg rounded-[24px] p-6 border border-theme shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>我的游戏分成</h3>
+          <button
+            onClick={addRow}
+            className="text-xs font-bold text-amber-500 border border-amber-500/30 rounded-lg px-2.5 py-1"
+          >
+            添加游戏
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-500 mb-4">仅超管可见。配置单位为百分比（0-100）。留空列表后保存表示清空自定义分成。</p>
+
+        {error && (
+          <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20 mb-3">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-12 card-bg rounded-xl border border-theme animate-pulse"></div>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="text-xs text-slate-500 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-3">
+            未配置分成，请点击“添加游戏”
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((item, index) => (
+              <div key={`${item.gameId}-${index}`} className="flex items-center space-x-2">
+                <select
+                  value={item.gameId}
+                  onChange={(e) => updateRow(index, 'gameId', Number(e.target.value))}
+                  className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2.5 text-xs outline-none text-[var(--text-primary)]"
+                >
+                  <option value={0}>选择游戏</option>
+                  {games.map((game) => (
+                    <option key={game.id} value={Number(game.id)}>
+                      {game.title}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  value={item.rebateRatePct}
+                  onChange={(e) => updateRow(index, 'rebateRatePct', e.target.value)}
+                  className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2.5 text-xs outline-none text-[var(--text-primary)]"
+                  placeholder="%"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeRow(index)}
+                  className="text-xs text-slate-500 hover:text-red-400"
+                >
+                  删除
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center space-x-2">
+          <button
+            onClick={save}
+            disabled={saving || loading}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme disabled:opacity-60"
+          >
+            {saving ? '保存中...' : '保存配置'}
+          </button>
+          <button
+            onClick={load}
+            disabled={saving || loading}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 border border-theme disabled:opacity-60"
+          >
+            刷新
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+type SuperAdminTab = 'allAgents' | 'allPlayers' | 'allOrders' | 'boss' | 'rebate' | 'approval' | 'notifications';
 
 const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const [subTab, setSubTab] = useState<SuperAdminTab>('allAgents');
@@ -842,7 +1041,9 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const menuItems = [
     { id: 'allAgents', icon: '📋', label: '全部代理' },
     { id: 'allPlayers', icon: '👥', label: '全部玩家' },
+    { id: 'allOrders', icon: '🧾', label: '全部订单' },
     { id: 'boss', icon: '👔', label: '老板管理' },
+    { id: 'rebate', icon: '📊', label: '分成设置' },
     { id: 'approval', icon: '📝', label: '审批管理' },
     { id: 'notifications', icon: '📣', label: '系统通知' }
   ];
@@ -877,7 +1078,9 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
       </div>
       {subTab === 'allAgents' && <AgentList />}
       {subTab === 'allPlayers' && <PlayerList scope="all" />}
+      {subTab === 'allOrders' && <OrderQuery scope="all" />}
       {subTab === 'boss' && <BossManagement isSuperAdmin={isSuperAdmin} />}
+      {subTab === 'rebate' && <SuperRebateSettings isSuperAdmin={isSuperAdmin} />}
       {subTab === 'approval' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
       {subTab === 'notifications' && <SystemNotificationAdmin />}
     </div>
@@ -1188,6 +1391,7 @@ const AgentList = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const load = async (nextPage = 1) => {
     setLoading(true);
@@ -1207,6 +1411,34 @@ const AgentList = () => {
     load(1);
   }, []);
 
+  const updateStatus = async (item: AgentItem, nextStatus: 1 | 2) => {
+    const action = nextStatus === 2 ? '封禁' : '解封';
+    if (!window.confirm(`确认${action}代理 ${item.account} 吗？`)) {
+      return;
+    }
+    setError('');
+    try {
+      await api.agency.updateAgent(item.id, { status: nextStatus });
+      await load(page);
+    } catch (err: any) {
+      setError(err?.message || `${action}失败`);
+    }
+  };
+
+  const resetAgentPassword = async (item: AgentItem) => {
+    const next = window.prompt(`请输入代理 ${item.account} 的新密码`);
+    if (!next) {
+      return;
+    }
+    setError('');
+    try {
+      await api.agency.updateAgent(item.id, { password: next });
+      window.alert('密码修改成功');
+    } catch (err: any) {
+      setError(err?.message || '密码修改失败');
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in-up">
       <div className="card-bg rounded-[20px] p-4 border border-theme flex items-center space-x-2">
@@ -1218,6 +1450,12 @@ const AgentList = () => {
         />
         <button onClick={() => load(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
       </div>
+
+      {error && (
+        <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">
@@ -1238,9 +1476,25 @@ const AgentList = () => {
                     {item.role} · 上级 {item.upline || '--'}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-black text-amber-500">{item.inviteCode}</div>
-                  <span className="text-[10px] text-slate-500">{item.status}</span>
+                <div className="text-right space-y-2">
+                  <div>
+                    <div className="text-xs font-black text-amber-500">{item.inviteCode}</div>
+                    <span className="text-[10px] text-slate-500">{item.status}</span>
+                  </div>
+                  <div className="flex items-center justify-end space-x-2 text-[10px]">
+                    <button
+                      onClick={() => resetAgentPassword(item)}
+                      className="text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
+                    >
+                      改密
+                    </button>
+                    <button
+                      onClick={() => updateStatus(item, item.status === '正常' ? 2 : 1)}
+                      className={`${item.status === '正常' ? 'text-red-500 border-red-500/30' : 'text-emerald-500 border-emerald-500/30'} border rounded-lg px-2 py-1`}
+                    >
+                      {item.status === '正常' ? '封禁' : '解封'}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="text-[10px] text-slate-500 mt-2">创建时间 {item.createdAt}</div>
@@ -1302,6 +1556,21 @@ const PlayerList = ({ scope = 'direct' }: { scope?: 'direct' | 'all' }) => {
     }
   };
 
+  const updateInviteCode = async (item: PlayerItem) => {
+    setError('');
+    const next = window.prompt(`请输入玩家 ${item.account} 的新代理码`, item.inviteCode === '--' ? '' : item.inviteCode);
+    if (!next) {
+      return;
+    }
+    try {
+      await api.agency.updatePlayerInviteCode(item.id, next);
+      window.alert('修改成功');
+      load(page);
+    } catch (err: any) {
+      setError(err.message || '修改失败');
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in-up">
       <div className="card-bg rounded-[20px] p-4 border border-theme flex items-center space-x-2">
@@ -1340,14 +1609,22 @@ const PlayerList = ({ scope = 'direct' }: { scope?: 'direct' | 'all' }) => {
                 <div className="text-right">
                   <div className="text-xs font-black text-emerald-500">¥ {item.recharge}</div>
                   <span className="text-[10px] text-slate-500">{item.registeredAt}</span>
-                  <div className="mt-2">
-                    <button
-                      onClick={() => resetPassword(item)}
-                      className="text-[10px] text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
-                    >
-                      重置密码
-                    </button>
-                  </div>
+                  {scope === 'all' && (
+                    <div className="mt-2 flex items-center justify-end space-x-2">
+                      <button
+                        onClick={() => updateInviteCode(item)}
+                        className="text-[10px] text-sky-500 border border-sky-500/30 rounded-lg px-2 py-1"
+                      >
+                        改代理码
+                      </button>
+                      <button
+                        onClick={() => resetPassword(item)}
+                        className="text-[10px] text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
+                      >
+                        重置密码
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1360,8 +1637,12 @@ const PlayerList = ({ scope = 'direct' }: { scope?: 'direct' | 'all' }) => {
 );
 };
 
-const OrderQuery = () => {
+const OrderQuery = ({ scope = 'direct' }: { scope?: 'direct' | 'all' }) => {
   const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState('');
+  const [gameId, setGameId] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [list, setList] = useState<OrderItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -1372,7 +1653,18 @@ const OrderQuery = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await api.agency.getOrders({ keyword: keyword.trim(), page: nextPage, pageSize: PAGE_SIZE });
+      const params = {
+        keyword: keyword.trim(),
+        status: status.trim() || undefined,
+        gameId: gameId.trim() || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        page: nextPage,
+        pageSize: PAGE_SIZE
+      };
+      const data = scope === 'all'
+        ? await api.agency.getAllOrders(params)
+        : await api.agency.getOrders(params);
       setList(data.list || []);
       setTotal(data.total || 0);
       setPage(nextPage);
@@ -1389,12 +1681,38 @@ const OrderQuery = () => {
 
   return (
     <div className="space-y-4 animate-fade-in-up">
-      <div className="card-bg rounded-[20px] p-4 border border-theme flex items-center space-x-2">
+      <div className="card-bg rounded-[20px] p-4 border border-theme flex flex-wrap items-center gap-2">
         <input
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           placeholder="手机号/订单号"
-          className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+          className="flex-1 min-w-[160px] bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+        />
+        <input
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          placeholder="状态(可选)"
+          className="w-28 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+        />
+        <input
+          value={gameId}
+          onChange={(e) => setGameId(e.target.value)}
+          placeholder="游戏ID(可选)"
+          className="w-32 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+        />
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="w-36 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+          title="开始日期"
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          className="w-36 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
+          title="结束日期"
         />
         <button onClick={() => load(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
       </div>
@@ -2063,6 +2381,12 @@ const PerformanceDetail = () => {
 const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null; onRefreshStats: () => Promise<void> }) => {
   const [subTab, setSubTab] = useState<'address' | 'withdraw' | 'record'>('address');
   const [address, setAddress] = useState('');
+  const [addressDraft, setAddressDraft] = useState('');
+  const [confirmAddress, setConfirmAddress] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showAddressEditor, setShowAddressEditor] = useState(false);
+  const [payoutAddressInfo, setPayoutAddressInfo] = useState<PayoutAddressData | null>(null);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
   const [addressLoading, setAddressLoading] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressError, setAddressError] = useState('');
@@ -2070,6 +2394,8 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   const [withdrawRemark, setWithdrawRemark] = useState('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
+  const [hasUnfinishedWithdraw, setHasUnfinishedWithdraw] = useState(false);
+  const [checkingUnfinishedWithdraw, setCheckingUnfinishedWithdraw] = useState(false);
   const [records, setRecords] = useState<WithdrawItem[]>([]);
   const [recordsTotal, setRecordsTotal] = useState(0);
   const [recordPage, setRecordPage] = useState(1);
@@ -2080,12 +2406,23 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     try {
       const data = await api.agency.getPayoutAddress();
       setAddress(data.address || '');
+      setAddressDraft(data.address || '');
+      setPayoutAddressInfo(data);
+      setCooldownSecondsLeft(Math.max(Number(data.cooldownSeconds || 0), 0));
     } catch (err) {
       console.error(err);
     } finally {
       setAddressLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (cooldownSecondsLeft <= 0) return;
+    const timer = window.setInterval(() => {
+      setCooldownSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownSecondsLeft]);
 
   const loadRecords = async (nextPage = 1) => {
     setRecordsLoading(true);
@@ -2101,6 +2438,21 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     }
   };
 
+  const loadUnfinishedWithdrawState = async () => {
+    setCheckingUnfinishedWithdraw(true);
+    try {
+      const [pending, approved] = await Promise.all([
+        api.agency.getWithdraws({ status: 'pending', page: 1, pageSize: 1 }),
+        api.agency.getWithdraws({ status: 'approved', page: 1, pageSize: 1 })
+      ]);
+      setHasUnfinishedWithdraw((pending.total || 0) > 0 || (approved.total || 0) > 0);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCheckingUnfinishedWithdraw(false);
+    }
+  };
+
   useEffect(() => {
     loadAddress();
   }, []);
@@ -2109,17 +2461,68 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     if (subTab === 'record') {
       loadRecords(1);
     }
+    if (subTab === 'withdraw') {
+      loadUnfinishedWithdrawState();
+    }
   }, [subTab]);
+
+  useEffect(() => {
+    if (subTab !== 'address') {
+      setShowAddressEditor(false);
+      setAddressError('');
+    }
+  }, [subTab]);
+
+  const openAddressEditor = () => {
+    setAddressDraft(address || '');
+    setConfirmAddress('');
+    setLoginPassword('');
+    setAddressError('');
+    setShowAddressEditor(true);
+  };
+
+  const closeAddressEditor = () => {
+    if (savingAddress) return;
+    setShowAddressEditor(false);
+    setAddressDraft(address || '');
+    setConfirmAddress('');
+    setLoginPassword('');
+    setAddressError('');
+  };
 
   const saveAddress = async () => {
     setAddressError('');
-    if (!address.trim()) {
+    const addressValue = addressDraft.trim();
+    const confirmAddressValue = confirmAddress.trim();
+    if (!addressValue) {
       setAddressError('请输入收款地址');
+      return;
+    }
+    if (!confirmAddressValue) {
+      setAddressError('请再次输入收款地址确认');
+      return;
+    }
+    if (addressValue !== confirmAddressValue) {
+      setAddressError('两次收款地址输入不一致');
+      return;
+    }
+    if (!loginPassword.trim()) {
+      setAddressError('请输入登录密码');
+      return;
+    }
+    if (!window.confirm('请再次确认收款地址和登录密码，确认无误后再保存。')) {
       return;
     }
     setSavingAddress(true);
     try {
-      await api.agency.savePayoutAddress(address);
+      const data = await api.agency.savePayoutAddress(addressValue, confirmAddressValue, loginPassword);
+      setAddress(data.address || '');
+      setAddressDraft(data.address || '');
+      setConfirmAddress('');
+      setLoginPassword('');
+      setPayoutAddressInfo(data);
+      setCooldownSecondsLeft(Math.max(Number(data.cooldownSeconds || 0), 0));
+      setShowAddressEditor(false);
     } catch (err: any) {
       setAddressError(err.message || '保存失败');
     } finally {
@@ -2129,6 +2532,14 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
 
   const submitWithdraw = async () => {
     setWithdrawError('');
+    if (hasUnfinishedWithdraw) {
+      setWithdrawError('存在未完成提现申请，请等待处理完成后再发起');
+      return;
+    }
+    if (cooldownSecondsLeft > 0) {
+      setWithdrawError(`收款地址修改后暂不可提现，请等待 ${formatCooldown(cooldownSecondsLeft)}`);
+      return;
+    }
     if (!withdrawAmount) {
       setWithdrawError('请输入提现金额');
       return;
@@ -2138,6 +2549,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
       await api.agency.createWithdraw(withdrawAmount, withdrawRemark);
       setWithdrawAmount('');
       setWithdrawRemark('');
+      setHasUnfinishedWithdraw(true);
       await onRefreshStats();
       if (subTab === 'record') {
         loadRecords(1);
@@ -2150,6 +2562,8 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   };
 
   if (!stats) return <div className="animate-pulse h-40 bg-slate-900 rounded-xl"></div>;
+  const isWithdrawCoolingDown = cooldownSecondsLeft > 0 || payoutAddressInfo?.canWithdraw === false;
+  const isWithdrawBlockedByUnfinished = hasUnfinishedWithdraw || checkingUnfinishedWithdraw;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -2203,35 +2617,97 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
           <div className="px-1">
             {subTab === 'address' && (
                 <div className="space-y-5">
-                    <div>
-                        <div className="flex justify-between items-center mb-3">
-                            <label className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>钱包地址</label>
-                            <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-theme font-bold">TRC20-USDT</span>
+                  <div className="bg-[var(--bg-primary)] border border-theme rounded-2xl p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <label className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>钱包地址</label>
+                      <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded border border-theme font-bold">TRC20-USDT</span>
+                    </div>
+                    {addressLoading ? (
+                      <div className="h-12 rounded-xl bg-slate-800/60 animate-pulse"></div>
+                    ) : (
+                      <div className="rounded-xl border border-theme px-4 py-3 text-sm font-mono break-all" style={{color: 'var(--text-primary)'}}>
+                        {address || '暂未设置收款地址'}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-500 mt-2 flex items-center">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      请务必确认地址正确，保存后用于自动结算；设置/修改都需两次地址确认并校验登录密码，修改后需冷却1分钟
+                    </p>
+                  </div>
+                  <button
+                    onClick={openAddressEditor}
+                    disabled={addressLoading}
+                    className="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-slate-700 transition-all active:scale-[0.98] border border-theme disabled:opacity-60"
+                  >
+                    {address ? '修改地址' : '设置地址'}
+                  </button>
+
+                  {showAddressEditor && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+                      <div className="card-bg rounded-2xl border border-theme p-5 w-full max-w-md">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-base font-bold" style={{color: 'var(--text-primary)'}}>{address ? '修改收款地址' : '设置收款地址'}</h4>
+                          <button
+                            type="button"
+                            onClick={closeAddressEditor}
+                            disabled={savingAddress}
+                            className="text-slate-400 hover:text-white disabled:opacity-40"
+                          >
+                            ✕
+                          </button>
                         </div>
                         {addressError && (
                           <div className="bg-red-500/10 text-red-500 text-xs px-4 py-2 rounded-xl border border-red-500/20 mb-3">
                             {addressError}
                           </div>
                         )}
-                        <input 
-                            type="text" 
-                            value={address}
-                            onChange={(e) => setAddress(e.target.value)}
-                            disabled={addressLoading}
-                            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-4 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono"
-                        />
-                        <p className="text-[10px] text-slate-500 mt-2 flex items-center">
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            请务必确认地址正确，保存后用于自动结算
-                        </p>
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={addressDraft}
+                            onChange={(e) => setAddressDraft(e.target.value)}
+                            disabled={savingAddress}
+                            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono"
+                            placeholder="请输入收款地址"
+                          />
+                          <input
+                            type="text"
+                            value={confirmAddress}
+                            onChange={(e) => setConfirmAddress(e.target.value)}
+                            disabled={savingAddress}
+                            placeholder="请再次输入收款地址"
+                            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500/50 transition-all font-mono"
+                          />
+                          <input
+                            type="password"
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            disabled={savingAddress}
+                            placeholder="请输入登录密码验证"
+                            className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                          />
+                        </div>
+                        <div className="flex gap-3 mt-5">
+                          <button
+                            type="button"
+                            onClick={closeAddressEditor}
+                            disabled={savingAddress}
+                            className="flex-1 bg-[var(--bg-primary)] border border-theme text-slate-300 font-bold py-3 rounded-xl disabled:opacity-60"
+                          >
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            onClick={saveAddress}
+                            disabled={savingAddress}
+                            className="flex-1 bg-slate-800 text-white font-bold py-3 rounded-xl border border-theme hover:bg-slate-700 disabled:opacity-60"
+                          >
+                            {savingAddress ? '保存中...' : '确认保存'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      onClick={saveAddress}
-                      disabled={savingAddress}
-                      className="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-slate-700 transition-all active:scale-[0.98] border border-theme disabled:opacity-60"
-                    >
-                        {savingAddress ? '保存中...' : '保存设置'}
-                    </button>
+                  )}
                 </div>
             )}
 
@@ -2240,8 +2716,20 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                     <div>
                         <p className="text-xs text-slate-500 mb-1">本次可提现金额</p>
                         <p className="text-4xl font-black tracking-tight" style={{color: 'var(--text-primary)'}}>¥ {stats.withdrawable || '0.00'}</p>
-                        <p className="text-[10px] text-slate-500 mt-2">最低提现 ¥ 50</p>
+	                        <p className="text-[10px] text-slate-500 mt-2">最低提现 ¥ 100</p>
                     </div>
+                    {isWithdrawCoolingDown && (
+                      <div className="bg-amber-500/10 text-amber-500 text-xs px-4 py-3 rounded-xl border border-amber-500/20 text-left">
+                        <div>收款地址修改后需冷却，当前不可提现。</div>
+                        {cooldownSecondsLeft > 0 && <div>剩余时间：{formatCooldown(cooldownSecondsLeft)}</div>}
+                        {payoutAddressInfo?.withdrawLockedUntil && <div>可提现时间：{payoutAddressInfo.withdrawLockedUntil}</div>}
+                      </div>
+                    )}
+                    {isWithdrawBlockedByUnfinished && (
+                      <div className="bg-amber-500/10 text-amber-500 text-xs px-4 py-3 rounded-xl border border-amber-500/20 text-left">
+                        {checkingUnfinishedWithdraw ? '正在检查提现状态...' : '存在未完成提现申请，暂不可再次发起提现。'}
+                      </div>
+                    )}
                     {withdrawError && (
                       <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
                         {withdrawError}
@@ -2264,7 +2752,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                     />
                     <button
                       onClick={submitWithdraw}
-                      disabled={submittingWithdraw}
+                      disabled={submittingWithdraw || isWithdrawCoolingDown || isWithdrawBlockedByUnfinished}
                       className="w-full bg-gradient-to-r from-slate-700 to-slate-800 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] border border-theme hover:text-amber-400 disabled:opacity-60"
                     >
                         {submittingWithdraw ? '提交中...' : '确认提现'}
@@ -2295,7 +2783,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                             <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>¥ {record.amount}</div>
                             <div className="text-[10px] text-slate-500">{record.createdAt}</div>
                           </div>
-                          <span className="text-[10px] text-slate-500">{record.status}</span>
+                          <span className="text-[10px] text-slate-500">{formatWithdrawStatus(record.status)}</span>
                         </div>
                       ))}
                     </div>
@@ -2367,6 +2855,7 @@ const GameSort = () => {
         new Promise((_, reject) => setTimeout(() => reject(new Error('保存超时')), 12000))
       ]);
       await loadOrder();
+      window.alert('保存成功');
     } catch (err: any) {
       console.error(err);
       window.alert(err?.message || '保存失败');
@@ -2507,7 +2996,7 @@ const ApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
                 </div>
               </div>
               <div className="flex items-center justify-between mt-3">
-                <span className="text-[10px] text-slate-400">状态: {item.status}</span>
+                <span className="text-[10px] text-slate-400">状态: {formatWithdrawStatus(item.status)}</span>
                 <div className="flex items-center space-x-2">
                   {item.status === 'pending' && (
                     <>

@@ -8,6 +8,14 @@ type PageResult<T> = {
   pageSize: number
 }
 
+export type PayoutAddressData = {
+  chain: string
+  address: string
+  canWithdraw: boolean
+  withdrawLockedUntil: string
+  cooldownSeconds: number
+}
+
 const buildQuery = (params?: Record<string, string | number | undefined>) => {
   if (!params) return ''
   const search = new URLSearchParams()
@@ -20,6 +28,31 @@ const buildQuery = (params?: Record<string, string | number | undefined>) => {
 }
 
 export const agencyApi = {
+  getSuper2FAStatus: async () => {
+    return request<{ enabled: boolean; verified: boolean; verifiedUntil?: string; cooldownSeconds?: number }>('/portal/agency/super/2fa/status')
+  },
+  setupSuper2FA: async () => {
+    return request<{ secret: string; otpauthUrl: string; expiresIn: number }>('/portal/agency/super/2fa/setup', {
+      method: 'POST'
+    })
+  },
+  enableSuper2FA: async (code: string) => {
+    return request('/portal/agency/super/2fa/enable', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    })
+  },
+  verifySuper2FA: async (code: string) => {
+    return request<{ enabled: boolean; verified: boolean; verifiedUntil?: string; cooldownSeconds?: number }>('/portal/agency/super/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code })
+    })
+  },
+  disableSuper2FA: async () => {
+    return request('/portal/agency/super/2fa/disable', {
+      method: 'POST'
+    })
+  },
   getStats: async () => {
     return request('/portal/agency/stats')
   },
@@ -57,13 +90,22 @@ export const agencyApi = {
   getAllPlayers: async (params?: { keyword?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/players/all${buildQuery(params)}`)
   },
-  getOrders: async (params?: { keyword?: string; status?: string; gameId?: string; page?: number; pageSize?: number }) => {
+  getOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/orders${buildQuery(params)}`)
+  },
+  getAllOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/orders/all${buildQuery(params)}`)
   },
   resetPlayerPassword: async (id: number, password: string) => {
     return request(`/portal/agency/players/${id}/password`, {
       method: 'POST',
       body: JSON.stringify({ password })
+    })
+  },
+  updatePlayerInviteCode: async (id: number, inviteCode: string) => {
+    return request(`/portal/agency/players/${id}/invite-code`, {
+      method: 'PUT',
+      body: JSON.stringify({ inviteCode })
     })
   },
   getBosses: async (params?: { page?: number; pageSize?: number }) => {
@@ -87,6 +129,15 @@ export const agencyApi = {
       body: JSON.stringify(data)
     })
   },
+  getSuperRebates: async () => {
+    return request<{ gameId: number; gameName?: string; rebateRatePct: number }[]>('/portal/agency/super/rebates')
+  },
+  updateSuperRebates: async (gameRebates: { gameId: number; rebateRatePct: number }[]) => {
+    return request('/portal/agency/super/rebates', {
+      method: 'PUT',
+      body: JSON.stringify({ gameRebates })
+    })
+  },
   getPerformance: async (params?: { startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
     return request(`/portal/agency/performance${buildQuery(params)}`)
   },
@@ -94,12 +145,12 @@ export const agencyApi = {
     return request('/portal/agency/performance/overview')
   },
   getPayoutAddress: async () => {
-    return request('/portal/agency/payout-address')
+    return request<PayoutAddressData>('/portal/agency/payout-address')
   },
-  savePayoutAddress: async (address: string) => {
-    return request('/portal/agency/payout-address', {
+  savePayoutAddress: async (address: string, confirmAddress: string, loginPassword: string) => {
+    return request<PayoutAddressData>('/portal/agency/payout-address', {
       method: 'POST',
-      body: JSON.stringify({ address })
+      body: JSON.stringify({ address, confirmAddress, loginPassword })
     })
   },
   getWithdraws: async (params?: { status?: string; page?: number; pageSize?: number }) => {

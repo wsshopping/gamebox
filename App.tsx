@@ -71,6 +71,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme, setTheme } = useTheme();
   const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center', '/trade/'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
+  const isAuthPage = location.pathname.startsWith('/login') || location.pathname.startsWith('/register');
 
   useEffect(() => {
     const validThemes = ['black-gold', 'quiet-luxury', 'light'];
@@ -95,6 +96,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.toggle('portal-pc-compact', !isAuthPage);
+    return () => {
+      html.classList.remove('portal-pc-compact');
+    };
+  }, [isAuthPage]);
 
   return (
     // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation

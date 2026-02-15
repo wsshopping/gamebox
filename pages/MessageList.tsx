@@ -21,12 +21,24 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
   const { conversations: imConversations, ready: imReady, refreshConversations, connected } = useIm();
   const [viewMode, setViewMode] = useState<ViewMode>('main');
   const [isLoading, setIsLoading] = useState(true);
+  const [showOfflineBanner, setShowOfflineBanner] = useState(false);
 
   // Data States
   const [messages, setMessages] = useState<Message[]>([]);
   const [systemNotes, setSystemNotes] = useState<SystemNotification[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const isOffline = !connected;
+
+  useEffect(() => {
+    if (!isOffline) {
+      setShowOfflineBanner(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setShowOfflineBanner(true);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [isOffline]);
 
   const formatImTime = (timestamp?: number) => {
     if (!timestamp) return '';
@@ -340,7 +352,7 @@ const MessageList: React.FC<MessageListProps> = ({ isEmbedded = false }) => {
         </div>
       )}
 
-      {isOffline && (
+      {showOfflineBanner && (
         <div className="bg-rose-500/10 border-b border-rose-500/20 text-rose-400 text-xs px-4 py-2 flex items-center gap-2">
           <span className="font-bold">离线</span>
           <span>网络异常，消息可能无法及时更新</span>
