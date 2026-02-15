@@ -1874,13 +1874,15 @@ const BossManagement = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const saveEdit = async () => {
     if (!editingBossId) return;
     setSavingGames(true);
+    setListError('');
     try {
       await api.agency.updateBossGames(editingBossId, editingGameIds);
       setEditingBossId(null);
       setEditingGameIds([]);
       loadBosses(page);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setListError(err?.message || '保存失败');
     } finally {
       setSavingGames(false);
     }

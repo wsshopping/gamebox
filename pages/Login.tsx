@@ -4,6 +4,58 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/auth';
 
+type LoginHistoryItem = {
+  phone: string;
+  password: string;
+  updatedAt: number;
+};
+
+const LOGIN_HISTORY_KEY = 'portal_login_history_v1';
+const LOGIN_HISTORY_LIMIT = 8;
+
+const readLoginHistory = (): LoginHistoryItem[] => {
+  try {
+    const raw = localStorage.getItem(LOGIN_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item.phone === 'string' && typeof item.password === 'string')
+      .map((item) => ({
+        phone: String(item.phone).slice(0, 32),
+        password: String(item.password).slice(0, 128),
+        updatedAt: Number(item.updatedAt || 0)
+      }))
+      .filter((item) => item.phone)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, LOGIN_HISTORY_LIMIT);
+  } catch (e) {
+    return [];
+  }
+};
+
+const writeLoginHistory = (list: LoginHistoryItem[]) => {
+  localStorage.setItem(LOGIN_HISTORY_KEY, JSON.stringify(list.slice(0, LOGIN_HISTORY_LIMIT)));
+};
+
+const upsertLoginHistory = (phone: string, password: string) => {
+  const cleanPhone = phone.trim();
+  if (!cleanPhone) return;
+  const now = Date.now();
+  const current = readLoginHistory();
+  const next: LoginHistoryItem[] = [
+    { phone: cleanPhone, password, updatedAt: now },
+    ...current.filter((item) => item.phone !== cleanPhone)
+  ].slice(0, LOGIN_HISTORY_LIMIT);
+  writeLoginHistory(next);
+};
+
+const maskPhone = (phone: string) => {
+  const p = phone.trim();
+  if (p.length < 7) return p;
+  return `${p.slice(0, 3)}****${p.slice(-4)}`;
+};
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -13,6 +65,8 @@ const Login: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captchaId, setCaptchaId] = useState('');
   const [captchaImg, setCaptchaImg] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [loginHistory, setLoginHistory] = useState<LoginHistoryItem[]>([]);
 
   const loadCaptcha = async () => {
     try {
@@ -26,7 +80,24 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     loadCaptcha();
+    setLoginHistory(readLoginHistory());
   }, []);
+
+  const refreshHistory = () => {
+    setLoginHistory(readLoginHistory());
+  };
+
+  const removeHistoryItem = (phone: string) => {
+    const next = loginHistory.filter((item) => item.phone !== phone);
+    setLoginHistory(next);
+    writeLoginHistory(next);
+  };
+
+  const clearHistory = () => {
+    setLoginHistory([]);
+    localStorage.removeItem(LOGIN_HISTORY_KEY);
+    setHistoryOpen(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +111,8 @@ const Login: React.FC = () => {
 
     try {
       await login(formData.phone, formData.password, formData.captcha, captchaId);
+      upsertLoginHistory(formData.phone, formData.password);
+      refreshHistory();
       navigate('/user'); // Redirect to user center on success
     } catch (err: any) {
       setError(err.message || '登录失败，请重试');
@@ -80,15 +153,68 @@ const Login: React.FC = () => {
         <div className="space-y-3.5">
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">手机号</label>
-            <div className="bg-white rounded-2xl px-4 py-2.5 border border-slate-200 focus-within:border-sky-500/50 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-500/10 transition-all">
+            <div className="bg-white rounded-2xl px-4 py-2.5 border border-slate-200 focus-within:border-sky-500/50 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-500/10 transition-all flex items-center gap-2">
               <input 
                 type="tel" 
                 value={formData.phone}
                 onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className="w-full bg-transparent border-none outline-none text-sm text-slate-900 placeholder-slate-400 font-medium" 
+                className="flex-1 bg-transparent border-none outline-none text-sm text-slate-900 placeholder-slate-400 font-medium" 
                 placeholder="请输入11位手机号" 
               />
+              <button
+                type="button"
+                onClick={() => setHistoryOpen((v) => !v)}
+                className="text-slate-400 hover:text-sky-500 transition-colors"
+                aria-label="查看历史账号"
+              >
+                <svg className={`w-4 h-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
             </div>
+            {historyOpen && (
+              <div className="mt-2 bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+                {loginHistory.length === 0 ? (
+                  <div className="px-4 py-3 text-xs text-slate-400">暂无历史账号</div>
+                ) : (
+                  <>
+                    <div className="max-h-48 overflow-y-auto">
+                      {loginHistory.map((item) => (
+                        <div key={item.phone} className="px-3 py-2.5 border-b border-slate-100 last:border-b-0 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, phone: item.phone, password: item.password }));
+                              setHistoryOpen(false);
+                            }}
+                            className="flex-1 text-left hover:bg-slate-50 rounded-lg px-2 py-1.5 transition-colors"
+                          >
+                            <div className="text-sm text-slate-800 font-medium">{item.phone}</div>
+                            <div className="text-[11px] text-slate-400">{maskPhone(item.phone)}</div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeHistoryItem(item.phone)}
+                            className="text-[11px] text-rose-400 hover:text-rose-500 px-2 py-1"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-3 py-2 bg-slate-50 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={clearHistory}
+                        className="text-[11px] text-slate-500 hover:text-slate-700"
+                      >
+                        清空历史
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1">密码</label>
