@@ -27,6 +27,16 @@ import Rank from './pages/Rank';
 import Feedback from './pages/Feedback';
 import BottomNav from './components/BottomNav';
 const LazyAIAssistant = React.lazy(() => import('./components/AIAssistant'));
+const VERSION_CHECK_INTERVAL_MS = 60 * 1000;
+
+const fetchRemoteBuildVersion = async () => {
+  const response = await fetch(`/version.json?ts=${Date.now()}`, {
+    cache: 'no-store'
+  });
+  if (!response.ok) return '';
+  const data = await response.json();
+  return String(data?.version || '');
+};
 
 const tabRoutes = [
   { path: '/', element: <Home /> },
@@ -67,6 +77,7 @@ const TabKeepAlive: React.FC<{ activePath: string }> = ({ activePath }) => {
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showAssistant, setShowAssistant] = useState(false);
+  const [hasNewVersion, setHasNewVersion] = useState(false);
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center', '/trade/'];
@@ -105,9 +116,67 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     };
   }, [isAuthPage]);
 
+  useEffect(() => {
+    if (import.meta.env.DEV) return;
+
+    let timer: number | undefined;
+    let stopped = false;
+
+    const checkVersion = async () => {
+      try {
+        const remoteVersion = await fetchRemoteBuildVersion();
+        if (!remoteVersion) return false;
+        if (remoteVersion !== __APP_VERSION__) {
+          if (!stopped) setHasNewVersion(true);
+          return true;
+        }
+      } catch {
+        // Ignore temporary network/cache gateway errors.
+      }
+      return false;
+    };
+
+    const boot = async () => {
+      const hasUpdate = await checkVersion();
+      if (hasUpdate || stopped) return;
+      timer = window.setInterval(async () => {
+        const updated = await checkVersion();
+        if (updated && timer) {
+          window.clearInterval(timer);
+          timer = undefined;
+        }
+      }, VERSION_CHECK_INTERVAL_MS);
+    };
+
+    boot();
+    return () => {
+      stopped = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
+
   return (
     // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation
     <div className="flex flex-col h-[100dvh] w-full app-bg overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500">
+      {hasNewVersion && (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] card-bg border border-amber-500/30 shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-xs">
+          <span className="text-amber-400 font-semibold">检测到新版本</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-2 py-1 rounded-lg bg-amber-500 text-black font-semibold"
+          >
+            立即刷新
+          </button>
+          <button
+            type="button"
+            onClick={() => setHasNewVersion(false)}
+            className="px-2 py-1 rounded-lg border border-theme text-slate-300"
+          >
+            稍后
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto no-scrollbar pb-24 overscroll-contain">
         {children}
       </div>

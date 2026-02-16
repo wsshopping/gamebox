@@ -12,6 +12,16 @@ import { TradeOrder } from '../types';
 import PlayerMusicModal from '../components/PlayerMusicModal';
 import PlayerVideoModal from '../components/PlayerVideoModal';
 
+const pad2 = (value: number) => String(value).padStart(2, '0');
+const APP_VERSION_LABEL = (() => {
+  const ts = Number(__APP_VERSION__);
+  if (Number.isFinite(ts) && ts > 0) {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+  return String(__APP_VERSION__).slice(0, 12);
+})();
+
 const PLAYER_MUSIC_PLAYLIST = [
   {
     id: 'm1',
@@ -478,11 +488,13 @@ const UserCenterMain: React.FC<{
   onModalClose?: () => void;
   initialVideoOpen?: boolean;
   onVideoClose?: () => void;
+  showVersionBadge?: boolean;
 }> = ({
   initialModal = null,
   onModalClose,
   initialVideoOpen = false,
-  onVideoClose
+  onVideoClose,
+  showVersionBadge = false
 }) => {
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
@@ -589,8 +601,13 @@ const UserCenterMain: React.FC<{
           
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-black tracking-tight mb-1" style={{color: 'var(--text-primary)'}}>{user.username}</h2>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2 flex-wrap">
                <p className="text-slate-500 text-xs font-mono tracking-wider truncate">ID: {String(user.ID).slice(-8)}</p>
+               {showVersionBadge && (
+                 <span className="inline-flex items-center rounded-full border border-theme bg-[var(--bg-glass)] px-2 py-0.5 text-[10px] font-semibold tracking-wide text-slate-400">
+                   版本 {APP_VERSION_LABEL}
+                 </span>
+               )}
             </div>
             
             <div className="inline-flex items-center space-x-2 bg-[var(--bg-glass)] border border-theme px-3 py-1 rounded-full backdrop-blur-md mt-2">
@@ -761,14 +778,14 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
   }
 
   if (isEmbedded) {
-    return <UserCenterMain />;
+    return <UserCenterMain showVersionBadge />;
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
   let content: React.ReactNode = <UserSubPage title="功能开发中" type="default" />;
 
   if (normalizedPath === '/user') {
-    content = <UserCenterMain />;
+    content = <UserCenterMain showVersionBadge />;
   } else if (normalizedPath === '/user/game') {
     content = <UserSubPage title="我的游戏" type="game" />;
   } else if (normalizedPath === '/user/trade_record') {

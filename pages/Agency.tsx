@@ -199,13 +199,23 @@ const formatWithdrawStatus = (status?: string) => {
   return WITHDRAW_STATUS_LABELS[key] || status || '--';
 };
 
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
 const formatCooldown = (seconds: number) => {
   if (seconds <= 0) return '0秒';
-  const minute = Math.floor(seconds / 60);
+  const day = Math.floor(seconds / 86400);
+  const hour = Math.floor((seconds % 86400) / 3600);
+  const minute = Math.floor((seconds % 3600) / 60);
   const sec = seconds % 60;
-  if (minute <= 0) return `${sec}秒`;
-  if (sec === 0) return `${minute}分`;
-  return `${minute}分${sec}秒`;
+
+  if (day > 0) return `${day}天${hour}小时${minute}分钟`;
+  if (hour > 0) return `${hour}小时${minute}分钟`;
+  if (minute > 0) return `${minute}分${sec}秒`;
+  return `${sec}秒`;
+};
+
+const formatLocalDateTime = (date: Date) => {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
 };
 
 // --- Components ---
@@ -2587,6 +2597,8 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   if (!stats) return <div className="animate-pulse h-40 bg-slate-900 rounded-xl"></div>;
   const isWithdrawCoolingDown = cooldownSecondsLeft > 0 || payoutAddressInfo?.canWithdraw === false;
   const isWithdrawBlockedByUnfinished = hasUnfinishedWithdraw || checkingUnfinishedWithdraw;
+  const withdrawAvailableAt =
+    cooldownSecondsLeft > 0 ? formatLocalDateTime(new Date(Date.now() + cooldownSecondsLeft * 1000)) : '';
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -2654,7 +2666,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                     )}
                     <p className="text-[10px] text-slate-500 mt-2 flex items-center">
                       <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      请务必确认地址正确，保存后用于自动结算；设置/修改都需两次地址确认并校验登录密码，修改后需冷却1分钟
+                      请务必确认地址正确，保存后用于自动结算；设置/修改都需两次地址确认并校验登录密码，修改后需冷却2天
                     </p>
                   </div>
                   <button
@@ -2745,7 +2757,8 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                       <div className="bg-amber-500/10 text-amber-500 text-xs px-4 py-3 rounded-xl border border-amber-500/20 text-left">
                         <div>收款地址修改后需冷却，当前不可提现。</div>
                         {cooldownSecondsLeft > 0 && <div>剩余时间：{formatCooldown(cooldownSecondsLeft)}</div>}
-                        {payoutAddressInfo?.withdrawLockedUntil && <div>可提现时间：{payoutAddressInfo.withdrawLockedUntil}</div>}
+                        {withdrawAvailableAt && <div>可提现时间（本地）：{withdrawAvailableAt}</div>}
+                        {!withdrawAvailableAt && payoutAddressInfo?.withdrawLockedUntil && <div>可提现时间：{payoutAddressInfo.withdrawLockedUntil}</div>}
                       </div>
                     )}
                     {isWithdrawBlockedByUnfinished && (
