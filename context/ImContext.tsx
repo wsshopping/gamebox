@@ -251,6 +251,8 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const clientRef = useRef<IMClient | null>(null)
   const currentUserRef = useRef<string | null>(null)
   const refreshTimerRef = useRef<number | null>(null)
+  const refreshRunningRef = useRef(false)
+  const refreshQueuedRef = useRef(false)
   const connectingRef = useRef(false)
   const connectAttemptsRef = useRef(0)
   const [connectNonce, setConnectNonce] = useState(0)
@@ -342,7 +344,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }
 
-  const refreshConversations = useCallback(async () => {
+  const refreshConversationsOnce = useCallback(async () => {
     const client = clientRef.current
     if (!client) return
     try {
@@ -367,11 +369,27 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }, [appendDebugLog])
 
+  const refreshConversations = useCallback(async () => {
+    if (refreshRunningRef.current) {
+      refreshQueuedRef.current = true
+      return
+    }
+    refreshRunningRef.current = true
+    try {
+      do {
+        refreshQueuedRef.current = false
+        await refreshConversationsOnce()
+      } while (refreshQueuedRef.current)
+    } finally {
+      refreshRunningRef.current = false
+    }
+  }, [refreshConversationsOnce])
+
   const scheduleRefresh = useCallback(() => {
     clearRefreshTimer()
     refreshTimerRef.current = window.setTimeout(() => {
       refreshConversations().catch(() => null)
-    }, 120)
+    }, 260)
   }, [refreshConversations])
 
   const loadMessages = useCallback(async (conversationId: string, conversationType: number) => {
