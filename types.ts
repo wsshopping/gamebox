@@ -15,6 +15,7 @@ export interface Game {
   size?: string;
   version?: string;
   developer?: string;
+  isReserve?: boolean;
 }
 
 export interface TradeListing {

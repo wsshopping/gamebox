@@ -9,6 +9,10 @@ const GameDetail: React.FC = () => {
   const navigate = useNavigate();
   const [game, setGame] = useState<Game | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
+  const [reserved, setReserved] = useState(false);
+  const [reserveTotal, setReserveTotal] = useState(0);
+  const [reserveLoading, setReserveLoading] = useState(false);
+  const [reserveSubmitting, setReserveSubmitting] = useState(false);
 
   useEffect(() => {
     const loadGame = async () => {
@@ -16,6 +20,22 @@ const GameDetail: React.FC = () => {
       try {
         const data = await api.game.getById(id);
         setGame(data);
+        if (data?.isReserve) {
+          setReserveLoading(true);
+          try {
+            const status = await api.game.getReserveStatus(id);
+            setReserved(Boolean(status.reserved));
+            setReserveTotal(Number(status.total || 0));
+          } catch (error) {
+            console.error(error);
+          } finally {
+            setReserveLoading(false);
+          }
+        } else {
+          setReserved(false);
+          setReserveTotal(0);
+          setReserveLoading(false);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -30,6 +50,22 @@ const GameDetail: React.FC = () => {
       window.open(game.downloadUrl, '_blank');
     } else {
       alert('下载链接暂未配置');
+    }
+  };
+
+  const handleReserve = async () => {
+    if (!id || !game?.isReserve || reserved || reserveSubmitting) return;
+    setReserveSubmitting(true);
+    try {
+      const status = await api.game.reserve(id);
+      setReserved(Boolean(status.reserved));
+      setReserveTotal(Number(status.total || 0));
+    } catch (error: any) {
+      if (error?.message) {
+        window.alert(error.message);
+      }
+    } finally {
+      setReserveSubmitting(false);
     }
   };
 
@@ -50,6 +86,12 @@ const GameDetail: React.FC = () => {
       </div>
     );
   }
+
+  const isReserveGame = Boolean(game.isReserve);
+  const primaryDisabled = isReserveGame ? reserved || reserveSubmitting : false;
+  const primaryButtonText = isReserveGame
+    ? (reserved ? '已预约' : (reserveSubmitting ? '预约中...' : '立即预约'))
+    : '立即下载';
 
   // Use configured banner or fallback to first screenshot or placeholder
   const heroImage = game.banner || (game.images && game.images.length > 0 ? game.images[0] : 'https://picsum.photos/800/400?blur=5');
@@ -96,16 +138,26 @@ const GameDetail: React.FC = () => {
           {/* Download Action */}
           <div className="mt-6 flex space-x-3">
              <button 
-               onClick={handleDownload}
-               className="flex-1 bg-accent-gradient text-black py-3.5 rounded-xl font-bold shadow-lg shadow-amber-500/20 active:scale-95 transition-all hover:brightness-110 flex items-center justify-center"
+               onClick={isReserveGame ? handleReserve : handleDownload}
+               disabled={primaryDisabled}
+               className={`flex-1 py-3.5 rounded-xl font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center ${
+                 primaryDisabled
+                   ? 'bg-slate-400 text-white cursor-not-allowed shadow-slate-500/20'
+                   : 'bg-accent-gradient text-black shadow-amber-500/20 hover:brightness-110'
+               }`}
              >
                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-               立即下载
+               {primaryButtonText}
              </button>
              <button className="w-12 h-12 bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 rounded-xl flex items-center justify-center hover:bg-indigo-500/20 transition-colors">
                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
              </button>
           </div>
+          {isReserveGame && (
+            <p className="text-xs text-slate-500 mt-2">
+              {reserveLoading ? '预约人数加载中...' : `已有 ${reserveTotal} 人预约`}
+            </p>
+          )}
         </div>
 
         {/* Info Grid */}

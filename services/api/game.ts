@@ -1,4 +1,4 @@
-import { request } from '../http'
+import { authStorage, request } from '../http'
 import { Game } from '../../types'
 
 type PageResult<T> = {
@@ -25,6 +25,12 @@ type PortalGameItem = {
   developer?: string
   rating?: number
   downloads?: number
+  isReserve?: number
+}
+
+type PortalGameReserveStatus = {
+  reserved: boolean
+  total: number
 }
 
 const formatDownloads = (value?: number): string => {
@@ -62,7 +68,8 @@ export const normalizeGame = (game: PortalGameItem): Game => ({
   downloadUrl: game.downloadUrl,
   size: game.packageSize,
   version: game.version,
-  developer: game.developer
+  developer: game.developer,
+  isReserve: game.isReserve === 1
 })
 
 export const gameApi = {
@@ -79,6 +86,24 @@ export const gameApi = {
   getById: async (id: string): Promise<Game | undefined> => {
     const data = await request<PortalGameItem>(`/portal/game/${id}`)
     return data ? normalizeGame(data) : undefined
+  },
+  getReserveStatus: async (id: string): Promise<PortalGameReserveStatus> => {
+    const data = await request<PortalGameReserveStatus>(`/portal/game/${id}/reserve-status`, {
+      skipAuth: !authStorage.getToken()
+    })
+    return {
+      reserved: Boolean(data?.reserved),
+      total: Number(data?.total || 0)
+    }
+  },
+  reserve: async (id: string): Promise<PortalGameReserveStatus> => {
+    const data = await request<PortalGameReserveStatus>(`/portal/game/${id}/reserve`, {
+      method: 'POST'
+    })
+    return {
+      reserved: Boolean(data?.reserved),
+      total: Number(data?.total || 0)
+    }
   },
   getHot: async (): Promise<Game[]> => {
     const data = await request<PortalGameItem[]>(`/portal/game/hot?limit=3`)
