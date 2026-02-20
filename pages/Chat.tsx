@@ -105,6 +105,9 @@ const RED_PACKET_MAX_COUNT = 100;
 const RED_PACKET_MAX_GREETING = 50;
 const RED_PACKET_OPENING_MIN_MS = 1000;
 const VIDEO_FILE_EXT_RE = /\.(mp4|mov|m4v|webm|ogg|ogv|avi|mkv)$/i;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const CHAT_HISTORY_WINDOW_DAYS = 7;
+const CHAT_HISTORY_WINDOW_MS = CHAT_HISTORY_WINDOW_DAYS * DAY_MS;
 
 const isVideoLikeFile = (content?: Record<string, any>) => {
   const mimeType = String(content?.type || '').toLowerCase();
@@ -120,7 +123,7 @@ const Chat: React.FC = () => {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialScrollDoneRef = useRef(false);
-  const cutoffTimeRef = useRef(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  const cutoffTimeRef = useRef(Date.now() - CHAT_HISTORY_WINDOW_MS);
   const lastReadReceiptIndexRef = useRef<Record<string, number>>({});
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -152,6 +155,7 @@ const Chat: React.FC = () => {
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [privateOnline, setPrivateOnline] = useState<boolean | null>(null);
+  const [privateLastSeenAt, setPrivateLastSeenAt] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState<IMGroupAnnouncementResponse | null>(null);
   const [isAnnouncementLoading, setIsAnnouncementLoading] = useState(false);
   const [isAnnouncementEditorOpen, setIsAnnouncementEditorOpen] = useState(false);
@@ -477,6 +481,36 @@ const Chat: React.FC = () => {
     return new Date(value).toLocaleString();
   };
 
+  const getMessageDayKey = (value?: number) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    date.setHours(0, 0, 0, 0);
+    return String(date.getTime());
+  };
+
+  const formatMessageDayLabel = (value?: number) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today.getTime() - target.getTime()) / DAY_MS);
+
+    if (diffDays === 0) return '今天';
+    if (diffDays === 1) return '昨天';
+    if (diffDays === 2) return '前天';
+
+    const nowYear = new Date().getFullYear();
+    if (target.getFullYear() === nowYear) {
+      return `${target.getMonth() + 1}月${target.getDate()}日`;
+    }
+    return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
+  };
+
   const countAnnouncementChars = (value: string) => Array.from(value || '').length;
   const announcementLength = countAnnouncementChars(announcementDraft);
   const announcementRemaining = MAX_ANNOUNCEMENT_LENGTH - announcementLength;
@@ -496,6 +530,54 @@ const Chat: React.FC = () => {
       if (['0', 'false', 'offline', 'no', 'off'].includes(normalized)) return false;
     }
     return null;
+  };
+
+  const parseTimestampMs = (value: unknown): number | null => {
+    if (value === null || value === undefined) return null;
+    let parsed = 0;
+    if (typeof value === 'number') {
+      parsed = Number.isFinite(value) ? Math.floor(value) : 0;
+    } else if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      parsed = Number.parseInt(trimmed, 10);
+    }
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    if (parsed < 1_000_000_000_000) {
+      parsed *= 1000;
+    }
+    return parsed > 0 ? parsed : null;
+  };
+
+  const formatLastSeenText = (timestamp?: number | null) => {
+    const normalized = parseTimestampMs(timestamp);
+    if (!normalized) return '离线';
+    const now = Date.now();
+    const diff = Math.max(0, now - normalized);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const target = new Date(normalized);
+
+    if (diff < minute) return '刚刚在线';
+    if (diff < hour) return `最后在线 ${Math.floor(diff / minute)} 分钟前`;
+
+    const targetDay = new Date(target);
+    targetDay.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayDiff = Math.floor((today.getTime() - targetDay.getTime()) / DAY_MS);
+    const hhmm = target.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (dayDiff === 0) return `最后在线 今天 ${hhmm}`;
+    if (dayDiff === 1) return `最后在线 昨天 ${hhmm}`;
+    if (target.getFullYear() === new Date().getFullYear()) {
+      const month = String(target.getMonth() + 1).padStart(2, '0');
+      const day = String(target.getDate()).padStart(2, '0');
+      return `最后在线 ${month}-${day} ${hhmm}`;
+    }
+    const year = target.getFullYear();
+    const month = String(target.getMonth() + 1).padStart(2, '0');
+    const day = String(target.getDate()).padStart(2, '0');
+    return `最后在线 ${year}-${month}-${day} ${hhmm}`;
   };
 
   const createRequestId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
@@ -910,7 +992,7 @@ const Chat: React.FC = () => {
     setIsLoading(true);
     setHasMore(true);
     setIsLoadingMore(false);
-    cutoffTimeRef.current = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    cutoffTimeRef.current = Date.now() - CHAT_HISTORY_WINDOW_MS;
     loadMessages(id, conversationType)
       .catch(() => null)
       .finally(() => setIsLoading(false));
@@ -968,11 +1050,13 @@ const Chat: React.FC = () => {
   useEffect(() => {
     if (!id || isGroup) {
       setPrivateOnline(null);
+      setPrivateLastSeenAt(null);
       return;
     }
     const targetId = Number(id);
     if (!Number.isInteger(targetId) || targetId <= 0) {
       setPrivateOnline(null);
+      setPrivateLastSeenAt(null);
       return;
     }
 
@@ -982,10 +1066,12 @@ const Chat: React.FC = () => {
         .then(res => {
           if (!active) return;
           setPrivateOnline(parseOnlineFlag((res as any)?.isOnline));
+          setPrivateLastSeenAt(parseTimestampMs((res as any)?.lastSeenAt));
         })
         .catch(() => {
           if (!active) return;
           setPrivateOnline(null);
+          setPrivateLastSeenAt(null);
         });
     };
     fetchStatus();
@@ -2005,7 +2091,7 @@ const Chat: React.FC = () => {
     : (
       <span className={`inline-flex items-center gap-1.5 ${privateOnline === true ? 'text-emerald-500' : 'text-slate-500'}`}>
         <span className={`inline-block h-1.5 w-1.5 rounded-full ${privateOnline === true ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-        <span>{privateOnline === true ? '在线' : privateOnline === false ? '离线' : '状态未知'}</span>
+        <span>{privateOnline === true ? '在线' : formatLastSeenText(privateLastSeenAt)}</span>
       </span>
     );
 
@@ -2104,18 +2190,25 @@ const Chat: React.FC = () => {
                <div className="text-center text-xs text-slate-500">加载中...</div>
              )}
              {!hasMore && (
-               <div className="text-center text-xs text-slate-500">仅显示最近3天消息</div>
+               <div className="text-center text-xs text-slate-500">仅显示最近{CHAT_HISTORY_WINDOW_DAYS}天消息</div>
              )}
-             <div className="text-center text-xs text-slate-500 my-4">昨天 10:00</div>
-             {messages.map((msg) => (
-               msg.type === 'tip' ? (
-                 <div key={msg.id} className="flex justify-center mb-4 animate-fade-in-up">
-                   <div className="px-3 py-1.5 rounded-full bg-white/10 border border-theme text-[11px] text-slate-300 max-w-[80%] text-center">
-                     {msg.text}
-                   </div>
-                 </div>
-               ) : (
-                <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in-up`}>
+             {messages.map((msg, index) => {
+               const currentDayKey = getMessageDayKey(msg.sentAt);
+               const prevDayKey = index > 0 ? getMessageDayKey(messages[index - 1]?.sentAt) : '';
+               const showDayDivider = Boolean(currentDayKey && currentDayKey !== prevDayKey);
+               return (
+                 <React.Fragment key={`${msg.id}-${msg.sentAt || 0}-${index}`}>
+                   {showDayDivider && (
+                     <div className="text-center text-xs text-slate-500 my-4">{formatMessageDayLabel(msg.sentAt)}</div>
+                   )}
+                   {msg.type === 'tip' ? (
+                     <div className="flex justify-center mb-4 animate-fade-in-up">
+                       <div className="px-3 py-1.5 rounded-full bg-white/10 border border-theme text-[11px] text-slate-300 max-w-[80%] text-center">
+                         {msg.text}
+                       </div>
+                     </div>
+                   ) : (
+                <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in-up`}>
                    {msg.sender === 'other' && (
                       <div className="flex-shrink-0 mr-2 flex flex-col items-center">
                         <div
@@ -2289,8 +2382,10 @@ const Chat: React.FC = () => {
                      </div>
                    )}
                 </div>
-               )
-             ))}
+                   )}
+                 </React.Fragment>
+               );
+             })}
              <div ref={endRef} />
            </>
          )}
@@ -2636,6 +2731,12 @@ const Chat: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span>备注</span>
                 <span className="text-[var(--text-primary)]">{friendProfile?.displayName || '-'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>在线状态</span>
+                <span className="text-[var(--text-primary)]">
+                  {friendProfile?.isOnline ? '在线' : formatLastSeenText(friendProfile?.lastSeenAt)}
+                </span>
               </div>
             </div>
           </div>

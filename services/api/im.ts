@@ -26,6 +26,7 @@ export interface IMGroupOnlineStatsResponse {
 export interface IMUserOnlineStatusResponse {
   userId: string
   isOnline: boolean
+  lastSeenAt: number
 }
 
 export interface IMMediaDownloadRequest {

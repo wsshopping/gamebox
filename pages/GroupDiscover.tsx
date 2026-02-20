@@ -62,6 +62,7 @@ const GroupDiscover: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [privateOnlineMap, setPrivateOnlineMap] = useState<Record<string, boolean | null>>({});
+  const [privateLastSeenMap, setPrivateLastSeenMap] = useState<Record<string, number | null>>({});
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
   const [swipeActionId, setSwipeActionId] = useState<string | null>(null);
   const swipeRef = useRef({ id: '', startX: 0, startY: 0, active: false });
@@ -193,6 +194,38 @@ const GroupDiscover: React.FC = () => {
     return null;
   };
 
+  const parseTimestampMs = (value: unknown): number | null => {
+    if (value === null || value === undefined) return null;
+    let parsed = 0;
+    if (typeof value === 'number') {
+      parsed = Number.isFinite(value) ? Math.floor(value) : 0;
+    } else if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      parsed = Number.parseInt(trimmed, 10);
+    }
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    if (parsed < 1_000_000_000_000) {
+      parsed *= 1000;
+    }
+    return parsed > 0 ? parsed : null;
+  };
+
+  const formatLastSeenText = (timestamp?: number | null) => {
+    const normalized = parseTimestampMs(timestamp);
+    if (!normalized) return '离线';
+    const now = Date.now();
+    const diff = Math.max(0, now - normalized);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (diff < minute) return '刚刚在线';
+    if (diff < hour) return `${Math.floor(diff / minute)} 分钟前在线`;
+    if (diff < day) return `${Math.floor(diff / hour)} 小时前在线`;
+    return new Date(normalized).toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+
   const privateChatIds = useMemo(() => {
     const idSet = new Set<string>();
     conversations.forEach((conv: any) => {
@@ -221,12 +254,14 @@ const GroupDiscover: React.FC = () => {
     if (!ready || activeTab !== 'chats') return;
     if (privateChatIds.length === 0) {
       setPrivateOnlineMap({});
+      setPrivateLastSeenMap({});
       return;
     }
 
     let active = true;
     const fetchPrivateOnline = async () => {
       const next: Record<string, boolean | null> = {};
+      const nextLastSeen: Record<string, number | null> = {};
       const batchSize = 10;
       for (let start = 0; start < privateChatIds.length; start += batchSize) {
         const chunk = privateChatIds.slice(start, start + batchSize);
@@ -238,13 +273,16 @@ const GroupDiscover: React.FC = () => {
           const id = chunk[index];
           if (result.status === 'fulfilled') {
             next[id] = parseOnlineFlag((result.value as any)?.isOnline);
+            nextLastSeen[id] = parseTimestampMs((result.value as any)?.lastSeenAt);
           } else {
             next[id] = null;
+            nextLastSeen[id] = null;
           }
         });
       }
       if (!active) return;
       setPrivateOnlineMap(next);
+      setPrivateLastSeenMap(nextLastSeen);
     };
 
     fetchPrivateOnline().catch(() => null);
@@ -639,6 +677,7 @@ const GroupDiscover: React.FC = () => {
                 const isOpen = openSwipeId === chat.id;
                 const isPrivateChat = chat.conversationType === IMConversationType.PRIVATE;
                 const privateOnline = isPrivateChat ? privateOnlineMap[chat.id] : null;
+                const privateLastSeen = isPrivateChat ? privateLastSeenMap[chat.id] : null;
                 return (
                   <div key={chat.id} className="relative overflow-hidden">
                   <div
@@ -694,7 +733,7 @@ const GroupDiscover: React.FC = () => {
                             {isPrivateChat && (
                               <span className={`inline-flex items-center gap-1 text-[10px] ${privateOnline === true ? 'text-emerald-400' : 'text-slate-500'}`}>
                                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${privateOnline === true ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                                <span>{privateOnline === true ? '在线' : privateOnline === false ? '离线' : '未知'}</span>
+                                <span>{privateOnline === true ? '在线' : formatLastSeenText(privateLastSeen)}</span>
                               </span>
                             )}
                             {chat.isTop && (
@@ -862,6 +901,9 @@ const GroupDiscover: React.FC = () => {
                           <div className="text-sm font-bold text-[var(--text-primary)] truncate">{name}</div>
                           <div className="text-[10px] text-slate-500 truncate">手机号: {item.phone || '-'}</div>
                           <div className="text-[10px] text-slate-500">ID: {item.id}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {item.isOnline ? '在线' : formatLastSeenText(item.lastSeenAt)}
+                          </div>
                         </div>
                       </div>
                     </div>

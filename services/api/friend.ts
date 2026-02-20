@@ -21,6 +21,8 @@ export type FriendItem = {
   avatar?: string
   phone: string
   displayName?: string
+  isOnline?: boolean
+  lastSeenAt?: number
 }
 
 export type FriendListResponse = {
