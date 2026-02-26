@@ -11,10 +11,15 @@ type PageResult<T> = {
 export type PayoutAddressData = {
   chain: string
   address: string
+  alipayQrUrl: string
+  wechatQrUrl: string
+  availableMethods: string[]
   canWithdraw: boolean
   withdrawLockedUntil: string
   cooldownSeconds: number
 }
+
+export type PayoutQRCodeChannel = 'alipay' | 'wechat'
 
 const buildQuery = (params?: Record<string, string | number | undefined>) => {
   if (!params) return ''
@@ -156,19 +161,33 @@ export const agencyApi = {
   getPayoutAddress: async () => {
     return request<PayoutAddressData>('/portal/agency/payout-address')
   },
-  savePayoutAddress: async (address: string, confirmAddress: string, loginPassword: string) => {
+  uploadPayoutQRCode: async (channel: PayoutQRCodeChannel, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request<{ url: string }>(`/portal/agency/payout-qrcode/upload${buildQuery({ channel })}`, {
+      method: 'POST',
+      body: formData
+    })
+  },
+  savePayoutAddress: async (
+    address: string,
+    confirmAddress: string,
+    loginPassword: string,
+    alipayQrUrl?: string,
+    wechatQrUrl?: string
+  ) => {
     return request<PayoutAddressData>('/portal/agency/payout-address', {
       method: 'POST',
-      body: JSON.stringify({ address, confirmAddress, loginPassword })
+      body: JSON.stringify({ address, confirmAddress, loginPassword, alipayQrUrl, wechatQrUrl })
     })
   },
   getWithdraws: async (params?: { status?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/withdraws${buildQuery(params)}`)
   },
-  createWithdraw: async (amount: string, remark?: string) => {
+  createWithdraw: async (amount: string, method: 'usdt' | 'alipay' | 'wechat', remark?: string) => {
     return request('/portal/agency/withdraws', {
       method: 'POST',
-      body: JSON.stringify({ amount, remark })
+      body: JSON.stringify({ amount, method, remark })
     })
   },
   getGameOrder: async () => {

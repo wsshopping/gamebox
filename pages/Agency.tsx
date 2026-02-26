@@ -5,7 +5,7 @@ import { gameApi } from '../services/api/game';
 import { useAuth } from '../context/AuthContext';
 import type { Game } from '../types';
 import type { SystemNotificationAdminItem, SystemNotificationUpsert } from '../services/api/messageAdmin';
-import type { PayoutAddressData } from '../services/api/agency';
+import type { PayoutAddressData, PayoutQRCodeChannel } from '../services/api/agency';
 
 // --- Types ---
 type TabMode = '代理管理' | '玩家列表' | '订单查询' | '业绩详情' | '结算中心' | '手游排序';
@@ -141,6 +141,7 @@ type PerformanceOverviewGame = {
 
 type WithdrawItem = {
   id: number;
+  method?: string;
   amount: string;
   status: string;
   createdAt: string;
@@ -150,6 +151,9 @@ type ApprovalItem = {
   id: number;
   agentAccount: string;
   inviteCode: string;
+  method?: string;
+  payoutQrUrlSnapshot?: string;
+  payoutAccountSnapshot?: string;
   amount: string;
   status: string;
   createdAt: string;
@@ -194,9 +198,20 @@ const WITHDRAW_STATUS_LABELS: Record<string, string> = {
   paid: '已打款'
 };
 
+const WITHDRAW_METHOD_LABELS: Record<string, string> = {
+  usdt: '地址',
+  alipay: '支付宝',
+  wechat: '微信'
+};
+
 const formatWithdrawStatus = (status?: string) => {
   const key = String(status || '').toLowerCase();
   return WITHDRAW_STATUS_LABELS[key] || status || '--';
+};
+
+const formatWithdrawMethod = (method?: string) => {
+  const key = String(method || '').toLowerCase();
+  return WITHDRAW_METHOD_LABELS[key] || method || '--';
 };
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -2415,6 +2430,8 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   const [subTab, setSubTab] = useState<'address' | 'withdraw' | 'record'>('address');
   const [address, setAddress] = useState('');
   const [addressDraft, setAddressDraft] = useState('');
+  const [alipayQrUrlDraft, setAlipayQrUrlDraft] = useState('');
+  const [wechatQrUrlDraft, setWechatQrUrlDraft] = useState('');
   const [confirmAddress, setConfirmAddress] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showAddressEditor, setShowAddressEditor] = useState(false);
@@ -2424,9 +2441,11 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   const [savingAddress, setSavingAddress] = useState(false);
   const [addressError, setAddressError] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState<'usdt' | 'alipay' | 'wechat'>('usdt');
   const [withdrawRemark, setWithdrawRemark] = useState('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
+  const [uploadingQrChannel, setUploadingQrChannel] = useState<PayoutQRCodeChannel | ''>('');
   const [hasUnfinishedWithdraw, setHasUnfinishedWithdraw] = useState(false);
   const [checkingUnfinishedWithdraw, setCheckingUnfinishedWithdraw] = useState(false);
   const [records, setRecords] = useState<WithdrawItem[]>([]);
@@ -2440,6 +2459,9 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
       const data = await api.agency.getPayoutAddress();
       setAddress(data.address || '');
       setAddressDraft(data.address || '');
+      setConfirmAddress(data.address || '');
+      setAlipayQrUrlDraft(data.alipayQrUrl || '');
+      setWechatQrUrlDraft(data.wechatQrUrl || '');
       setPayoutAddressInfo(data);
       setCooldownSecondsLeft(Math.max(Number(data.cooldownSeconds || 0), 0));
     } catch (err) {
@@ -2508,7 +2530,9 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
 
   const openAddressEditor = () => {
     setAddressDraft(address || '');
-    setConfirmAddress('');
+    setConfirmAddress(address || '');
+    setAlipayQrUrlDraft(payoutAddressInfo?.alipayQrUrl || '');
+    setWechatQrUrlDraft(payoutAddressInfo?.wechatQrUrl || '');
     setLoginPassword('');
     setAddressError('');
     setShowAddressEditor(true);
@@ -2518,40 +2542,77 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     if (savingAddress) return;
     setShowAddressEditor(false);
     setAddressDraft(address || '');
-    setConfirmAddress('');
+    setConfirmAddress(address || '');
+    setAlipayQrUrlDraft(payoutAddressInfo?.alipayQrUrl || '');
+    setWechatQrUrlDraft(payoutAddressInfo?.wechatQrUrl || '');
     setLoginPassword('');
     setAddressError('');
+  };
+
+  const uploadPayoutQRCode = async (channel: PayoutQRCodeChannel, file?: File | null) => {
+    if (!file) return;
+    setAddressError('');
+    setUploadingQrChannel(channel);
+    try {
+      const res = await api.agency.uploadPayoutQRCode(channel, file);
+      if (channel === 'alipay') {
+        setAlipayQrUrlDraft(res.url || '');
+      } else {
+        setWechatQrUrlDraft(res.url || '');
+      }
+    } catch (err: any) {
+      setAddressError(err.message || '收款码上传失败');
+    } finally {
+      setUploadingQrChannel('');
+    }
   };
 
   const saveAddress = async () => {
     setAddressError('');
     const addressValue = addressDraft.trim();
     const confirmAddressValue = confirmAddress.trim();
-    if (!addressValue) {
-      setAddressError('请输入收款地址');
+    const hasAddressInput = Boolean(addressValue || confirmAddressValue);
+    const alipayQrUrl = alipayQrUrlDraft.trim();
+    const wechatQrUrl = wechatQrUrlDraft.trim();
+    if (!hasAddressInput && !alipayQrUrl && !wechatQrUrl) {
+      setAddressError('请至少设置一种收款信息');
       return;
     }
-    if (!confirmAddressValue) {
-      setAddressError('请再次输入收款地址确认');
-      return;
-    }
-    if (addressValue !== confirmAddressValue) {
-      setAddressError('两次收款地址输入不一致');
-      return;
+    if (hasAddressInput) {
+      if (!addressValue) {
+        setAddressError('请输入收款地址');
+        return;
+      }
+      if (!confirmAddressValue) {
+        setAddressError('请再次输入收款地址确认');
+        return;
+      }
+      if (addressValue !== confirmAddressValue) {
+        setAddressError('两次收款地址输入不一致');
+        return;
+      }
     }
     if (!loginPassword.trim()) {
       setAddressError('请输入登录密码');
       return;
     }
-    if (!window.confirm('请再次确认收款地址和登录密码，确认无误后再保存。')) {
+    if (!window.confirm('请再次确认收款信息和登录密码，确认无误后再保存。')) {
       return;
     }
     setSavingAddress(true);
     try {
-      const data = await api.agency.savePayoutAddress(addressValue, confirmAddressValue, loginPassword);
+      const data = await api.agency.savePayoutAddress(
+        addressValue,
+        confirmAddressValue,
+        loginPassword,
+        alipayQrUrl,
+        wechatQrUrl
+      );
       setAddress(data.address || '');
       setAddressDraft(data.address || '');
-      setConfirmAddress('');
+      setConfirmAddress(data.address || '');
+      setAlipayQrUrlDraft(data.alipayQrUrl || '');
+      setWechatQrUrlDraft(data.wechatQrUrl || '');
       setLoginPassword('');
       setPayoutAddressInfo(data);
       setCooldownSecondsLeft(Math.max(Number(data.cooldownSeconds || 0), 0));
@@ -2577,9 +2638,21 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
       setWithdrawError('请输入提现金额');
       return;
     }
+    if (withdrawMethod === 'usdt' && !address.trim()) {
+      setWithdrawError('当前渠道需要先设置收款地址');
+      return;
+    }
+    if (withdrawMethod === 'alipay' && !(payoutAddressInfo?.alipayQrUrl || '').trim()) {
+      setWithdrawError('请先上传支付宝收款码');
+      return;
+    }
+    if (withdrawMethod === 'wechat' && !(payoutAddressInfo?.wechatQrUrl || '').trim()) {
+      setWithdrawError('请先上传微信收款码');
+      return;
+    }
     setSubmittingWithdraw(true);
     try {
-      await api.agency.createWithdraw(withdrawAmount, withdrawRemark);
+      await api.agency.createWithdraw(withdrawAmount, withdrawMethod, withdrawRemark);
       setWithdrawAmount('');
       setWithdrawRemark('');
       setHasUnfinishedWithdraw(true);
@@ -2660,13 +2733,33 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                     {addressLoading ? (
                       <div className="h-12 rounded-xl bg-slate-800/60 animate-pulse"></div>
                     ) : (
-                      <div className="rounded-xl border border-theme px-4 py-3 text-sm font-mono break-all" style={{color: 'var(--text-primary)'}}>
-                        {address || '暂未设置收款地址'}
+                      <div className="space-y-3">
+                        <div className="rounded-xl border border-theme px-4 py-3 text-sm font-mono break-all" style={{color: 'var(--text-primary)'}}>
+                          {address || '暂未设置收款地址'}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl border border-theme p-3 text-center">
+                            <div className="text-[10px] text-slate-500 mb-2">支付宝收款码</div>
+                            {payoutAddressInfo?.alipayQrUrl ? (
+                              <img src={payoutAddressInfo.alipayQrUrl} alt="alipay-qrcode" className="w-24 h-24 object-cover mx-auto rounded-lg border border-theme" />
+                            ) : (
+                              <div className="h-24 flex items-center justify-center text-[10px] text-slate-500 border border-dashed border-theme rounded-lg">未上传</div>
+                            )}
+                          </div>
+                          <div className="rounded-xl border border-theme p-3 text-center">
+                            <div className="text-[10px] text-slate-500 mb-2">微信收款码</div>
+                            {payoutAddressInfo?.wechatQrUrl ? (
+                              <img src={payoutAddressInfo.wechatQrUrl} alt="wechat-qrcode" className="w-24 h-24 object-cover mx-auto rounded-lg border border-theme" />
+                            ) : (
+                              <div className="h-24 flex items-center justify-center text-[10px] text-slate-500 border border-dashed border-theme rounded-lg">未上传</div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                     <p className="text-[10px] text-slate-500 mt-2 flex items-center">
                       <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      请务必确认地址正确，保存后用于自动结算；设置/修改都需两次地址确认并校验登录密码，修改后需冷却2天
+                      可同时配置地址和支付宝/微信收款码；设置/修改都需登录密码确认，地址变更后提现需冷却2天
                     </p>
                   </div>
                   <button
@@ -2721,6 +2814,46 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                             placeholder="请输入登录密码验证"
                             className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                           />
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-theme p-3">
+                              <div className="text-[11px] text-slate-400 mb-2">支付宝收款码</div>
+                              {alipayQrUrlDraft ? (
+                                <img src={alipayQrUrlDraft} alt="alipay-draft" className="w-full h-24 object-cover rounded-lg border border-theme mb-2" />
+                              ) : (
+                                <div className="h-24 border border-dashed border-theme rounded-lg mb-2 flex items-center justify-center text-[10px] text-slate-500">未上传</div>
+                              )}
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,image/png,image/jpeg"
+                                disabled={savingAddress || uploadingQrChannel === 'alipay'}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  void uploadPayoutQRCode('alipay', file);
+                                  e.currentTarget.value = '';
+                                }}
+                                className="w-full text-[10px] text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-800 file:px-2 file:py-1.5 file:text-[10px] file:text-slate-200"
+                              />
+                            </div>
+                            <div className="rounded-xl border border-theme p-3">
+                              <div className="text-[11px] text-slate-400 mb-2">微信收款码</div>
+                              {wechatQrUrlDraft ? (
+                                <img src={wechatQrUrlDraft} alt="wechat-draft" className="w-full h-24 object-cover rounded-lg border border-theme mb-2" />
+                              ) : (
+                                <div className="h-24 border border-dashed border-theme rounded-lg mb-2 flex items-center justify-center text-[10px] text-slate-500">未上传</div>
+                              )}
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,image/png,image/jpeg"
+                                disabled={savingAddress || uploadingQrChannel === 'wechat'}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  void uploadPayoutQRCode('wechat', file);
+                                  e.currentTarget.value = '';
+                                }}
+                                className="w-full text-[10px] text-slate-400 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-800 file:px-2 file:py-1.5 file:text-[10px] file:text-slate-200"
+                              />
+                            </div>
+                          </div>
                         </div>
                         <div className="flex gap-3 mt-5">
                           <button
@@ -2772,6 +2905,22 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                       </div>
                     )}
                     <div className="bg-[var(--bg-primary)] rounded-2xl p-4 border border-theme focus-within:border-amber-500/50 transition-all">
+                      <div className="flex items-center justify-center space-x-2 mb-3">
+                        {(['usdt', 'alipay', 'wechat'] as const).map((method) => (
+                          <button
+                            key={method}
+                            type="button"
+                            onClick={() => setWithdrawMethod(method)}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] border ${
+                              withdrawMethod === method
+                                ? 'bg-slate-800 text-white border-slate-600'
+                                : 'text-slate-500 border-theme'
+                            }`}
+                          >
+                            {formatWithdrawMethod(method)}
+                          </button>
+                        ))}
+                      </div>
                        <input
                         type="number"
                         value={withdrawAmount}
@@ -2779,6 +2928,9 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                         placeholder="输入提现金额"
                         className="w-full text-center bg-transparent text-lg font-bold outline-none placeholder:text-slate-500 text-[var(--text-primary)]"
                       />
+                    </div>
+                    <div className="text-[11px] text-slate-500 text-left">
+                      当前渠道：{formatWithdrawMethod(withdrawMethod)}
                     </div>
                     <input
                       value={withdrawRemark}
@@ -2817,6 +2969,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                         <div key={record.id} className="card-bg rounded-2xl border border-theme p-4 flex items-center justify-between">
                           <div>
                             <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>¥ {record.amount}</div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">渠道：{formatWithdrawMethod(record.method)}</div>
                             <div className="text-[10px] text-slate-500">{record.createdAt}</div>
                           </div>
                           <span className="text-[10px] text-slate-500">{formatWithdrawStatus(record.status)}</span>
@@ -2959,6 +3112,7 @@ const ApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [previewQrUrl, setPreviewQrUrl] = useState('');
 
   const load = async (nextPage = 1) => {
     setLoading(true);
@@ -3025,12 +3179,28 @@ const ApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
                 <div>
                   <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>{item.agentAccount}</div>
                   <div className="text-[10px] text-slate-500 mt-1">邀请码 {item.inviteCode}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">渠道 {formatWithdrawMethod(item.method)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs font-black text-amber-500">¥ {item.amount}</div>
                   <div className="text-[10px] text-slate-500">{item.createdAt}</div>
                 </div>
               </div>
+              {item.payoutQrUrlSnapshot ? (
+                <div className="mt-3 flex items-center justify-between bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2">
+                  <div className="text-[10px] text-slate-500">收款码（点击放大）</div>
+                  <img
+                    src={item.payoutQrUrlSnapshot}
+                    alt="payout-qrcode"
+                    className="w-16 h-16 rounded-lg border border-theme object-cover cursor-pointer"
+                    onClick={() => setPreviewQrUrl(item.payoutQrUrlSnapshot || '')}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 text-[10px] text-slate-500 break-all">
+                  收款信息：{item.payoutAccountSnapshot || '--'}
+                </div>
+              )}
               <div className="flex items-center justify-between mt-3">
                 <span className="text-[10px] text-slate-400">状态: {formatWithdrawStatus(item.status)}</span>
                 <div className="flex items-center space-x-2">
@@ -3051,6 +3221,28 @@ const ApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
       )}
 
       <Pagination page={page} total={total} onChange={load} />
+
+      {previewQrUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="card-bg rounded-2xl border border-theme p-4 w-full max-w-md">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>收款码预览</h4>
+              <button
+                type="button"
+                onClick={() => setPreviewQrUrl('')}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <img
+              src={previewQrUrl}
+              alt="payout-qrcode-preview"
+              className="w-full max-h-[70vh] object-contain rounded-xl border border-theme bg-[var(--bg-primary)]"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
