@@ -5,7 +5,12 @@ import { gameApi } from '../services/api/game';
 import { useAuth } from '../context/AuthContext';
 import type { Game } from '../types';
 import type { SystemNotificationAdminItem, SystemNotificationUpsert } from '../services/api/messageAdmin';
-import type { PayoutAddressData, PayoutQRCodeChannel } from '../services/api/agency';
+import type {
+  AgentGameDepositItem,
+  DepositReleaseRequestItem,
+  PayoutAddressData,
+  PayoutQRCodeChannel
+} from '../services/api/agency';
 
 // --- Types ---
 type TabMode = '代理管理' | '玩家列表' | '订单查询' | '业绩详情' | '结算中心' | '手游排序';
@@ -19,6 +24,8 @@ type AgencyStats = {
   totalProfit?: string;
   withdrawn?: string;
   withdrawable?: string;
+  depositLocked?: string;
+  depositDeficit?: string;
 };
 
 type AgentGameRebate = {
@@ -31,6 +38,7 @@ type AgentItem = {
   id: number;
   account: string;
   username?: string;
+  roleId: number;
   role: string;
   inviteCode: string;
   upline: string;
@@ -159,6 +167,12 @@ type ApprovalItem = {
   createdAt: string;
 };
 
+type DepositEditorState = {
+  gameId: number;
+  amount: string;
+  remark: string;
+};
+
 type GameOrderItem = {
   gameId: number;
   name: string;
@@ -204,6 +218,12 @@ const WITHDRAW_METHOD_LABELS: Record<string, string> = {
   wechat: '微信'
 };
 
+const DEPOSIT_STATUS_LABELS: Record<string, string> = {
+  active: '已启用',
+  pending_release: '退押审批中',
+  released: '已释放'
+};
+
 const formatWithdrawStatus = (status?: string) => {
   const key = String(status || '').toLowerCase();
   return WITHDRAW_STATUS_LABELS[key] || status || '--';
@@ -212,6 +232,11 @@ const formatWithdrawStatus = (status?: string) => {
 const formatWithdrawMethod = (method?: string) => {
   const key = String(method || '').toLowerCase();
   return WITHDRAW_METHOD_LABELS[key] || method || '--';
+};
+
+const formatDepositStatus = (status?: string) => {
+  const key = String(status || '').toLowerCase();
+  return DEPOSIT_STATUS_LABELS[key] || status || '--';
 };
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -1072,7 +1097,7 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   );
 };
 
-type SuperAdminTab = 'allAgents' | 'allPlayers' | 'allOrders' | 'boss' | 'rebate' | 'approval' | 'notifications';
+type SuperAdminTab = 'allAgents' | 'allPlayers' | 'allOrders' | 'boss' | 'rebate' | 'approval' | 'depositApproval' | 'notifications';
 
 const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const [subTab, setSubTab] = useState<SuperAdminTab>('allAgents');
@@ -1086,6 +1111,7 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
     { id: 'boss', icon: '👔', label: '老板管理' },
     { id: 'rebate', icon: '📊', label: '分成设置' },
     { id: 'approval', icon: '📝', label: '审批管理' },
+    { id: 'depositApproval', icon: '🏦', label: '退押审批' },
     { id: 'notifications', icon: '📣', label: '系统通知' }
   ];
   return (
@@ -1123,6 +1149,7 @@ const SuperAdminCenter = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
       {subTab === 'boss' && <BossManagement isSuperAdmin={isSuperAdmin} />}
       {subTab === 'rebate' && <SuperRebateSettings isSuperAdmin={isSuperAdmin} />}
       {subTab === 'approval' && <ApprovalList isSuperAdmin={isSuperAdmin} />}
+      {subTab === 'depositApproval' && <DepositReleaseApprovalList isSuperAdmin={isSuperAdmin} />}
       {subTab === 'notifications' && <SystemNotificationAdmin />}
     </div>
   );
@@ -1434,10 +1461,17 @@ const SystemNotificationAdmin = () => {
 const AgentList = () => {
   const [keyword, setKeyword] = useState('');
   const [list, setList] = useState<AgentItem[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [depositAgentId, setDepositAgentId] = useState<number | null>(null);
+  const [depositList, setDepositList] = useState<AgentGameDepositItem[]>([]);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositSaving, setDepositSaving] = useState(false);
+  const [depositError, setDepositError] = useState('');
+  const [depositForm, setDepositForm] = useState<DepositEditorState>({ gameId: 0, amount: '', remark: '' });
 
   const load = async (nextPage = 1) => {
     setLoading(true);
@@ -1456,6 +1490,30 @@ const AgentList = () => {
   useEffect(() => {
     load(1);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadGames = async () => {
+      try {
+        const data = await gameApi.getList('all', 1, 200);
+        if (mounted) {
+          setGames(data || []);
+        }
+      } catch (err) {
+        // ignore game load errors
+      }
+    };
+    loadGames();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!depositForm.gameId && games[0]) {
+      setDepositForm((prev) => ({ ...prev, gameId: Number(games[0].id) || 0 }));
+    }
+  }, [games, depositForm.gameId]);
 
   const updateStatus = async (item: AgentItem, nextStatus: 1 | 2) => {
     const action = nextStatus === 2 ? '封禁' : '解封';
@@ -1482,6 +1540,71 @@ const AgentList = () => {
       window.alert('密码修改成功');
     } catch (err: any) {
       setError(err?.message || '密码修改失败');
+    }
+  };
+
+  const loadAgentDeposits = async (agentId: number) => {
+    setDepositLoading(true);
+    setDepositError('');
+    try {
+      const data = await api.agency.getAgentDeposits(agentId);
+      setDepositList(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setDepositError(err?.message || '押金数据加载失败');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
+
+  const toggleDepositEditor = async (item: AgentItem) => {
+    if (depositAgentId === item.id) {
+      setDepositAgentId(null);
+      setDepositList([]);
+      setDepositError('');
+      return;
+    }
+    setDepositAgentId(item.id);
+    setDepositForm({
+      gameId: Number(games[0]?.id || 0),
+      amount: '',
+      remark: ''
+    });
+    await loadAgentDeposits(item.id);
+  };
+
+  const loadDepositIntoForm = (deposit: AgentGameDepositItem) => {
+    setDepositForm({
+      gameId: deposit.gameId,
+      amount: deposit.amount || '',
+      remark: deposit.remark || ''
+    });
+    setDepositError('');
+  };
+
+  const saveDeposit = async () => {
+    if (!depositAgentId) return;
+    if (!depositForm.gameId) {
+      setDepositError('请选择游戏');
+      return;
+    }
+    if (!depositForm.amount.trim()) {
+      setDepositError('请输入押金金额');
+      return;
+    }
+    setDepositSaving(true);
+    setDepositError('');
+    try {
+      await api.agency.updateAgentDeposit(depositAgentId, depositForm.gameId, {
+        enabled: true,
+        amount: depositForm.amount.trim(),
+        remark: depositForm.remark.trim()
+      });
+      await loadAgentDeposits(depositAgentId);
+      setDepositForm((prev) => ({ ...prev, amount: '', remark: '' }));
+    } catch (err: any) {
+      setDepositError(err?.message || '押金保存失败');
+    } finally {
+      setDepositSaving(false);
     }
   };
 
@@ -1513,45 +1636,143 @@ const AgentList = () => {
         <EmptyState title="暂无代理" />
       ) : (
         <div className="space-y-3">
-          {list.map((item) => (
-            <div key={item.id} className="card-bg rounded-2xl border border-theme p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>{item.account}</div>
-                  <div className="text-[10px] text-slate-500 mt-1">
-                    {item.role} · 上级 {item.upline || '--'}
-                  </div>
-                </div>
-                <div className="text-right space-y-2">
+          {list.map((item) => {
+            const canManageDeposit = item.roleId === ROLE_TOP_PROMOTER || item.roleId === ROLE_GENERAL_AGENT;
+            const isDepositOpen = depositAgentId === item.id;
+            return (
+              <div key={item.id} className="card-bg rounded-2xl border border-theme p-4 shadow-sm">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs font-black text-amber-500">{item.inviteCode}</div>
-                    <span className="text-[10px] text-slate-500">{item.status}</span>
+                    <div className="text-sm font-bold" style={{color: 'var(--text-primary)'}}>{item.account}</div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      {item.role} · 上级 {item.upline || '--'}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end space-x-2 text-[10px]">
-                    <button
-                      onClick={() => resetAgentPassword(item)}
-                      className="text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
-                    >
-                      改密
-                    </button>
-                    <button
-                      onClick={() => updateStatus(item, item.status === '正常' ? 2 : 1)}
-                      className={`${item.status === '正常' ? 'text-red-500 border-red-500/30' : 'text-emerald-500 border-emerald-500/30'} border rounded-lg px-2 py-1`}
-                    >
-                      {item.status === '正常' ? '封禁' : '解封'}
-                    </button>
+                  <div className="text-right space-y-2">
+                    <div>
+                      <div className="text-xs font-black text-amber-500">{item.inviteCode}</div>
+                      <span className="text-[10px] text-slate-500">{item.status}</span>
+                    </div>
+                    <div className="flex items-center justify-end space-x-2 text-[10px]">
+                      {canManageDeposit && (
+                        <button
+                          onClick={() => toggleDepositEditor(item)}
+                          className="text-sky-400 border border-sky-400/30 rounded-lg px-2 py-1"
+                        >
+                          {isDepositOpen ? '收起押金' : '押金'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => resetAgentPassword(item)}
+                        className="text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
+                      >
+                        改密
+                      </button>
+                      <button
+                        onClick={() => updateStatus(item, item.status === '正常' ? 2 : 1)}
+                        className={`${item.status === '正常' ? 'text-red-500 border-red-500/30' : 'text-emerald-500 border-emerald-500/30'} border rounded-lg px-2 py-1`}
+                      >
+                        {item.status === '正常' ? '封禁' : '解封'}
+                      </button>
+                    </div>
                   </div>
                 </div>
+                <div className="text-[10px] text-slate-500 mt-2">创建时间 {item.createdAt}</div>
+                {Array.isArray(item.gameRebates) && item.gameRebates.length > 0 && (
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    分成：
+                    {item.gameRebates.map((rebate) => `${rebate.gameName || rebate.gameId} ${formatRatePct(rebate.rebateRatePct)}%`).join('，')}
+                  </div>
+                )}
+
+                {isDepositOpen && (
+                  <div className="mt-4 border-t border-white/5 pt-4 space-y-3">
+                    <div className="text-[10px] text-slate-500">
+                      押金允许透支为负。已启用押金不能直接关闭，需代理本人申请退押并由超管审批。
+                    </div>
+                    {depositError && (
+                      <div className="bg-red-500/10 text-red-500 text-xs px-3 py-2 rounded-xl border border-red-500/20">
+                        {depositError}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_1fr_auto]">
+                      <select
+                        value={depositForm.gameId}
+                        onChange={(e) => setDepositForm((prev) => ({ ...prev, gameId: Number(e.target.value) }))}
+                        className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+                      >
+                        <option value={0}>选择游戏</option>
+                        {games.map((game) => (
+                          <option key={game.id} value={Number(game.id)}>
+                            {game.title}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={depositForm.amount}
+                        onChange={(e) => setDepositForm((prev) => ({ ...prev, amount: e.target.value }))}
+                        placeholder="押金金额"
+                        className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+                      />
+                      <input
+                        value={depositForm.remark}
+                        onChange={(e) => setDepositForm((prev) => ({ ...prev, remark: e.target.value }))}
+                        placeholder="备注"
+                        className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+                      />
+                      <button
+                        onClick={saveDeposit}
+                        disabled={depositSaving}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme disabled:opacity-60"
+                      >
+                        {depositSaving ? '保存中...' : '启用/更新'}
+                      </button>
+                    </div>
+
+                    {depositLoading ? (
+                      <div className="space-y-2">
+                        {[1, 2].map((i) => (
+                          <div key={i} className="h-12 rounded-xl bg-[var(--bg-primary)] border border-theme animate-pulse"></div>
+                        ))}
+                      </div>
+                    ) : depositList.length === 0 ? (
+                      <div className="text-[10px] text-slate-500 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-3">
+                        该代理暂无押金配置
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {depositList.map((deposit) => (
+                          <div key={deposit.id} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-3 text-xs">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-bold" style={{ color: 'var(--text-primary)' }}>{deposit.gameName || `游戏${deposit.gameId}`}</div>
+                                <div className="text-[10px] text-slate-500 mt-1">
+                                  状态 {formatDepositStatus(deposit.status)} · 金额 ¥ {deposit.amount}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => loadDepositIntoForm(deposit)}
+                                className="text-[10px] text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
+                              >
+                                载入修改
+                              </button>
+                            </div>
+                            {(deposit.remark || deposit.releaseRemark || deposit.releaseRequestedAt) && (
+                              <div className="text-[10px] text-slate-500 mt-2 space-y-1">
+                                {deposit.remark && <div>配置备注：{deposit.remark}</div>}
+                                {deposit.releaseRemark && <div>退押备注：{deposit.releaseRemark}</div>}
+                                {deposit.releaseRequestedAt && <div>申请时间：{deposit.releaseRequestedAt}</div>}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="text-[10px] text-slate-500 mt-2">创建时间 {item.createdAt}</div>
-              {Array.isArray(item.gameRebates) && item.gameRebates.length > 0 && (
-                <div className="text-[10px] text-slate-500 mt-1">
-                  分成：
-                  {item.gameRebates.map((rebate) => `${rebate.gameName || rebate.gameId} ${formatRatePct(rebate.rebateRatePct)}%`).join('，')}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -2427,7 +2648,7 @@ const PerformanceDetail = () => {
 };
 
 const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null; onRefreshStats: () => Promise<void> }) => {
-  const [subTab, setSubTab] = useState<'address' | 'withdraw' | 'record'>('address');
+  const [subTab, setSubTab] = useState<'address' | 'withdraw' | 'deposit' | 'record'>('address');
   const [address, setAddress] = useState('');
   const [addressDraft, setAddressDraft] = useState('');
   const [alipayQrUrlDraft, setAlipayQrUrlDraft] = useState('');
@@ -2452,6 +2673,23 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
   const [recordsTotal, setRecordsTotal] = useState(0);
   const [recordPage, setRecordPage] = useState(1);
   const [recordsLoading, setRecordsLoading] = useState(false);
+  const [deposits, setDeposits] = useState<AgentGameDepositItem[]>([]);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositSubmittingId, setDepositSubmittingId] = useState<number | null>(null);
+  const [depositError, setDepositError] = useState('');
+
+  const loadDeposits = async () => {
+    setDepositLoading(true);
+    setDepositError('');
+    try {
+      const data = await api.agency.getMyDeposits();
+      setDeposits(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setDepositError(err?.message || '押金数据加载失败');
+    } finally {
+      setDepositLoading(false);
+    }
+  };
 
   const loadAddress = async () => {
     setAddressLoading(true);
@@ -2518,6 +2756,9 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     }
     if (subTab === 'withdraw') {
       loadUnfinishedWithdrawState();
+    }
+    if (subTab === 'deposit') {
+      loadDeposits();
     }
   }, [subTab]);
 
@@ -2667,6 +2908,20 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
     }
   };
 
+  const requestDepositRelease = async (deposit: AgentGameDepositItem) => {
+    const remark = window.prompt(`请输入 ${deposit.gameName || `游戏${deposit.gameId}`} 的退押备注（可留空）`) || '';
+    setDepositSubmittingId(deposit.id);
+    setDepositError('');
+    try {
+      await api.agency.requestDepositRelease(deposit.gameId, remark.trim());
+      await Promise.all([loadDeposits(), onRefreshStats()]);
+    } catch (err: any) {
+      setDepositError(err?.message || '退押申请失败');
+    } finally {
+      setDepositSubmittingId(null);
+    }
+  };
+
   if (!stats) return <div className="animate-pulse h-40 bg-slate-900 rounded-xl"></div>;
   const isWithdrawCoolingDown = cooldownSecondsLeft > 0 || payoutAddressInfo?.canWithdraw === false;
   const isWithdrawBlockedByUnfinished = hasUnfinishedWithdraw || checkingUnfinishedWithdraw;
@@ -2698,6 +2953,14 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                 <p className="text-[10px] text-amber-500/70 font-bold mb-1 uppercase tracking-wider relative z-10">可提现</p>
                 <p className="text-xl font-black text-amber-500 relative z-10">¥ {stats.withdrawable || '0.00'}</p>
              </div>
+             <div className="bg-[var(--bg-primary)] p-4 rounded-2xl border border-theme">
+                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">押金锁定</p>
+                <p className="text-lg font-black text-sky-400">¥ {stats.depositLocked || '0.00'}</p>
+             </div>
+             <div className="bg-[var(--bg-primary)] p-4 rounded-2xl border border-theme">
+                <p className="text-[10px] text-slate-500 font-bold mb-1 uppercase tracking-wider">押金欠额</p>
+                <p className="text-lg font-black text-rose-400">¥ {stats.depositDeficit || '0.00'}</p>
+             </div>
           </div>
        </div>
 
@@ -2706,6 +2969,7 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
              {[
                { id: 'address', label: '收款地址' },
                { id: 'withdraw', label: '发起提现' },
+               { id: 'deposit', label: '押金管理' },
                { id: 'record', label: '提现记录' }
              ].map(tab => (
                <button 
@@ -2980,6 +3244,60 @@ const SettlementCenter = ({ stats, onRefreshStats }: { stats: AgencyStats | null
                   <Pagination page={recordPage} total={recordsTotal} onChange={loadRecords} />
                 </div>
             )}
+
+            {subTab === 'deposit' && (
+                <div className="space-y-4">
+                  <div className="text-[11px] text-slate-500">
+                    押金允许形成欠额。后续新增收益会先自动冲抵押金欠额，退押需提交申请并等待超管审批。
+                  </div>
+                  {depositError && (
+                    <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+                      {depositError}
+                    </div>
+                  )}
+                  {depositLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="h-16 card-bg rounded-xl border border-theme animate-pulse"></div>
+                      ))}
+                    </div>
+                  ) : deposits.length === 0 ? (
+                    <EmptyState title="暂无押金配置" />
+                  ) : (
+                    <div className="space-y-3">
+                      {deposits.map((deposit) => (
+                        <div key={deposit.id} className="card-bg rounded-2xl border border-theme p-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                                {deposit.gameName || `游戏${deposit.gameId}`}
+                              </div>
+                              <div className="text-[10px] text-slate-500 mt-1">
+                                状态 {formatDepositStatus(deposit.status)} · 金额 ¥ {deposit.amount}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => requestDepositRelease(deposit)}
+                              disabled={!deposit.canRequestRelease || depositSubmittingId === deposit.id}
+                              className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme disabled:opacity-40"
+                            >
+                              {depositSubmittingId === deposit.id ? '提交中...' : deposit.canRequestRelease ? '申请退押' : '不可申请'}
+                            </button>
+                          </div>
+                          {(deposit.remark || deposit.releaseRemark || deposit.releaseRequestedAt || deposit.releaseAuditRemark) && (
+                            <div className="text-[10px] text-slate-500 mt-3 space-y-1">
+                              {deposit.remark && <div>配置备注：{deposit.remark}</div>}
+                              {deposit.releaseRemark && <div>退押备注：{deposit.releaseRemark}</div>}
+                              {deposit.releaseRequestedAt && <div>申请时间：{deposit.releaseRequestedAt}</div>}
+                              {deposit.releaseAuditRemark && <div>审批备注：{deposit.releaseAuditRemark}</div>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+            )}
           </div>
        </div>
     </div>
@@ -3243,6 +3561,135 @@ const ApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const DepositReleaseApprovalList = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
+  const [status, setStatus] = useState('pending_release');
+  const [list, setList] = useState<DepositReleaseRequestItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async (nextPage = 1) => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.agency.getDepositReleaseRequests({ status, page: nextPage, pageSize: PAGE_SIZE });
+      setList(data.list || []);
+      setTotal(data.total || 0);
+      setPage(nextPage);
+    } catch (err: any) {
+      setError(err?.message || '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    load(1);
+  }, [isSuperAdmin]);
+
+  const handleUpdate = async (id: number, nextStatus: 'approved' | 'rejected') => {
+    setError('');
+    try {
+      await api.agency.updateDepositReleaseRequest(id, nextStatus);
+      await load(page);
+    } catch (err: any) {
+      setError(err?.message || '审批失败');
+    }
+  };
+
+  if (!isSuperAdmin) {
+    return <EmptyState title="无权限" />;
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-in-up">
+      <div className="card-bg rounded-[20px] p-4 border border-theme flex items-center space-x-2">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-slate-400"
+        >
+          <option value="pending_release">待审批</option>
+          <option value="active">已拒绝/已恢复</option>
+          <option value="released">已释放</option>
+          <option value="">全部状态</option>
+        </select>
+        <button onClick={() => load(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询</button>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-20 card-bg rounded-2xl border border-theme animate-pulse"></div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <EmptyState title="暂无退押申请" />
+      ) : (
+        <div className="space-y-3">
+          {list.map((item) => (
+            <div key={item.id} className="card-bg rounded-2xl border border-theme p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.agentAccount}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {item.role} · 邀请码 {item.inviteCode}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    游戏 {item.gameName || `#${item.gameId}`} · 状态 {formatDepositStatus(item.status)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-amber-500">¥ {item.amount}</div>
+                  <div className="text-[10px] text-slate-500">{item.releaseRequestedAt || '--'}</div>
+                </div>
+              </div>
+              {(item.remark || item.releaseRemark || item.releaseAuditRemark) && (
+                <div className="text-[10px] text-slate-500 mt-3 space-y-1">
+                  {item.remark && <div>配置备注：{item.remark}</div>}
+                  {item.releaseRemark && <div>退押备注：{item.releaseRemark}</div>}
+                  {item.releaseAuditRemark && <div>审批备注：{item.releaseAuditRemark}</div>}
+                </div>
+              )}
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-[10px] text-slate-400">记录ID: {item.id}</span>
+                <div className="flex items-center space-x-2">
+                  {item.status === 'pending_release' && (
+                    <>
+                      <button
+                        onClick={() => handleUpdate(item.id, 'approved')}
+                        className="text-xs text-emerald-500 border border-emerald-500/30 rounded-lg px-2 py-1"
+                      >
+                        通过
+                      </button>
+                      <button
+                        onClick={() => handleUpdate(item.id, 'rejected')}
+                        className="text-xs text-red-500 border border-red-500/30 rounded-lg px-2 py-1"
+                      >
+                        驳回
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Pagination page={page} total={total} onChange={load} />
     </div>
   );
 };

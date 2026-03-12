@@ -19,6 +19,37 @@ export type PayoutAddressData = {
   cooldownSeconds: number
 }
 
+export type AgentGameDepositItem = {
+  id: number
+  gameId: number
+  gameName: string
+  amount: string
+  status: string
+  remark: string
+  releaseRemark: string
+  releaseRequestedAt: string
+  releaseAuditAt: string
+  releaseAuditRemark: string
+  canRequestRelease: boolean
+}
+
+export type DepositReleaseRequestItem = {
+  id: number
+  agentHierarchyId: number
+  agentAccount: string
+  inviteCode: string
+  role: string
+  gameId: number
+  gameName: string
+  amount: string
+  status: string
+  remark: string
+  releaseRemark: string
+  releaseRequestedAt: string
+  releaseAuditAt: string
+  releaseAuditRemark: string
+}
+
 export type PayoutQRCodeChannel = 'alipay' | 'wechat'
 
 const buildQuery = (params?: Record<string, string | number | undefined>) => {
@@ -190,6 +221,24 @@ export const agencyApi = {
       body: JSON.stringify({ amount, method, remark })
     })
   },
+  getMyDeposits: async () => {
+    return request<AgentGameDepositItem[]>('/portal/agency/deposits')
+  },
+  requestDepositRelease: async (gameId: number, remark?: string) => {
+    return request(`/portal/agency/deposits/${gameId}/release-request`, {
+      method: 'POST',
+      body: JSON.stringify({ remark })
+    })
+  },
+  getAgentDeposits: async (agentId: number) => {
+    return request<AgentGameDepositItem[]>(`/portal/agency/agents/${agentId}/deposits`)
+  },
+  updateAgentDeposit: async (agentId: number, gameId: number, data: { enabled: boolean; amount: string; remark?: string }) => {
+    return request(`/portal/agency/agents/${agentId}/deposits/${gameId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
   getGameOrder: async () => {
     return request(`/portal/agency/game-order`)
   },
@@ -204,6 +253,15 @@ export const agencyApi = {
   },
   updateApproval: async (id: number, status: string, remark?: string) => {
     return request(`/portal/agency/approvals/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ status, remark })
+    })
+  },
+  getDepositReleaseRequests: async (params?: { status?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<DepositReleaseRequestItem>>(`/portal/agency/deposit-release-requests${buildQuery(params)}`)
+  },
+  updateDepositReleaseRequest: async (id: number, status: 'approved' | 'rejected', remark?: string) => {
+    return request(`/portal/agency/deposit-release-requests/${id}`, {
       method: 'POST',
       body: JSON.stringify({ status, remark })
     })
