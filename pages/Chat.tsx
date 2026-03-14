@@ -8,10 +8,12 @@ import {
   IMMediaDownloadRequest,
   IMAutoDeletePolicyResponse,
   IMGroupAnnouncementResponse,
+  IMGroupInviteResolveResponse,
   IMRedPacketClaimItem,
   IMRedPacketDetailResponse
 } from '../services/api/im';
 import { authStorage } from '../services/http';
+import { buildInvitePath, extractInviteToken } from '../services/inviteLink';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 
 const RED_PACKET_MESSAGE = 'jg:redpacket';
@@ -116,6 +118,55 @@ const isVideoLikeFile = (content?: Record<string, any>) => {
   return VIDEO_FILE_EXT_RE.test(maybeName);
 };
 const RED_PACKET_OPENING_MAX_MS = 2000;
+const MESSAGE_LINK_RE = /(https?:\/\/[^\s]+|\/?#\/group\/invite\/[^\s]+|\/group\/invite\/[^\s]+|#\/group\/invite\/[^\s]+)/gi;
+
+type MessageTextSegment = {
+  type: 'text' | 'link';
+  value: string;
+};
+
+type InvitePreviewState = {
+  loading: boolean;
+  data?: IMGroupInviteResolveResponse;
+  error?: string;
+};
+
+const trimLinkTail = (raw: string) => String(raw || '').replace(/[>)}\]）】》,，.。!！?？;；:：]+$/g, '');
+
+const splitMessageTextSegments = (text: string): MessageTextSegment[] => {
+  const source = String(text || '');
+  if (!source) return [{ type: 'text', value: '' }];
+  const segments: MessageTextSegment[] = [];
+  let cursor = 0;
+  const matches = source.matchAll(MESSAGE_LINK_RE);
+  for (const match of matches) {
+    const index = match.index ?? 0;
+    const raw = String(match[0] || '');
+    const end = index + raw.length;
+    if (index > cursor) {
+      segments.push({ type: 'text', value: source.slice(cursor, index) });
+    }
+    const clean = trimLinkTail(raw);
+    const suffix = raw.slice(clean.length);
+    if (clean) {
+      segments.push({ type: 'link', value: clean });
+    }
+    if (suffix) {
+      segments.push({ type: 'text', value: suffix });
+    }
+    cursor = end;
+  }
+  if (cursor < source.length) {
+    segments.push({ type: 'text', value: source.slice(cursor) });
+  }
+  return segments.length ? segments : [{ type: 'text', value: source }];
+};
+
+const buildInviteShareUrl = (rawLink: string): string => {
+  const token = extractInviteToken(rawLink);
+  if (!token || typeof window === 'undefined') return '';
+  return `${window.location.origin}/#${buildInvitePath(token)}`;
+};
 
 const Chat: React.FC = () => {
   const navigate = useNavigate();
@@ -203,6 +254,7 @@ const Chat: React.FC = () => {
   const [isRedPacketOpenCardOpen, setIsRedPacketOpenCardOpen] = useState(false);
   const [redPacketOpenCardId, setRedPacketOpenCardId] = useState(0);
   const [redPacketOpenCardSenderName, setRedPacketOpenCardSenderName] = useState('');
+  const [invitePreviews, setInvitePreviews] = useState<Record<string, InvitePreviewState>>({});
   const {
     ready,
     connected,
@@ -258,6 +310,20 @@ const Chat: React.FC = () => {
     if (!redPacketOpenCardId) return null;
     return messages.find(item => item.type === 'redpacket' && item.redPacketId === redPacketOpenCardId) || null;
   }, [messages, redPacketOpenCardId]);
+
+  const inviteTokensInMessages = useMemo(() => {
+    const tokenSet = new Set<string>();
+    messages.forEach((item) => {
+      if (item.type !== 'text') return;
+      const segments = splitMessageTextSegments(item.text);
+      segments.forEach((segment) => {
+        if (segment.type !== 'link') return;
+        const token = extractInviteToken(segment.value);
+        if (token) tokenSet.add(token);
+      });
+    });
+    return Array.from(tokenSet);
+  }, [messages]);
 
   const formatMessageText = (msg: any) => {
     if (!msg) return '';
@@ -460,6 +526,78 @@ const Chat: React.FC = () => {
   const openMediaInNewTab = (url?: string) => {
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleMessageLinkClick = (event: React.MouseEvent, rawUrl: string) => {
+    event.stopPropagation();
+    const url = String(rawUrl || '').trim();
+    if (!url) return;
+    const inviteToken = extractInviteToken(url);
+    if (inviteToken) {
+      navigate(buildInvitePath(inviteToken));
+      return;
+    }
+    if (/^#\//.test(url)) {
+      navigate(`/${url.slice(2).replace(/^\/+/, '')}`);
+      return;
+    }
+    if (/^\/#\//.test(url)) {
+      navigate(`/${url.slice(3).replace(/^\/+/, '')}`);
+      return;
+    }
+    if (/^\/(?!\/)/.test(url)) {
+      openMediaInNewTab(`${window.location.origin}${url}`);
+      return;
+    }
+    openMediaInNewTab(url);
+  };
+
+  const copyInviteLink = async (event: React.MouseEvent, rawLink: string) => {
+    event.stopPropagation();
+    const shareUrl = buildInviteShareUrl(rawLink);
+    if (!shareUrl) {
+      window.alert('链接不可用');
+      return;
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = shareUrl;
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.focus();
+        area.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(area);
+        if (!ok) throw new Error('copy failed');
+      }
+      window.alert('邀请链接已复制，可转发给别人');
+    } catch {
+      window.alert('复制失败，请重试');
+    }
+  };
+
+  const getInvitePreviewText = (preview?: InvitePreviewState) => {
+    if (!preview) return '群邀请';
+    if (preview.loading) return '邀请信息加载中...';
+    if (preview.error) return '邀请信息加载失败';
+    const status = preview.data?.status || '';
+    if (status === 'valid') return '';
+    if (status === 'expired') return '邀请链接已过期';
+    if (status === 'revoked') return '邀请链接已失效';
+    if (status === 'forbidden') return '当前账号无权限加入';
+    return '邀请链接不可用';
+  };
+
+  const getInviteInviterText = (msg: ChatMessage) => {
+    if (msg.sender === 'me') return '你邀请对方加入';
+    const inviter = String(msg.senderName || '').trim()
+      || (isGroup ? '群成员' : String(friendDisplayName || '').trim() || '好友')
+      || '有人'
+    return `${inviter} 邀请你加入`
   };
 
   const releaseImagePreviewOwnedUrl = () => {
@@ -1177,8 +1315,41 @@ const Chat: React.FC = () => {
     setRedPacketOpenCardSenderName('');
     setRedPacketError('');
     setRedPacketPatches({});
+    setInvitePreviews({});
     redPacketLastSyncRef.current = {};
   }, [id]);
+
+  useEffect(() => {
+    if (inviteTokensInMessages.length === 0) return;
+    inviteTokensInMessages.forEach((token) => {
+      if (invitePreviews[token]?.loading || invitePreviews[token]?.data || invitePreviews[token]?.error) {
+        return;
+      }
+      setInvitePreviews(prev => ({
+        ...prev,
+        [token]: { loading: true }
+      }));
+      imApi.resolveGroupInviteLink(token)
+        .then((res) => {
+          setInvitePreviews(prev => ({
+            ...prev,
+            [token]: {
+              loading: false,
+              data: res
+            }
+          }));
+        })
+        .catch((err: any) => {
+          setInvitePreviews(prev => ({
+            ...prev,
+            [token]: {
+              loading: false,
+              error: err?.message || '解析失败'
+            }
+          }));
+        });
+    });
+  }, [invitePreviews, inviteTokensInMessages]);
 
   useEffect(() => {
     if (!showFriendMenu && !showFriendProfile) return;
@@ -2350,7 +2521,70 @@ const Chat: React.FC = () => {
                              : 'card-bg text-[var(--text-primary)] border border-theme rounded-tl-sm'
                           }`}
                         >
-                          {msg.text}
+                          <span className="whitespace-pre-wrap break-words">
+                            {splitMessageTextSegments(msg.text).map((segment, segmentIndex) => (
+                              segment.type === 'link' ? (() => {
+                                const inviteToken = extractInviteToken(segment.value);
+                                if (inviteToken) {
+                                  const preview = invitePreviews[inviteToken];
+                                  const groupName = preview?.data?.group?.groupName || '群邀请';
+                                  const summary = getInvitePreviewText(preview);
+                                  const inviterText = getInviteInviterText(msg);
+                                  const canCopy = preview?.data?.status === 'valid' || !preview?.data?.status;
+                                  return (
+                                    <button
+                                      key={`${msg.id}-invite-${segmentIndex}`}
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        navigate(buildInvitePath(inviteToken));
+                                      }}
+                                      className={`mt-1 mb-1 block w-full text-left rounded-xl border px-3 py-2 ${
+                                        msg.sender === 'me'
+                                          ? 'border-black/30 bg-black/10 text-black'
+                                          : 'border-sky-500/30 bg-sky-500/10 text-sky-200'
+                                      }`}
+                                    >
+                                      <div className="text-xs font-bold">{groupName}</div>
+                                      <div className={`text-[11px] mt-1 ${msg.sender === 'me' ? 'text-black/80' : 'text-sky-100/95'}`}>{inviterText}</div>
+                                      {summary && (
+                                        <div className={`text-[10px] mt-1 ${msg.sender === 'me' ? 'text-black/60' : 'text-sky-100/80'}`}>{summary}</div>
+                                      )}
+                                      {canCopy && (
+                                        <div className="mt-2">
+                                          <button
+                                            type="button"
+                                            onClick={(event) => copyInviteLink(event, segment.value)}
+                                            className={`text-[10px] px-2 py-1 rounded border ${
+                                              msg.sender === 'me'
+                                                ? 'border-black/30 text-black/80 bg-white/20'
+                                                : 'border-sky-200/30 text-sky-100 bg-sky-200/10'
+                                            }`}
+                                          >
+                                            复制邀请链接
+                                          </button>
+                                        </div>
+                                      )}
+                                    </button>
+                                  );
+                                }
+                                return (
+                                  <button
+                                    key={`${msg.id}-link-${segmentIndex}`}
+                                    type="button"
+                                    onClick={(event) => handleMessageLinkClick(event, segment.value)}
+                                    className={`inline underline underline-offset-2 cursor-pointer ${
+                                      msg.sender === 'me' ? 'text-black/90 font-semibold' : 'text-sky-400 hover:text-sky-300'
+                                    }`}
+                                  >
+                                    {segment.value}
+                                  </button>
+                                );
+                              })() : (
+                                <span key={`${msg.id}-text-${segmentIndex}`}>{segment.value}</span>
+                              )
+                            ))}
+                          </span>
                           <div className={`text-[9px] mt-1 text-right opacity-60 flex items-center justify-end gap-1 ${msg.sender === 'me' ? 'text-black' : 'text-slate-400'}`}>
                              {getMessageReadIndicator(msg) && (
                                <span className={getMessageReadIndicatorClass(msg)}>{getMessageReadIndicator(msg)}</span>

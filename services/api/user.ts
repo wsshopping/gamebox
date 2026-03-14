@@ -1,7 +1,15 @@
 import { request } from '../http'
 import type { User } from '../auth'
 
+export type UserProfile = {
+  account: string
+  agentInviteCode: string
+}
+
 export const userApi = {
+  getProfile: async (): Promise<UserProfile> => {
+    return request<UserProfile>('/portal/user/profile')
+  },
   updateTheme: async (theme: string): Promise<void> => {
     await request('/portal/user/theme', {
       method: 'PUT',

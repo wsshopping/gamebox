@@ -9,7 +9,8 @@ import type {
   AgentGameDepositItem,
   DepositReleaseRequestItem,
   PayoutAddressData,
-  PayoutQRCodeChannel
+  PayoutQRCodeChannel,
+  SuperSensitiveStatus
 } from '../services/api/agency';
 
 // --- Types ---
@@ -26,6 +27,7 @@ type AgencyStats = {
   withdrawable?: string;
   depositLocked?: string;
   depositDeficit?: string;
+  sensitiveMasked?: boolean;
 };
 
 type AgentGameRebate = {
@@ -265,16 +267,19 @@ const UserInfoCard = ({
   userId,
   showRegisterCount = true,
   showCreatable = true,
-  title = '代理中心'
+  title = '代理中心',
+  onUnlockSensitive
 }: {
   stats: AgencyStats | null;
   userId?: number;
   showRegisterCount?: boolean;
   showCreatable?: boolean;
   title?: string;
+  onUnlockSensitive?: () => void;
 }) => {
   const [copied, setCopied] = useState(false);
   if (!stats) return <div className="h-32 bg-slate-900 rounded-[24px] animate-pulse mb-6 border border-white/5"></div>;
+  const registerCountDisplay = stats.sensitiveMasked ? '--' : (stats.registerCount ?? 0);
 
   const copyInviteCode = async () => {
     if (!stats.code) return;
@@ -349,7 +354,16 @@ const UserInfoCard = ({
                 {showRegisterCount && (
                   <div className="flex items-center space-x-3">
                      <span className="text-xs text-slate-400">总注册数</span>
-                     <span className="text-base font-bold text-white">{stats.registerCount ?? 0}</span>
+                     <span className="text-base font-bold text-white">{registerCountDisplay}</span>
+                     {stats.sensitiveMasked && onUnlockSensitive && (
+                       <button
+                         type="button"
+                         onClick={onUnlockSensitive}
+                         className="text-[10px] text-amber-400 border border-amber-400/30 rounded-lg px-2 py-1"
+                       >
+                         验证查看
+                       </button>
+                     )}
                   </div>
                 )}
              </div>
@@ -3704,6 +3718,109 @@ const EmptyState = ({ title }: { title: string }) => (
    </div>
 );
 
+const SensitiveGuardCard = ({
+  title,
+  cooldownSeconds,
+  onVerify
+}: {
+  title: string;
+  cooldownSeconds: number;
+  onVerify: () => void;
+}) => (
+  <div className="card-bg rounded-[24px] p-6 border border-theme shadow-sm animate-fade-in-up">
+    <div className="flex items-center space-x-2 mb-3">
+      <div className="w-1 h-5 bg-accent-gradient rounded-full"></div>
+      <h3 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+    </div>
+    <div className="bg-[var(--bg-primary)] rounded-2xl border border-theme p-5">
+      <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>敏感信息已锁定</div>
+      <div className="text-xs text-slate-500 mt-2">
+        当前内容仅限超管完成二级密码校验后查看。
+        {cooldownSeconds > 0 ? ` 请约 ${cooldownSeconds} 秒后再试。` : ''}
+      </div>
+      <button
+        type="button"
+        onClick={onVerify}
+        className="mt-4 px-4 py-2 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] text-sm font-bold"
+      >
+        输入二级密码
+      </button>
+    </div>
+  </div>
+);
+
+const SuperSensitiveVerifyModal = ({
+  open,
+  password,
+  busy,
+  cooldownSeconds,
+  error,
+  onChange,
+  onClose,
+  onSubmit
+}: {
+  open: boolean;
+  password: string;
+  busy: boolean;
+  cooldownSeconds: number;
+  error: string;
+  onChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div className="card-bg rounded-2xl border border-theme p-5 w-full max-w-md">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>超管敏感信息校验</h4>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="text-slate-400 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">请输入当前超管账号自己的二级密码后查看敏感信息。</p>
+        <input
+          value={password}
+          onChange={(e) => onChange(e.target.value)}
+          type="password"
+          autoFocus
+          placeholder="请输入二级密码"
+          className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-sm text-[var(--text-primary)]"
+        />
+        {cooldownSeconds > 0 && (
+          <div className="mt-3 text-xs text-amber-400">尝试过多，请稍后重试（约 {cooldownSeconds} 秒）。</div>
+        )}
+        {error && (
+          <div className="mt-3 text-xs text-rose-400">{error}</div>
+        )}
+        <div className="flex items-center space-x-2 mt-4">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={busy || !password.trim()}
+            className="flex-1 py-2 rounded-xl bg-[var(--text-primary)] text-[var(--bg-primary)] text-sm font-bold disabled:opacity-50"
+          >
+            {busy ? '校验中...' : '校验并查看'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="px-4 py-2 rounded-xl border border-theme text-xs font-bold text-slate-400 disabled:opacity-50"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const BossCenter: React.FC = () => {
   const [overview, setOverview] = useState<BossOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -3942,8 +4059,15 @@ const BossCenter: React.FC = () => {
 const Agency: React.FC = () => {
   const { user } = useAuth();
   const roleId = Number(user?.role?.id || user?.roleId || 0);
+  const isSuperAdmin = roleId === ROLE_SUPER_ADMIN;
   const [activeTab, setActiveTab] = useState<TabMode>('结算中心');
   const [stats, setStats] = useState<AgencyStats | null>(null);
+  const [sensitiveStatus, setSensitiveStatus] = useState<SuperSensitiveStatus>({ verified: false, cooldownSeconds: 0 });
+  const [sensitiveStatusLoading, setSensitiveStatusLoading] = useState(false);
+  const [showSensitiveModal, setShowSensitiveModal] = useState(false);
+  const [secondPassword, setSecondPassword] = useState('');
+  const [sensitiveBusy, setSensitiveBusy] = useState(false);
+  const [sensitiveError, setSensitiveError] = useState('');
   const roleOptions = ROLE_OPTIONS[user?.role?.id || user?.roleId || 0] || [];
 
   if (roleId === ROLE_BOSS) {
@@ -3969,15 +4093,106 @@ const Agency: React.FC = () => {
     }
   };
 
+  const loadSensitiveStatus = async () => {
+    if (!isSuperAdmin) return;
+    setSensitiveStatusLoading(true);
+    try {
+      const data = await api.agency.getSuperSensitiveStatus();
+      setSensitiveStatus({
+        verified: Boolean(data.verified),
+        verifiedUntil: data.verifiedUntil,
+        cooldownSeconds: Number(data.cooldownSeconds || 0)
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSensitiveStatusLoading(false);
+    }
+  };
+
+  const openSensitiveModal = () => {
+    setSensitiveError('');
+    setSecondPassword('');
+    setShowSensitiveModal(true);
+  };
+
+  const closeSensitiveModal = () => {
+    if (sensitiveBusy) return;
+    setShowSensitiveModal(false);
+    setSensitiveError('');
+    setSecondPassword('');
+  };
+
+  const handleVerifySensitive = async () => {
+    setSensitiveBusy(true);
+    setSensitiveError('');
+    try {
+      const data = await api.agency.verifySuperSensitive(secondPassword.trim());
+      setSensitiveStatus({
+        verified: Boolean(data.verified),
+        verifiedUntil: data.verifiedUntil,
+        cooldownSeconds: Number(data.cooldownSeconds || 0)
+      });
+      setShowSensitiveModal(false);
+      setSecondPassword('');
+      await loadStats();
+    } catch (err: any) {
+      setSensitiveError(err?.message || '二级密码校验失败');
+      await loadSensitiveStatus();
+    } finally {
+      setSensitiveBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    loadSensitiveStatus();
+  }, [isSuperAdmin]);
+
   useEffect(() => {
     loadStats();
   }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin || Number(sensitiveStatus.cooldownSeconds || 0) <= 0) return;
+    const timer = window.setInterval(() => {
+      setSensitiveStatus((prev) => ({
+        ...prev,
+        cooldownSeconds: Math.max(Number(prev.cooldownSeconds || 0) - 1, 0)
+      }));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isSuperAdmin, sensitiveStatus.cooldownSeconds]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !sensitiveStatus.verified || !sensitiveStatus.verifiedUntil) return;
+    const expiresAt = new Date(sensitiveStatus.verifiedUntil).getTime();
+    if (Number.isNaN(expiresAt)) return;
+    const delay = expiresAt - Date.now();
+    if (delay <= 0) {
+      setSensitiveStatus((prev) => ({ ...prev, verified: false, verifiedUntil: undefined }));
+      loadStats();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSensitiveStatus((prev) => ({ ...prev, verified: false, verifiedUntil: undefined }));
+      loadStats();
+    }, delay + 500);
+    return () => window.clearTimeout(timer);
+  }, [isSuperAdmin, sensitiveStatus.verified, sensitiveStatus.verifiedUntil]);
+
+  const isSensitiveTab = activeTab === '业绩详情' || activeTab === '结算中心';
+  const showSensitiveLock = isSuperAdmin && isSensitiveTab && !sensitiveStatus.verified;
 
   return (
     <div className="flex flex-col min-h-full app-bg pb-24 transition-colors duration-500">
        {/* Content Padding */}
        <div className="px-5 pt-6">
-          <UserInfoCard stats={stats} userId={user?.ID} />
+          <UserInfoCard
+            stats={stats}
+            userId={user?.ID}
+            onUnlockSensitive={isSuperAdmin && stats?.sensitiveMasked ? openSensitiveModal : undefined}
+          />
           
           {/* Dashboard Grid Menu - Premium Black/Gold Style */}
           <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme mb-6">
@@ -3985,7 +4200,12 @@ const Agency: React.FC = () => {
                   {menuItems.map((item) => (
                       <button 
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          if (isSuperAdmin && (item.id === '业绩详情' || item.id === '结算中心') && !sensitiveStatus.verified) {
+                            openSensitiveModal();
+                          }
+                        }}
                         className={`flex flex-col items-center group transition-all duration-300 relative`}
                       >
                           {/* Icon Container */}
@@ -4019,11 +4239,43 @@ const Agency: React.FC = () => {
             )}
              {activeTab === '玩家列表' && <PlayerList />}
              {activeTab === '订单查询' && <OrderQuery />}
-             {activeTab === '业绩详情' && <PerformanceDetail />}
-             {activeTab === '结算中心' && <SettlementCenter stats={stats} onRefreshStats={loadStats} />}
+             {activeTab === '业绩详情' && (
+               showSensitiveLock ? (
+                 <SensitiveGuardCard
+                   title="业绩详情"
+                   cooldownSeconds={Number(sensitiveStatus.cooldownSeconds || 0)}
+                   onVerify={openSensitiveModal}
+                 />
+               ) : (
+                 <PerformanceDetail />
+               )
+             )}
+             {activeTab === '结算中心' && (
+               showSensitiveLock ? (
+                 <SensitiveGuardCard
+                   title="结算中心"
+                   cooldownSeconds={Number(sensitiveStatus.cooldownSeconds || 0)}
+                   onVerify={openSensitiveModal}
+                 />
+               ) : (
+                 <SettlementCenter stats={stats} onRefreshStats={loadStats} />
+               )
+             )}
              {activeTab === '手游排序' && <GameSort />}
           </div>
        </div>
+       {isSuperAdmin && !sensitiveStatusLoading && (
+         <SuperSensitiveVerifyModal
+           open={showSensitiveModal}
+           password={secondPassword}
+           busy={sensitiveBusy}
+           cooldownSeconds={Number(sensitiveStatus.cooldownSeconds || 0)}
+           error={sensitiveError}
+           onChange={setSecondPassword}
+           onClose={closeSensitiveModal}
+           onSubmit={handleVerifySensitive}
+         />
+       )}
     </div>
   );
 };

@@ -183,7 +183,7 @@ const Social: React.FC = () => {
 
   return (
     <div className="app-bg min-h-full pt-[calc(5rem+env(safe-area-inset-top))] flex flex-col transition-colors duration-500">
-      <div className="glass-bg fixed top-0 left-0 w-full z-40 border-b border-theme pt-[calc(1rem+env(safe-area-inset-top))] pb-3 transition-colors duration-500">
+      <div className="glass-bg fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 border-b border-theme pt-[calc(1rem+env(safe-area-inset-top))] pb-3 transition-colors duration-500">
         <div className="px-4">
           <div className="relative flex w-full bg-[var(--bg-primary)] p-1 rounded-2xl border border-theme shadow-lg shadow-black/5">
             <div

@@ -56,6 +56,22 @@ const GroupDetail: React.FC = () => {
   const [memberActionSuccess, setMemberActionSuccess] = useState('');
   const [isMemberLoading, setIsMemberLoading] = useState(false);
   const [isMemberRequesting, setIsMemberRequesting] = useState(false);
+  const [showInviteSheet, setShowInviteSheet] = useState(false);
+  const [inviteLinks, setInviteLinks] = useState<Array<{
+    inviteId: number;
+    groupId: string;
+    status: string;
+    expireAt: number;
+    createdAt: number;
+    creatorUserId: number;
+    inviteToken: string;
+    invitePath: string;
+  }>>([]);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteCopySuccess, setInviteCopySuccess] = useState('');
+  const [inviteCreating, setInviteCreating] = useState(false);
+  const [inviteRevokingId, setInviteRevokingId] = useState<number | null>(null);
   const { user } = useAuth();
 
   const isJoined = useMemo(() => {
@@ -77,6 +93,7 @@ const GroupDetail: React.FC = () => {
 
   const canRename = isOwner || isAdmin;
   const canManageMemberActions = isOwner || isAdmin;
+  const canManageInvites = isOwner || isAdmin;
   const autoDeleteLabel = useMemo(() => {
     const found = AUTO_DELETE_OPTIONS.find(item => item.value === autoDeleteSeconds);
     return found?.label || '关闭';
@@ -311,6 +328,115 @@ const GroupDetail: React.FC = () => {
       setMemberActionError(err?.message || '发送失败');
     } finally {
       setIsMemberRequesting(false);
+    }
+  };
+
+  const formatInviteStatusText = (status: string, expireAt: number) => {
+    if (status === 'revoked') return '已撤销';
+    if (status === 'expired') return '已过期';
+    if (status === 'active' && expireAt > 0 && Date.now() > expireAt) return '已过期';
+    return '有效';
+  };
+
+  const buildInviteFullUrl = (item: { invitePath?: string; inviteToken?: string }) => {
+    const path = String(item?.invitePath || '').trim() || (item?.inviteToken ? `/#/group/invite/${item.inviteToken}` : '');
+    if (!path) return '';
+    if (typeof window === 'undefined') return path;
+    const base = window.location.href.split('#')[0] || window.location.origin;
+    return `${base.replace(/\/$/, '')}${path}`;
+  };
+
+  const copyText = async (text: string) => {
+    if (!text) return false;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(area);
+    return ok;
+  };
+
+  const loadInviteLinks = async () => {
+    if (!id || !canManageInvites) return;
+    setInviteLoading(true);
+    setInviteError('');
+    try {
+      const list = await api.im.listGroupInviteLinks(id);
+      setInviteLinks(list || []);
+    } catch (err: any) {
+      setInviteError(err?.message || '邀请链接加载失败');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleOpenInviteSheet = () => {
+    setShowActions(false);
+    setInviteError('');
+    setInviteCopySuccess('');
+    setShowInviteSheet(true);
+    loadInviteLinks().catch(() => null);
+  };
+
+  const handleCreateInviteLink = async () => {
+    if (!id || !canManageInvites || inviteCreating) return;
+    setInviteCreating(true);
+    setInviteError('');
+    setInviteCopySuccess('');
+    try {
+      const created = await api.im.createGroupInviteLink({ groupId: id });
+      setInviteLinks(prev => [created, ...prev]);
+      setInviteCopySuccess('创建成功，可复制发送');
+    } catch (err: any) {
+      setInviteError(err?.message || '创建失败');
+    } finally {
+      setInviteCreating(false);
+    }
+  };
+
+  const handleCopyInviteLink = async (item: { invitePath: string; inviteToken: string }) => {
+    setInviteError('');
+    setInviteCopySuccess('');
+    try {
+      const url = buildInviteFullUrl(item);
+      if (!url) {
+        setInviteError('链接不可用');
+        return;
+      }
+      const ok = await copyText(url);
+      if (!ok) {
+        setInviteError('复制失败，请手动复制');
+        return;
+      }
+      setInviteCopySuccess('邀请链接已复制');
+    } catch (err: any) {
+      setInviteError(err?.message || '复制失败');
+    }
+  };
+
+  const handleRevokeInviteLink = async (inviteId: number) => {
+    if (!canManageInvites || inviteRevokingId === inviteId) return;
+    setInviteRevokingId(inviteId);
+    setInviteError('');
+    setInviteCopySuccess('');
+    try {
+      await api.im.revokeGroupInviteLink({ inviteId });
+      setInviteLinks(prev => prev.map(item => (
+        item.inviteId === inviteId ? { ...item, status: 'revoked', invitePath: '' } : item
+      )));
+      setInviteCopySuccess('邀请链接已撤销');
+    } catch (err: any) {
+      setInviteError(err?.message || '撤销失败');
+    } finally {
+      setInviteRevokingId(null);
     }
   };
 
@@ -562,7 +688,19 @@ const GroupDetail: React.FC = () => {
 	       {showActions && (
          <>
            <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)}></div>
-	           <div className="fixed top-16 right-4 z-50 card-bg border border-theme rounded-xl shadow-xl overflow-hidden w-40">
+	           <div className="fixed top-16 right-4 z-50 card-bg border border-theme rounded-xl shadow-xl overflow-hidden w-44">
+	             {canManageInvites && (
+	               <>
+	                 <button
+	                   onClick={handleOpenInviteSheet}
+	                   className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
+	                   style={{ color: 'var(--text-primary)' }}
+	                 >
+	                   邀请链接管理
+	                 </button>
+	                 <div className="h-px bg-white/5 mx-2"></div>
+	               </>
+	             )}
 	             <button
 	               onClick={() => {
 	                 setShowActions(false);
@@ -591,6 +729,106 @@ const GroupDetail: React.FC = () => {
 	             </button>
 	           </div>
 	         </>
+	       )}
+
+	       {showInviteSheet && (
+	         <div className="fixed inset-0 z-[68] flex items-end sm:items-center justify-center">
+	           <div
+	             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+	             onClick={() => !inviteLoading && !inviteCreating && setShowInviteSheet(false)}
+	           ></div>
+	           <div className="relative w-full sm:max-w-md card-bg rounded-t-2xl sm:rounded-2xl border border-theme shadow-2xl animate-fade-in-up">
+	             <div className="p-5 border-b border-theme flex items-center justify-between">
+	               <div>
+	                 <h3 className="text-sm font-semibold text-[var(--text-primary)]">邀请链接管理</h3>
+	                 <p className="text-xs text-slate-500 mt-1">默认有效期 7 天</p>
+	               </div>
+	               <button
+	                 onClick={() => setShowInviteSheet(false)}
+	                 disabled={inviteLoading || inviteCreating}
+	                 className="text-slate-500 hover:text-slate-300 p-1 disabled:opacity-60"
+	                 aria-label="关闭"
+	               >
+	                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+	                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+	                 </svg>
+	               </button>
+	             </div>
+
+	             <div className="p-4 border-b border-theme">
+	               <button
+	                 onClick={handleCreateInviteLink}
+	                 disabled={inviteCreating || inviteLoading}
+	                 className={`w-full py-3 rounded-xl text-black font-bold bg-accent-gradient ${inviteCreating || inviteLoading ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+	               >
+	                 {inviteCreating ? '创建中...' : '创建新链接'}
+	               </button>
+	             </div>
+
+	             {(inviteError || inviteCopySuccess) && (
+	               <div className="px-4 pt-4 space-y-2">
+	                 {inviteError && (
+	                   <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+	                     {inviteError}
+	                   </div>
+	                 )}
+	                 {inviteCopySuccess && (
+	                   <div className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+	                     {inviteCopySuccess}
+	                   </div>
+	                 )}
+	               </div>
+	             )}
+
+	             <div className="max-h-[55vh] overflow-y-auto p-4 space-y-3">
+	               {inviteLoading ? (
+	                 <div className="space-y-2">
+	                   {[1, 2, 3].map(n => (
+	                     <div key={n} className="h-16 rounded-xl bg-[var(--bg-primary)] animate-pulse"></div>
+	                   ))}
+	                 </div>
+	               ) : inviteLinks.length > 0 ? (
+	                 inviteLinks.map(item => {
+	                   const statusText = formatInviteStatusText(item.status, item.expireAt);
+	                   const createdText = item.createdAt ? new Date(item.createdAt).toLocaleString() : '--';
+	                   const expireText = item.expireAt ? new Date(item.expireAt).toLocaleString() : '--';
+	                   const canCopy = item.status === 'active' && item.expireAt > Date.now();
+	                   const canRevoke = item.status === 'active' && inviteRevokingId !== item.inviteId;
+	                   return (
+	                     <div key={item.inviteId} className="rounded-xl border border-theme bg-[var(--bg-primary)] p-3">
+	                       <div className="flex items-center justify-between">
+	                         <div className="text-xs font-bold text-[var(--text-primary)]">#{item.inviteId}</div>
+	                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusText === '有效' ? 'text-emerald-300 bg-emerald-500/10 border border-emerald-500/20' : 'text-slate-400 bg-white/5 border border-theme'}`}>
+	                           {statusText}
+	                         </span>
+	                       </div>
+	                       <div className="text-[10px] text-slate-500 mt-2">创建时间: {createdText}</div>
+	                       <div className="text-[10px] text-slate-500 mt-1">过期时间: {expireText}</div>
+	                       <div className="grid grid-cols-2 gap-2 mt-3">
+	                         <button
+	                           onClick={() => handleCopyInviteLink(item)}
+	                           disabled={!canCopy}
+	                           className={`py-2 rounded-lg border border-theme text-xs ${canCopy ? 'text-[var(--text-primary)] hover:bg-white/5' : 'text-slate-500 cursor-not-allowed opacity-60'}`}
+	                         >
+	                           复制链接
+	                         </button>
+	                         <button
+	                           onClick={() => handleRevokeInviteLink(item.inviteId)}
+	                           disabled={!canRevoke}
+	                           className={`py-2 rounded-lg text-xs font-bold ${canRevoke ? 'bg-rose-500/90 text-white active:scale-95 transition-transform' : 'bg-white/5 text-slate-500 cursor-not-allowed'}`}
+	                         >
+	                           {inviteRevokingId === item.inviteId ? '撤销中...' : '撤销'}
+	                         </button>
+	                       </div>
+	                     </div>
+	                   );
+	                 })
+	               ) : (
+	                 <div className="text-sm text-slate-500 text-center py-8">暂无邀请链接</div>
+	               )}
+	             </div>
+	           </div>
+	         </div>
 	       )}
 
 	       {showAutoDeleteSheet && (

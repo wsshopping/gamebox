@@ -57,6 +57,50 @@ export interface IMGroupRenameResponse {
   groupName: string
 }
 
+export interface IMGroupInviteCreateRequest {
+  groupId: string
+}
+
+export interface IMGroupInviteRevokeRequest {
+  inviteId: number
+}
+
+export interface IMGroupInviteLinkItem {
+  inviteId: number
+  groupId: string
+  status: 'active' | 'revoked' | 'expired'
+  expireAt: number
+  createdAt: number
+  creatorUserId: number
+  inviteToken: string
+  invitePath: string
+}
+
+export interface IMGroupInviteResolveGroup {
+  groupId: string
+  groupName: string
+  groupPortrait: string
+  category: string
+  desc: string
+  tags: string[]
+  memberCount: number
+}
+
+export interface IMGroupInviteResolveResponse {
+  status: 'valid' | 'expired' | 'revoked' | 'forbidden' | 'not_found'
+  message: string
+  alreadyJoined: boolean
+  group: IMGroupInviteResolveGroup
+}
+
+export interface IMGroupInviteJoinRequest {
+  token: string
+}
+
+export interface IMGroupInviteJoinResponse {
+  groupId: string
+}
+
 export interface IMAutoDeletePolicyPayload {
   conversationType: number
   conversationId: string
@@ -188,6 +232,31 @@ export const imApi = {
   },
   updateGroupName: async (payload: IMGroupRenameRequest): Promise<IMGroupRenameResponse> => {
     return request<IMGroupRenameResponse>('/portal/im/groups/name', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  createGroupInviteLink: async (payload: IMGroupInviteCreateRequest): Promise<IMGroupInviteLinkItem> => {
+    return request<IMGroupInviteLinkItem>('/portal/im/groups/invite-links', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  listGroupInviteLinks: async (groupId: string): Promise<IMGroupInviteLinkItem[]> => {
+    return request<IMGroupInviteLinkItem[]>(`/portal/im/groups/invite-links?groupId=${encodeURIComponent(groupId)}`)
+  },
+  revokeGroupInviteLink: async (payload: IMGroupInviteRevokeRequest): Promise<boolean> => {
+    await request('/portal/im/groups/invite-links/revoke', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    return true
+  },
+  resolveGroupInviteLink: async (token: string): Promise<IMGroupInviteResolveResponse> => {
+    return request<IMGroupInviteResolveResponse>(`/portal/im/groups/invite-links/resolve?token=${encodeURIComponent(token)}`)
+  },
+  joinGroupByInviteLink: async (payload: IMGroupInviteJoinRequest): Promise<IMGroupInviteJoinResponse> => {
+    return request<IMGroupInviteJoinResponse>('/portal/im/groups/invite-links/join', {
       method: 'POST',
       body: JSON.stringify(payload)
     })

@@ -52,6 +52,12 @@ export type DepositReleaseRequestItem = {
 
 export type PayoutQRCodeChannel = 'alipay' | 'wechat'
 
+export type SuperSensitiveStatus = {
+  verified: boolean
+  verifiedUntil?: string
+  cooldownSeconds?: number
+}
+
 const buildQuery = (params?: Record<string, string | number | undefined>) => {
   if (!params) return ''
   const search = new URLSearchParams()
@@ -87,6 +93,15 @@ export const agencyApi = {
   disableSuper2FA: async () => {
     return request('/portal/agency/super/2fa/disable', {
       method: 'POST'
+    })
+  },
+  getSuperSensitiveStatus: async () => {
+    return request<SuperSensitiveStatus>('/portal/agency/super/sensitive/status')
+  },
+  verifySuperSensitive: async (secondPassword: string) => {
+    return request<SuperSensitiveStatus>('/portal/agency/super/sensitive/verify', {
+      method: 'POST',
+      body: JSON.stringify({ secondPassword })
     })
   },
   getStats: async () => {

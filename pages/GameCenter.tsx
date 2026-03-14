@@ -15,7 +15,7 @@ const GameCenter: React.FC = () => {
     const fetchGames = async () => {
       setIsLoading(true);
       try {
-        const filter = activeTab === 'server' ? 'all' : activeTab;
+        const filter = activeTab;
         const data = await api.game.getList(filter);
         setGames(data);
       } catch (e) {

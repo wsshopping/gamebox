@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { IMConversationType, IMMessageType } from '../services/im/client';
 import { friendApi, FriendItem, FriendProfile, FriendRequestItem } from '../services/api/friend';
 import { imApi } from '../services/api/im';
+import { extractInviteToken } from '../services/inviteLink';
 
 type ChatItem = {
   id: string;
@@ -367,6 +368,12 @@ const GroupDiscover: React.FC = () => {
     const trimmed = searchKeyword.trim();
     if (!trimmed) {
       setSearchError('请输入群ID');
+      return;
+    }
+    const inviteToken = extractInviteToken(trimmed);
+    if (inviteToken) {
+      setShowSearchModal(false);
+      navigate(`/group/invite/${encodeURIComponent(inviteToken)}`);
       return;
     }
     setIsSearching(true);
@@ -1126,7 +1133,7 @@ const GroupDiscover: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">群组 ID</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">群组 ID / 邀请链接</label>
                 <input
                   type="text"
                   value={searchKeyword}
@@ -1134,7 +1141,7 @@ const GroupDiscover: React.FC = () => {
                     setSearchKeyword(e.target.value);
                     setSearchError('');
                   }}
-                  placeholder="请输入群组 ID"
+                  placeholder="输入群组ID，或直接粘贴邀请链接"
                   className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3.5 text-sm outline-none text-[var(--text-primary)] focus:border-accent/50 transition-colors"
                   autoFocus
                 />

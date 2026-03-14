@@ -22,6 +22,11 @@ const APP_VERSION_LABEL = (() => {
   return String(__APP_VERSION__).slice(0, 12);
 })();
 
+type UserProfileSummary = {
+  account: string;
+  agentInviteCode: string;
+};
+
 const PLAYER_MUSIC_PLAYLIST = [
   {
     id: 'm1',
@@ -237,6 +242,22 @@ const AvatarModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, o
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const next = e.target.files?.[0] || null;
     setError('');
+    if (next) {
+      const maxSize = 5 * 1024 * 1024;
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(next.type)) {
+        setError('仅支持 JPG / PNG / WEBP');
+        e.target.value = '';
+        setFile(null);
+        return;
+      }
+      if (next.size > maxSize) {
+        setError('头像图片不能超过 5MB');
+        e.target.value = '';
+        setFile(null);
+        return;
+      }
+    }
     setFile(next);
   };
 
@@ -499,9 +520,14 @@ const UserCenterMain: React.FC<{
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
+  const isPlayer = user?.roleId === 6;
   const [activeModal, setActiveModal] = useState<UserCenterModal>(initialModal);
   const [musicOpen, setMusicOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(initialVideoOpen);
+  const [profile, setProfile] = useState<UserProfileSummary>({
+    account: user?.phone || '',
+    agentInviteCode: user?.inviteCode || ''
+  });
 
   useEffect(() => {
     setActiveModal(initialModal);
@@ -528,6 +554,37 @@ const UserCenterMain: React.FC<{
       active = false;
     };
   }, [user?.ID]);
+
+  useEffect(() => {
+    if (!user?.ID) {
+      return;
+    }
+
+    let active = true;
+    userApi.getProfile()
+      .then((data) => {
+        if (!active) {
+          return;
+        }
+        setProfile({
+          account: data.account || user.phone || '',
+          agentInviteCode: data.agentInviteCode || ''
+        });
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setProfile({
+          account: user.phone || '',
+          agentInviteCode: user.inviteCode || ''
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.ID, user?.inviteCode, user?.phone]);
 
   const handleLogout = async () => {
     await logout();
@@ -572,10 +629,13 @@ const UserCenterMain: React.FC<{
   const settingsItems = [
     { id: 'avatar', name: '修改头像', icon: '🖼️', action: () => setActiveModal('avatar') },
     { id: 'username', name: '修改用户名', icon: '✏️', action: () => setActiveModal('username') },
-    { id: 'password', name: '修改密码', icon: '🔒', action: () => setActiveModal('password') },
+    { id: 'guide', name: '使用说明', icon: '📘', path: '/guide' },
     { id: 'realname', name: '实名认证', icon: '🆔', path: '/user/realname' },
     { id: 'feedback', name: '客服帮助', icon: '🎧', path: '/user/feedback' }
   ];
+  if (!isPlayer) {
+    settingsItems.splice(2, 0, { id: 'password', name: '修改密码', icon: '🔒', action: () => setActiveModal('password') });
+  }
 
   return (
     <div className="app-bg min-h-full transition-colors duration-500">
@@ -670,6 +730,20 @@ const UserCenterMain: React.FC<{
          <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Player Hub</h4>
             <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme">
+              <div className="grid grid-cols-1 gap-3 mb-4">
+                <div className="rounded-2xl border border-theme bg-[var(--bg-primary)] px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">我的账号</div>
+                  <div className="mt-1 text-sm font-bold break-all" style={{ color: 'var(--text-primary)' }}>
+                    {profile.account || user.phone || '--'}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-theme bg-[var(--bg-primary)] px-4 py-3">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">所属代理码</div>
+                  <div className="mt-1 text-sm font-bold break-all" style={{ color: 'var(--text-primary)' }}>
+                    {profile.agentInviteCode || '--'}
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 {[
                   { name: '听音乐', icon: '🎵', desc: '开源播放器 · 随机播放', action: () => setMusicOpen(true) },
@@ -748,7 +822,7 @@ const UserCenterMain: React.FC<{
 
       <AvatarModal open={activeModal === 'avatar'} onClose={handleModalClose} />
       <UsernameModal open={activeModal === 'username'} onClose={handleModalClose} />
-      <PasswordModal open={activeModal === 'password'} onClose={handleModalClose} />
+      <PasswordModal open={!isPlayer && activeModal === 'password'} onClose={handleModalClose} />
       <PlayerMusicModal open={musicOpen} onClose={() => setMusicOpen(false)} />
       <PlayerVideoModal open={videoOpen} onClose={handleVideoClose} />
     </div>
@@ -782,6 +856,7 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
+  const isPlayer = user.roleId === 6;
   let content: React.ReactNode = <UserSubPage title="功能开发中" type="default" />;
 
   if (normalizedPath === '/user') {
@@ -801,7 +876,9 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
   } else if (normalizedPath === '/user/username') {
     content = <UserCenterMain initialModal="username" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/password') {
-    content = <UserCenterMain initialModal="password" onModalClose={() => navigate('/user')} />;
+    content = isPlayer
+      ? <UserCenterMain showVersionBadge />
+      : <UserCenterMain initialModal="password" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/feedback') {
     content = <UserSubPage title="反馈" type="default" />;
   }
