@@ -57,8 +57,52 @@ export interface IMGroupRenameResponse {
   groupName: string
 }
 
+export interface IMGroupAdminSetRequest {
+  groupId: string
+  memberId: string
+  isAdmin: boolean
+}
+
+export interface IMGroupAdminSetResponse {
+  groupId: string
+  memberId: string
+  isAdmin: boolean
+  adminIds: string[]
+}
+
+export interface IMGroupMemberKickRequest {
+  groupId: string
+  memberId: string
+}
+
+export interface IMGroupMemberKickResponse {
+  groupId: string
+  memberId: string
+}
+
+export interface IMGroupMuteSetRequest {
+  groupId: string
+  isMute: boolean
+}
+
+export interface IMGroupMuteSetResponse {
+  groupId: string
+  isMute: boolean
+}
+
+export interface IMGroupAvatarSetRequest {
+  groupId: string
+  groupPortrait: string
+}
+
+export interface IMGroupAvatarSetResponse {
+  groupId: string
+  groupPortrait: string
+}
+
 export interface IMGroupInviteCreateRequest {
   groupId: string
+  expireDays?: number
 }
 
 export interface IMGroupInviteRevokeRequest {
@@ -232,6 +276,30 @@ export const imApi = {
   },
   updateGroupName: async (payload: IMGroupRenameRequest): Promise<IMGroupRenameResponse> => {
     return request<IMGroupRenameResponse>('/portal/im/groups/name', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  setGroupAdmin: async (payload: IMGroupAdminSetRequest): Promise<IMGroupAdminSetResponse> => {
+    return request<IMGroupAdminSetResponse>('/portal/im/groups/admin', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  kickGroupMember: async (payload: IMGroupMemberKickRequest): Promise<IMGroupMemberKickResponse> => {
+    return request<IMGroupMemberKickResponse>('/portal/im/groups/kick', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  setGroupMute: async (payload: IMGroupMuteSetRequest): Promise<IMGroupMuteSetResponse> => {
+    return request<IMGroupMuteSetResponse>('/portal/im/groups/mute', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+  },
+  updateGroupAvatar: async (payload: IMGroupAvatarSetRequest): Promise<IMGroupAvatarSetResponse> => {
+    return request<IMGroupAvatarSetResponse>('/portal/im/groups/avatar', {
       method: 'POST',
       body: JSON.stringify(payload)
     })

@@ -18,8 +18,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import GameDetail from './pages/GameDetail';
 import Search from './pages/Search';
-import MessageList from './pages/MessageList';
-import Social from './pages/Social';
 import Chat from './pages/Chat';
 import GroupDetail from './pages/GroupDetail';
 import GroupInvite from './pages/GroupInvite';
@@ -28,6 +26,7 @@ import Rank from './pages/Rank';
 import Feedback from './pages/Feedback';
 import Guide from './pages/Guide';
 import BottomNav from './components/BottomNav';
+import { bindTelegramBackButton, isTelegramWebApp } from './services/telegram';
 const LazyAIAssistant = React.lazy(() => import('./components/AIAssistant'));
 const VERSION_CHECK_INTERVAL_MS = 60 * 1000;
 const GUIDE_WELCOME_VERSION = 'v1';
@@ -46,7 +45,7 @@ const fetchRemoteBuildVersion = async () => {
 const tabRoutes = [
   { path: '/', element: <Home /> },
   { path: '/game', element: <GameCenter /> },
-  { path: '/social', element: <Social /> },
+  { path: '/social', element: <GroupDiscover /> },
   { path: '/screen-welfare', element: <Welfare /> },
   { path: '/user', element: <UserCenter /> }
 ];
@@ -87,9 +86,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [showGuideWelcome, setShowGuideWelcome] = useState(false);
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
-  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center', '/trade/', '/guide'];
+  const hideNavPaths = ['/login', '/register', '/game/detail', '/search', '/chat', '/group/', '/newrank', '/user/feedback', '/chat/center', '/trade/', '/guide', '/social'];
   const showNav = !hideNavPaths.some(path => location.pathname.startsWith(path));
   const isAuthPage = location.pathname.startsWith('/login') || location.pathname.startsWith('/register');
+  const isTabRoute = tabPathSet.has(location.pathname);
   const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
   const canViewAgentGuide = [1, 2, 3, 4, 5, 7].includes(roleId);
 
@@ -134,10 +134,27 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     const html = document.documentElement;
     html.classList.toggle('portal-pc-compact', !isAuthPage);
+    html.classList.toggle('portal-tg-webapp', isTelegramWebApp());
     return () => {
       html.classList.remove('portal-pc-compact');
+      html.classList.remove('portal-tg-webapp');
     };
   }, [isAuthPage]);
+
+  useEffect(() => {
+    if (!isTelegramWebApp()) {
+      return;
+    }
+
+    const shouldShowBackButton = !isAuthPage && !isTabRoute;
+    return bindTelegramBackButton(shouldShowBackButton, () => {
+      if (window.history.length > 1) {
+        navigate(-1);
+        return;
+      }
+      navigate('/', { replace: true });
+    });
+  }, [isAuthPage, isTabRoute, navigate, location.key]);
 
   useEffect(() => {
     if (import.meta.env.DEV) return;
@@ -189,7 +206,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     // Updated: Use text-[var(--text-primary)] instead of text-slate-100 for global text color adaptation
-    <div className="flex flex-col h-[100dvh] w-full app-bg overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500 lg:max-w-md lg:mx-auto lg:border-x lg:border-theme">
+    <div className="flex flex-col h-[var(--tg-viewport-height)] w-full app-bg overflow-hidden relative text-[var(--text-primary)] font-sans transition-colors duration-500 lg:max-w-md lg:mx-auto lg:border-x lg:border-theme">
       {hasNewVersion && (
         <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[9999] card-bg border border-amber-500/30 shadow-lg rounded-xl px-3 py-2 flex items-center gap-2 text-xs">
           <span className="text-amber-400 font-semibold">检测到新版本</span>
@@ -282,11 +299,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/trade/my" element={<TradeMyListings />} />
           <Route path="/trade/orders" element={<TradeOrders />} />
           <Route path="/trade/:id" element={<TradeDetail />} />
-          <Route path="/message/list" element={<MessageList />} />
+          <Route path="/message/list" element={<Navigate to="/social" replace />} />
           <Route path="/screen-trade" element={<Navigate to="/social" replace />} />
 
           {/* Chat Center */}
-          <Route path="/chat/center" element={<GroupDiscover />} />
+          <Route path="/chat/center" element={<Navigate to="/social" replace />} />
         
           {/* Welfare/Task Routes */}
           <Route path="/task" element={<Navigate to="/screen-welfare" replace />} />

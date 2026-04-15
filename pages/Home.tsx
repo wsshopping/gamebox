@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { openExternalLink } from '../services/telegram';
 import { Game, Article, Banner } from '../types';
 import GameCard from '../components/GameCard';
 
@@ -128,7 +129,7 @@ const Home: React.FC = () => {
       } catch {
         // no-op
       }
-      window.open(heroLink, '_blank');
+      openExternalLink(heroLink);
       return;
     }
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIm } from '../context/ImContext';
+import { openExternalLink } from '../services/telegram';
 import { friendApi, FriendItem, FriendProfile } from '../services/api/friend';
 import {
   imApi,
@@ -19,6 +20,8 @@ import { IMConversationType, IMMessageType } from '../services/im/client';
 const RED_PACKET_MESSAGE = 'jg:redpacket';
 const RED_PACKET_CLAIM_TIP_MESSAGE = 'jg:redpacket:claimtip';
 const AUTO_DELETE_TIP_MESSAGE = 'jg:auto_delete:tip';
+const RECALL_MESSAGE = 'jg:recall';
+const RECALL_INFO_MESSAGE = 'jg:recallinfo';
 const AUTO_DELETE_OPTIONS = [
   { label: '关闭', value: 0 },
   { label: '24小时', value: 24 * 60 * 60 },
@@ -60,6 +63,7 @@ interface ChatMessage {
   sentAt?: number;
   status?: 'failed' | 'sending';
   isLocal?: boolean;
+  recalled?: boolean;
 }
 
 const isSameChatMessage = (left: ChatMessage, right: ChatMessage) => {
@@ -90,6 +94,7 @@ const isSameChatMessage = (left: ChatMessage, right: ChatMessage) => {
     && left.redPacketRemainingAmount === right.redPacketRemainingAmount
     && left.redPacketRemainingCount === right.redPacketRemainingCount
     && left.redPacketError === right.redPacketError
+    && left.recalled === right.recalled
 }
 
 const EMOJIS = ['😀', '😂', '🤣', '😍', '😭', '😡', '👍', '🙏', '🎉', '🔥', '❤️', '💔', '💩', '👻', '💀', '👽', '🤖', '🎃', '🎄', '🎁', '🎈', '💪', '👀', '👂', '👃', '🧠', '🦷', '🦴', '🤝', '👋'];
@@ -229,12 +234,14 @@ const Chat: React.FC = () => {
   const [memberActionSuccess, setMemberActionSuccess] = useState('');
   const [isMemberLoading, setIsMemberLoading] = useState(false);
   const [isMemberRequesting, setIsMemberRequesting] = useState(false);
+  const [isMemberKicking, setIsMemberKicking] = useState(false);
   const [autoDeletePolicy, setAutoDeletePolicy] = useState<IMAutoDeletePolicyResponse | null>(null);
   const [isAutoDeleteLoading, setIsAutoDeleteLoading] = useState(false);
   const [showAutoDeleteSheet, setShowAutoDeleteSheet] = useState(false);
   const [autoDeleteError, setAutoDeleteError] = useState('');
   const [groupOwnerId, setGroupOwnerId] = useState('');
   const [groupAdminIds, setGroupAdminIds] = useState<string[]>([]);
+  const [groupIsMuted, setGroupIsMuted] = useState(false);
   const [isRedPacketModalOpen, setIsRedPacketModalOpen] = useState(false);
   const [redPacketType, setRedPacketType] = useState<'fixed' | 'random'>('random');
   const [redPacketAmount, setRedPacketAmount] = useState('');
@@ -267,6 +274,7 @@ const Chat: React.FC = () => {
     sendCustomMessage,
     sendImageMessage,
     sendFileMessage,
+    recallMessage,
     clearConversationUnread,
     refreshConversations,
     getGroupInfo,
@@ -291,6 +299,7 @@ const Chat: React.FC = () => {
       && currentUserId
       && (groupOwnerId === currentUserId || groupAdminIds.includes(currentUserId))
   );
+  const isGroupSendBlocked = Boolean(isGroup && groupIsMuted && !isGroupOwnerOrAdmin);
   const canStartPrivateChat = isGroupOwnerOrAdmin && selectedMemberNumericId > 0;
   const friendDisplayName = friendProfile?.displayName
     || friendProfile?.username
@@ -300,6 +309,16 @@ const Chat: React.FC = () => {
   const memberDisplayName = memberProfile?.username
     || selectedMember?.name
     || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
+  const selectedMemberIsOwner = Boolean(groupOwnerId) && selectedMemberId === groupOwnerId;
+  const selectedMemberIsAdmin = Boolean(selectedMemberId) && groupAdminIds.includes(selectedMemberId);
+  const canKickSelectedMember = Boolean(
+    isGroup
+      && isGroupOwnerOrAdmin
+      && selectedMemberId
+      && selectedMemberId !== currentUserId
+      && !selectedMemberIsOwner
+      && (groupOwnerId === currentUserId || !selectedMemberIsAdmin)
+  );
   const isOffline = !connected;
   const autoDeleteLabel = useMemo(() => {
     const sec = autoDeletePolicy?.seconds ?? 0;
@@ -525,7 +544,7 @@ const Chat: React.FC = () => {
 
   const openMediaInNewTab = (url?: string) => {
     if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    openExternalLink(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleMessageLinkClick = (event: React.MouseEvent, rawUrl: string) => {
@@ -1026,6 +1045,10 @@ const Chat: React.FC = () => {
 
   const handleSendRedPacket = async () => {
     if (!id || !isGroup || isRedPacketSending) return;
+    if (isGroupSendBlocked) {
+      setRedPacketError('当前群已开启全员禁言');
+      return;
+    }
     if (isOffline) {
       setRedPacketError('当前离线，无法发送红包');
       return;
@@ -1227,6 +1250,7 @@ const Chat: React.FC = () => {
       setOnlineCount(null);
       setGroupOwnerId('');
       setGroupAdminIds([]);
+      setGroupIsMuted(false);
       return;
     }
     let active = true;
@@ -1240,6 +1264,7 @@ const Chat: React.FC = () => {
       const members = membersResult.status === 'fulfilled' ? membersResult.value : null;
       const onlineStats = onlineResult.status === 'fulfilled' ? onlineResult.value : null;
       if (info?.groupName) setGroupTitle(info.groupName);
+      setGroupIsMuted(Number(info?.isMute || 0) === 1);
       if (onlineStats && typeof onlineStats.totalCount === 'number') {
         setMemberCount(onlineStats.totalCount);
       } else if (members?.items) {
@@ -1441,16 +1466,20 @@ const Chat: React.FC = () => {
 
       return {
         id: msg.messageId || msg.tid || String(msg.sentTime || Date.now()),
-        text: formatMessageText(msg),
+        text: msg.name === RECALL_MESSAGE || msg.name === RECALL_INFO_MESSAGE
+          ? (msg.isSender ? '你撤回了一条消息' : '对方撤回了一条消息')
+          : formatMessageText(msg),
         sender: msg.isSender ? 'me' : 'other',
         senderName: msg.sender?.name || msg.senderName,
         senderId: msg.sender?.id || msg.senderId,
         time: msg.sentTime ? new Date(msg.sentTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-        type: msg.name === IMMessageType.IMAGE
-          ? 'image'
-          : (msg.name === IMMessageType.VIDEO || (msg.name === IMMessageType.FILE && isVideoLikeFile(msg.content))
-            ? 'video'
-            : (msg.name === IMMessageType.FILE ? 'file' : 'text')),
+        type: msg.name === RECALL_MESSAGE || msg.name === RECALL_INFO_MESSAGE
+          ? 'tip'
+          : (msg.name === IMMessageType.IMAGE
+            ? 'image'
+            : (msg.name === IMMessageType.VIDEO || (msg.name === IMMessageType.FILE && isVideoLikeFile(msg.content))
+              ? 'video'
+              : (msg.name === IMMessageType.FILE ? 'file' : 'text'))),
         imageUrl: msg.content?.imageUri || msg.content?.url,
         videoUrl: msg.content?.videoUri || msg.content?.url,
         fileUrl: msg.content?.url,
@@ -1462,7 +1491,8 @@ const Chat: React.FC = () => {
         unreadCount: Number(msg.unreadCount || 0),
         messageIndex: Number(msg.messageIndex || 0),
         unreadIndex: Number(msg.unreadIndex || 0),
-        sentAt: msg.sentTime || 0
+        sentAt: msg.sentTime || 0,
+        recalled: msg.name === RECALL_MESSAGE || msg.name === RECALL_INFO_MESSAGE
       };
     });
     const combined = [...mapped, ...localMessages].sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0));
@@ -1605,6 +1635,10 @@ const Chat: React.FC = () => {
   const handleSend = async () => {
     const content = inputText.trim();
     if (!content || !id) return;
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setInputText('');
     setShowEmojiPicker(false);
     setShowActionMenu(false);
@@ -1649,6 +1683,10 @@ const Chat: React.FC = () => {
 
   const handleRetryMessage = async (msg: ChatMessage) => {
     if (!id || msg.status !== 'failed') return;
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setLocalMessages(prev => prev.map(item => (
       item.id === msg.id ? { ...item, status: 'sending' } : item
     )));
@@ -1868,6 +1906,34 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleKickMemberFromChat = async () => {
+    if (!id || !selectedMemberId) {
+      setMemberActionError('无法识别用户');
+      return;
+    }
+    if (!canKickSelectedMember) {
+      setMemberActionError(selectedMemberIsAdmin ? '仅群主可移出管理员' : '暂无权限移出成员');
+      return;
+    }
+    setIsMemberKicking(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      await imApi.kickGroupMember({
+        groupId: id,
+        memberId: selectedMemberId
+      });
+      setMemberActionSuccess('成员已移出群聊');
+      setShowMemberMenu(false);
+      setShowMemberProfile(false);
+      await refreshConversations().catch(() => null);
+    } catch (err: any) {
+      setMemberActionError(err?.message || '移出成员失败');
+    } finally {
+      setIsMemberKicking(false);
+    }
+  };
+
   const handleHeaderDoubleClick = () => {
     const container = scrollRef.current;
     if (!container) return;
@@ -1948,6 +2014,10 @@ const Chat: React.FC = () => {
   };
 
   const handleAlbumClick = () => {
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setShowEmojiPicker(false);
     setShowActionMenu(false);
     if (imageInputRef.current) {
@@ -1957,6 +2027,10 @@ const Chat: React.FC = () => {
   };
 
   const handleFileClick = () => {
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setShowEmojiPicker(false);
     setShowActionMenu(false);
     if (fileInputRef.current) {
@@ -2043,6 +2117,10 @@ const Chat: React.FC = () => {
 
   const handleSendImage = async (file: File) => {
     if (!id || !validateImageFile(file)) return;
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setShowEmojiPicker(false);
     setShowActionMenu(false);
     if (isOffline) {
@@ -2062,6 +2140,10 @@ const Chat: React.FC = () => {
 
   const handleSendVideo = async (file: File) => {
     if (!id) return;
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     if (!file.type.startsWith('video/')) {
       window.alert('仅支持视频文件');
       return;
@@ -2085,6 +2167,10 @@ const Chat: React.FC = () => {
 
   const handleSendFile = async (file: File) => {
     if (!id) return;
+    if (isGroupSendBlocked) {
+      window.alert('当前群已开启全员禁言');
+      return;
+    }
     setShowEmojiPicker(false);
     setShowActionMenu(false);
     if (isOffline) {
@@ -2138,6 +2224,24 @@ const Chat: React.FC = () => {
       return;
     }
     handleUnsupported(item.name);
+  };
+
+  const handleRecallMessage = async (msg: ChatMessage) => {
+    if (!id || !isGroup || msg.isLocal || !msg.id || !msg.sentAt || msg.type === 'tip') return;
+    const senderId = String(msg.senderId || '');
+    const senderIsOwner = Boolean(groupOwnerId) && senderId === groupOwnerId;
+    const senderIsAdmin = Boolean(senderId) && groupAdminIds.includes(senderId);
+    const canRecall = msg.sender === 'me'
+      || (isGroupOwnerOrAdmin && senderId !== '' && senderId !== currentUserId && !senderIsOwner && !senderIsAdmin);
+    if (!canRecall) return;
+    try {
+      await recallMessage(id, conversationType, {
+        messageId: msg.id,
+        sentTime: msg.sentAt
+      });
+    } catch (error: any) {
+      window.alert(error?.message || '撤回失败');
+    }
   };
 
   const handleOpenFile = (msg: ChatMessage) => {
@@ -2380,7 +2484,7 @@ const Chat: React.FC = () => {
                      </div>
                    ) : (
                 <div className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'} mb-4 animate-fade-in-up`}>
-                   {msg.sender === 'other' && (
+                  {msg.sender === 'other' && (
                       <div className="flex-shrink-0 mr-2 flex flex-col items-center">
                         <div
                            className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shadow-sm border border-theme cursor-pointer active:scale-95 transition-transform"
@@ -2595,6 +2699,26 @@ const Chat: React.FC = () => {
                       )}
                    </div>
 
+                   {isGroup && !msg.recalled && !msg.isLocal && msg.type !== 'tip' && (() => {
+                     const senderId = String(msg.senderId || '');
+                     const senderIsOwner = Boolean(groupOwnerId) && senderId === groupOwnerId;
+                     const senderIsAdmin = Boolean(senderId) && groupAdminIds.includes(senderId);
+                     const canRecall = msg.sender === 'me'
+                       || (isGroupOwnerOrAdmin && senderId !== '' && senderId !== currentUserId && !senderIsOwner && !senderIsAdmin);
+                     return canRecall
+                   })() && (
+                     <button
+                       type="button"
+                       onClick={(event) => {
+                         event.stopPropagation();
+                         handleRecallMessage(msg);
+                       }}
+                       className="self-end mr-2 text-[10px] text-slate-400 hover:text-[var(--text-primary)] transition-colors"
+                     >
+                       撤回
+                     </button>
+                   )}
+
                    {msg.sender === 'me' && msg.status === 'failed' && (
                      <button
                        onClick={(e) => { e.stopPropagation(); handleRetryMessage(msg); }}
@@ -2628,6 +2752,11 @@ const Chat: React.FC = () => {
       {/* Input Area */}
       <div className="flex-none z-20">
         <div className="p-3 pb-4 glass-bg border-t border-theme">
+          {isGroupSendBlocked && (
+            <div className="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+              当前群已开启全员禁言，仅群主和管理员可发送消息
+            </div>
+          )}
           <input
             ref={imageInputRef}
             type="file"
@@ -2661,11 +2790,13 @@ const Chat: React.FC = () => {
                   onFocus={handleInputFocus}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="发送消息..."
+                  placeholder={isGroupSendBlocked ? '当前群已禁言' : '发送消息...'}
+                  disabled={isGroupSendBlocked}
                   className="flex-1 bg-transparent border-none outline-none text-sm text-[var(--text-primary)] placeholder-slate-500"
                 />
                 <button
                   onClick={toggleEmojiPicker}
+                  disabled={isGroupSendBlocked}
                   className={`text-slate-400 hover:text-accent transition-colors ${showEmojiPicker ? 'text-accent' : ''}`}
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2675,9 +2806,9 @@ const Chat: React.FC = () => {
               </div>
               <button
                 onClick={handleSend}
-                disabled={!inputText.trim()}
+                disabled={!inputText.trim() || isGroupSendBlocked}
                 className={`p-2.5 rounded-full transition-all shadow-lg ${
-                  inputText.trim()
+                  inputText.trim() && !isGroupSendBlocked
                   ? 'bg-accent-gradient text-black hover:scale-105 active:scale-95'
                   : 'card-bg text-slate-500 border border-theme'
                 }`}
@@ -2800,6 +2931,15 @@ const Chat: React.FC = () => {
               >
                 {memberIsFriend ? '已是好友' : (isMemberRequesting ? '发送中...' : '加好友')}
               </button>
+              {canKickSelectedMember && (
+                <button
+                  onClick={handleKickMemberFromChat}
+                  disabled={isMemberKicking}
+                  className={`w-full py-3 rounded-xl text-sm text-white bg-rose-500/90 ${isMemberKicking ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                >
+                  {isMemberKicking ? '移出中...' : (selectedMemberIsAdmin ? '移出管理员' : '移出群聊')}
+                </button>
+              )}
               <button
                 onClick={() => setShowMemberMenu(false)}
                 className="w-full py-2.5 rounded-xl border border-theme text-sm text-slate-400 hover:text-[var(--text-primary)] transition-colors"

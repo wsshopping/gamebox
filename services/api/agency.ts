@@ -58,6 +58,231 @@ export type SuperSensitiveStatus = {
   cooldownSeconds?: number
 }
 
+export type PortalMaintenanceStatus = {
+  agentEnabled: boolean
+  playerEnabled: boolean
+  forceLogout: boolean
+}
+
+export type PortalMonthlySettlementConfig = {
+  enabled: boolean
+  reminderEnabled: boolean
+  archiveEnabled: boolean
+  reminderStartDay: number
+  archiveRunAt: string
+}
+
+export type AgentMonthlySettlementSummary = {
+  monthKey: string
+  totalFlow: string
+  totalProfit: string
+  withdrawn: string
+  withdrawable: string
+  pendingSettlement: string
+  lockedWithdraw: string
+}
+
+export type AgentMonthlyBalanceSummary = {
+  monthKey: string
+  openingBalance: string
+  openingDepositLocked: string
+  openingDepositDeficit: string
+  currentDepositLocked: string
+  depositDelta: string
+  withdrawableBalance: string
+  depositDeficit: string
+}
+
+export type AgentMonthlyArchiveSummary = {
+  monthKey: string
+  totalFlow: string
+  totalProfit: string
+  withdrawn: string
+  lockedWithdraw: string
+  unwithdrawn: string
+  closingBalance: string
+  depositLockedSnapshot: string
+  depositDeficitSnapshot: string
+  depositDelta: string
+  snapshotAt: string
+}
+
+export type AgentMonthlySettlementStatus = {
+  enabled: boolean
+  reminderEnabled: boolean
+  archiveEnabled: boolean
+  reminderStartDay: number
+  archiveRunAt: string
+  reminderActive: boolean
+  reminderMessage: string
+  currentMonth: string
+  currentSummary: AgentMonthlySettlementSummary
+  balanceSummary: AgentMonthlyBalanceSummary
+  lastMonth?: AgentMonthlyArchiveSummary
+}
+
+export type BannedAgentSummary = {
+  bannedCount: number
+  todayPerformance: string
+  totalPerformance: string
+  sensitiveMasked?: boolean
+}
+
+export type BannedAgentItem = {
+  id: number
+  account: string
+  inviteCode: string
+  bannedAt: string
+  todayPerformance: string
+  totalPerformance: string
+  sensitiveMasked?: boolean
+}
+
+export type BannedAgentListResponse = {
+  summary: BannedAgentSummary
+  list: BannedAgentItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type OrderSummaryMetric = {
+  totalAmount: string
+  orderCount: number
+}
+
+export type PerformanceOverviewStat = {
+  totalAmount: string
+  orderCount: number
+  totalProfit: string
+}
+
+export type PerformanceOverviewCard = {
+  key: string
+  label: string
+  date?: string
+  totalAmount: string
+  orderCount: number
+  totalProfit: string
+  details: {
+    gameId: string
+    gameName: string
+    entries: {
+      inviteCode: string
+      amount: string
+      diffRatePct: number
+      profit: string
+    }[]
+  }[]
+}
+
+export type PerformanceOverviewAgent = {
+  inviteCode: string
+  nickname: string
+  role?: string
+  downlineCount: number
+  today: PerformanceOverviewStat
+  yesterday: PerformanceOverviewStat
+  dayBefore: PerformanceOverviewStat
+  total: PerformanceOverviewStat
+}
+
+export type PerformanceOverviewGame = {
+  gameId: string
+  gameName: string
+  ratePct: number
+  rateSource: string
+  today: PerformanceOverviewStat
+  yesterday: PerformanceOverviewStat
+  dayBefore: PerformanceOverviewStat
+  total: PerformanceOverviewStat
+}
+
+export type PerformanceOverviewResponse = {
+  cards: PerformanceOverviewCard[]
+  agents: PerformanceOverviewAgent[]
+  games: PerformanceOverviewGame[]
+}
+
+export type OrderListSummary = {
+  today: OrderSummaryMetric
+  yesterday: OrderSummaryMetric
+  total: OrderSummaryMetric
+}
+
+export type OrderListResponse = {
+  summary: OrderListSummary
+  list: any[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type DepositBatchAgentItem = {
+  agentHierarchyId: number
+  agentAccount: string
+  remarkName: string
+  inviteCode: string
+  roleId?: number
+  role: string
+  gameId: number
+  gameName: string
+  amount: string
+  status: string
+  updatedAt: string
+}
+
+export type DepositBatchApplyFailure = {
+  agentHierarchyId: number
+  agentAccount: string
+  reason: string
+}
+
+export type DepositBatchApplyResult = {
+  matchedCount: number
+  successCount: number
+  failedCount: number
+  failures: DepositBatchApplyFailure[]
+}
+
+export type AgentPermissionBatchItem = {
+  agentHierarchyId: number
+  agentAccount: string
+  remarkName: string
+  inviteCode: string
+  roleId?: number
+  role: string
+  gameId: number
+  gameName: string
+  todayRegisterCount: number
+  totalRegisterCount: number
+  canCreateChildAgents: boolean
+}
+
+export type AgentPermissionBatchUpdateResult = {
+  matchedCount: number
+  updatedCount: number
+  skippedCount: number
+}
+
+export type AgencyStatsData = {
+  role: string
+  code: string
+  creatable?: string
+  canCreateChildAgents?: boolean
+  registerCount?: number
+  totalFlow?: string
+  totalProfit?: string
+  settledProfit?: string
+  pendingSettlement?: string
+  withdrawn?: string
+  lockedWithdraw?: string
+  withdrawable?: string
+  depositLocked?: string
+  depositDeficit?: string
+  sensitiveMasked?: boolean
+}
+
 const buildQuery = (params?: Record<string, string | number | undefined>) => {
   if (!params) return ''
   const search = new URLSearchParams()
@@ -95,6 +320,11 @@ export const agencyApi = {
       method: 'POST'
     })
   },
+  resetSuper2FAEntry: async () => {
+    return request('/portal/agency/super/2fa/reset', {
+      method: 'POST'
+    })
+  },
   getSuperSensitiveStatus: async () => {
     return request<SuperSensitiveStatus>('/portal/agency/super/sensitive/status')
   },
@@ -104,11 +334,40 @@ export const agencyApi = {
       body: JSON.stringify({ secondPassword })
     })
   },
-  getStats: async () => {
-    return request('/portal/agency/stats')
+  getPortalMaintenanceStatus: async () => {
+    return request<PortalMaintenanceStatus>('/portal/agency/super/maintenance')
   },
-  getAgents: async (params?: { scope?: string; roleId?: number; keyword?: string; page?: number; pageSize?: number }) => {
+  updatePortalMaintenanceStatus: async (data: PortalMaintenanceStatus) => {
+    return request<PortalMaintenanceStatus>('/portal/agency/super/maintenance', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
+  getPortalMonthlySettlementConfig: async () => {
+    return request<PortalMonthlySettlementConfig>('/portal/agency/super/monthly-settlement')
+  },
+  updatePortalMonthlySettlementConfig: async (data: {
+    enabled: boolean
+    reminderEnabled: boolean
+    archiveEnabled: boolean
+    reminderStartDay: number
+  }) => {
+    return request<PortalMonthlySettlementConfig>('/portal/agency/super/monthly-settlement', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
+  getAgentMonthlySettlementStatus: async () => {
+    return request<AgentMonthlySettlementStatus>('/portal/agency/monthly-settlement')
+  },
+  getStats: async () => {
+    return request<AgencyStatsData>('/portal/agency/stats')
+  },
+  getAgents: async (params?: { scope?: string; roleId?: number; gameId?: number; keyword?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/agents${buildQuery(params)}`)
+  },
+  getBannedAgents: async (params?: { gameId?: number; statDate?: string; page?: number; pageSize?: number }) => {
+    return request<BannedAgentListResponse>(`/portal/agency/super/banned-agents${buildQuery(params)}`)
   },
   createAgent: async (data: any) => {
     return request('/portal/agency/agents', {
@@ -122,6 +381,7 @@ export const agencyApi = {
       phone?: string
       password?: string
       status?: number
+      canCreateChildAgents?: boolean
       gameRebates?: { gameId: number; rebateRatePct: number }[]
     }
   ) => {
@@ -142,13 +402,19 @@ export const agencyApi = {
     return request<PageResult<any>>(`/portal/agency/players/all${buildQuery(params)}`)
   },
   getOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
-    return request<PageResult<any>>(`/portal/agency/orders${buildQuery(params)}`)
+    return request<OrderListResponse>(`/portal/agency/orders${buildQuery(params)}`)
   },
   getAllOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
-    return request<PageResult<any>>(`/portal/agency/orders/all${buildQuery(params)}`)
+    return request<OrderListResponse>(`/portal/agency/orders/all${buildQuery(params)}`)
   },
   resetPlayerPassword: async (id: number, password: string) => {
     return request(`/portal/agency/players/${id}/password`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    })
+  },
+  resetPlayerChainPassword: async (id: number, password: string) => {
+    return request<{ playerId: number; updatedCount: number; accounts: string[] }>(`/portal/agency/players/${id}/password/chain`, {
       method: 'POST',
       body: JSON.stringify({ password })
     })
@@ -202,7 +468,7 @@ export const agencyApi = {
     return request(`/portal/agency/performance${buildQuery(params)}`)
   },
   getPerformanceOverview: async () => {
-    return request('/portal/agency/performance/overview')
+    return request<PerformanceOverviewResponse>('/portal/agency/performance/overview')
   },
   getPayoutAddress: async () => {
     return request<PayoutAddressData>('/portal/agency/payout-address')
@@ -239,6 +505,30 @@ export const agencyApi = {
   getMyDeposits: async () => {
     return request<AgentGameDepositItem[]>('/portal/agency/deposits')
   },
+  getDepositBatchAgents: async (params?: { gameId?: number; roleId?: number; keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<DepositBatchAgentItem>>(`/portal/agency/deposits/batch-agents${buildQuery(params)}`)
+  },
+  batchApplyAgentDeposit: async (data: { gameId: number; roleId?: number; keyword?: string; amount: string; remark?: string }) => {
+    return request<DepositBatchApplyResult>('/portal/agency/deposits/batch-apply', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  },
+  getAgentPermissionBatchAgents: async (params?: { gameId?: number; roleId?: number; keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<AgentPermissionBatchItem>>(`/portal/agency/super/agent-permission-zone${buildQuery(params)}`)
+  },
+  batchDisableAgentPermission: async (data: { gameId?: number; roleId?: number; keyword?: string }) => {
+    return request<AgentPermissionBatchUpdateResult>('/portal/agency/super/agent-permission-zone/disable', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  },
+  batchEnableAgentPermission: async (data: { gameId?: number; roleId?: number; keyword?: string }) => {
+    return request<AgentPermissionBatchUpdateResult>('/portal/agency/super/agent-permission-zone/enable', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    })
+  },
   requestDepositRelease: async (gameId: number, remark?: string) => {
     return request(`/portal/agency/deposits/${gameId}/release-request`, {
       method: 'POST',
@@ -263,7 +553,7 @@ export const agencyApi = {
       body: JSON.stringify({ gameIds })
     })
   },
-  getApprovals: async (params?: { status?: string; page?: number; pageSize?: number }) => {
+  getApprovals: async (params?: { keyword?: string; status?: string; method?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/approvals${buildQuery(params)}`)
   },
   updateApproval: async (id: number, status: string, remark?: string) => {

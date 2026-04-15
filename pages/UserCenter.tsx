@@ -11,6 +11,8 @@ import { useIm } from '../context/ImContext';
 import { TradeOrder } from '../types';
 import PlayerMusicModal from '../components/PlayerMusicModal';
 import PlayerVideoModal from '../components/PlayerVideoModal';
+import Agency, { SuperAdminPage } from './Agency';
+import SuperAdminGate from '../components/SuperAdminGate';
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
 const APP_VERSION_LABEL = (() => {
@@ -26,6 +28,14 @@ type UserProfileSummary = {
   account: string;
   agentInviteCode: string;
 };
+
+const ROLE_SUPER_ADMIN = 1;
+const ROLE_TOP_PROMOTER = 2;
+const ROLE_GENERAL_AGENT = 3;
+const ROLE_SUB_AGENT = 4;
+const ROLE_STREAMER = 5;
+const ROLE_PLAYER = 6;
+const ROLE_BOSS = 7;
 
 const PLAYER_MUSIC_PLAYLIST = [
   {
@@ -520,7 +530,10 @@ const UserCenterMain: React.FC<{
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const { theme, setTheme } = useTheme();
-  const isPlayer = user?.roleId === 6;
+  const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
+  const isPlayer = roleId === ROLE_PLAYER;
+  const canOpenAgencyCenter = [ROLE_SUPER_ADMIN, ROLE_TOP_PROMOTER, ROLE_GENERAL_AGENT, ROLE_SUB_AGENT, ROLE_STREAMER, ROLE_BOSS].includes(roleId);
+  const canOpenSuperAdminCenter = roleId === ROLE_SUPER_ADMIN;
   const [activeModal, setActiveModal] = useState<UserCenterModal>(initialModal);
   const [musicOpen, setMusicOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(initialVideoOpen);
@@ -636,6 +649,11 @@ const UserCenterMain: React.FC<{
   if (!isPlayer) {
     settingsItems.splice(2, 0, { id: 'password', name: '修改密码', icon: '🔒', action: () => setActiveModal('password') });
   }
+
+  const managementItems = [
+    ...(canOpenAgencyCenter ? [{ id: 'agency', name: roleId === ROLE_BOSS ? '老板中心' : '代理中心', icon: roleId === ROLE_BOSS ? '💼' : '👥', path: '/user/agency' }] : []),
+    ...(canOpenSuperAdminCenter ? [{ id: 'superadmin', name: '超管中心', icon: '🛡️', path: '/user/superadmin' }] : [])
+  ];
 
   return (
     <div className="app-bg min-h-full transition-colors duration-500">
@@ -771,6 +789,23 @@ const UserCenterMain: React.FC<{
             </div>
          </div>
 
+         {managementItems.length > 0 && (
+           <div>
+             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Management</h4>
+             <div className="card-bg rounded-[24px] border border-theme overflow-hidden shadow-sm">
+               {managementItems.map((item, i) => (
+                 <div key={item.id} onClick={() => navigate(item.path)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--bg-glass)] transition-colors ${i !== managementItems.length - 1 ? 'border-b border-theme' : ''}`}>
+                   <div className="flex items-center space-x-4">
+                     <span className="text-lg opacity-70 w-8 text-center">{item.icon}</span>
+                     <span className="text-sm font-semibold" style={{color: 'var(--text-primary)'}}>{item.name}</span>
+                   </div>
+                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                 </div>
+               ))}
+             </div>
+           </div>
+         )}
+
          <div>
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 pl-2">Entertainment</h4>
             <div className="card-bg rounded-[24px] border border-theme overflow-hidden shadow-sm">
@@ -856,7 +891,10 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
   }
 
   const normalizedPath = location.pathname.replace(/\/+$/, '') || '/';
-  const isPlayer = user.roleId === 6;
+  const roleId = Number(user?.role?.id ?? user?.roleId ?? 0);
+  const isPlayer = roleId === ROLE_PLAYER;
+  const canOpenAgencyCenter = [ROLE_SUPER_ADMIN, ROLE_TOP_PROMOTER, ROLE_GENERAL_AGENT, ROLE_SUB_AGENT, ROLE_STREAMER, ROLE_BOSS].includes(roleId);
+  const canOpenSuperAdminCenter = roleId === ROLE_SUPER_ADMIN;
   let content: React.ReactNode = <UserSubPage title="功能开发中" type="default" />;
 
   if (normalizedPath === '/user') {
@@ -881,6 +919,14 @@ const UserCenter: React.FC<{ isEmbedded?: boolean }> = ({ isEmbedded = false }) 
       : <UserCenterMain initialModal="password" onModalClose={() => navigate('/user')} />;
   } else if (normalizedPath === '/user/feedback') {
     content = <UserSubPage title="反馈" type="default" />;
+  } else if (normalizedPath === '/user/agency') {
+    content = canOpenAgencyCenter ? <Agency /> : <UserCenterMain showVersionBadge />;
+  } else if (normalizedPath === '/user/superadmin') {
+    content = canOpenSuperAdminCenter ? (
+      <SuperAdminGate enabled={roleId === ROLE_SUPER_ADMIN}>
+        <SuperAdminPage />
+      </SuperAdminGate>
+    ) : <UserCenterMain showVersionBadge />;
   }
 
   return <>{content}</>;

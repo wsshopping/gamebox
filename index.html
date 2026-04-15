@@ -7,6 +7,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
+        --tg-viewport-height: 100dvh;
+        --tg-viewport-stable-height: 100dvh;
+        --tg-safe-area-top: env(safe-area-inset-top, 0px);
+        --tg-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+        --tg-safe-area-left: env(safe-area-inset-left, 0px);
+        --tg-safe-area-right: env(safe-area-inset-right, 0px);
+
         /* Theme 1: Black Gold Premium (High Contrast) */
         --bg-primary: #020617; /* Slate 950 - Deep Obsidian */
         --bg-card: #0f172a; /* Slate 900 */
@@ -119,6 +126,15 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         transition: background-color 0.6s cubic-bezier(0.25, 0.1, 0.25, 1), color 0.6s ease;
+      }
+
+      html, body, #root {
+        min-height: 100%;
+        height: var(--tg-viewport-stable-height);
+      }
+
+      body.telegram-webapp {
+        overscroll-behavior: none;
       }
 
       html {

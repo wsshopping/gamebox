@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { validatePlayerPassword } from '../services/password';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -31,12 +32,14 @@ const Register: React.FC = () => {
       setError('两次输入的密码不一致');
       return;
     }
-    if (formData.password.length < 6) {
-      setError('密码长度至少为 6 位');
+    const passwordError = validatePlayerPassword(formData.password, '密码');
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
-    if (formData.secondPassword.length < 6) {
-      setError('二级密码长度至少为 6 位');
+    const secondPasswordError = validatePlayerPassword(formData.secondPassword, '二级密码');
+    if (secondPasswordError) {
+      setError(secondPasswordError);
       return;
     }
     
@@ -123,7 +126,7 @@ const Register: React.FC = () => {
                onChange={(e) => setFormData({...formData, password: e.target.value})}
                className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
                style={{color: 'var(--text-primary)'}}
-               placeholder="至少6位" 
+               placeholder="至少6位，仅限大小写字母和数字" 
              />
            </div>
         </div>
@@ -151,7 +154,7 @@ const Register: React.FC = () => {
                onChange={(e) => setFormData({...formData, secondPassword: e.target.value})}
                className="w-full bg-transparent border-none outline-none text-sm placeholder-slate-400 font-medium" 
                style={{color: 'var(--text-primary)'}}
-               placeholder="至少6位" 
+               placeholder="至少6位，仅限大小写字母和数字" 
              />
            </div>
         </div>

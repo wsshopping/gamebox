@@ -27,6 +27,8 @@ type ImGroupMember = {
   isMute?: number
   isAllow?: number
   grpDisplayName?: string
+  username?: string
+  displayName?: string
   extFields?: Record<string, string>
 }
 type ImGroupMembers = {
@@ -96,6 +98,7 @@ interface ImContextValue {
   sendCustomMessage: (conversationId: string, conversationType: number, name: string, content: Record<string, any>, options?: SendMessageOptions) => Promise<ImMessage | null>
   sendImageMessage: (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => Promise<ImMessage | null>
   sendFileMessage: (conversationId: string, conversationType: number, file: File, options?: SendMessageOptions) => Promise<ImMessage | null>
+  recallMessage: (conversationId: string, conversationType: number, payload: { messageId: string; sentTime: number }) => Promise<void>
   clearConversationUnread: (conversationId: string, conversationType: number, unreadIndex?: number) => Promise<void>
   removeConversation: (conversationId: string, conversationType: number) => Promise<void>
   setTopConversation: (conversationId: string, conversationType: number, isTop: boolean) => Promise<void>
@@ -113,6 +116,7 @@ const autoReconnectLimit = 2
 const debugLogLimit = 50
 const enableImDebug = true
 const messageOrderBackward = 0
+const recallMessageType = 'jg:recall'
 
 const sortMessages = (messages: ImMessage[]) => {
   return [...messages].sort((a, b) => (a?.sentTime || 0) - (b?.sentTime || 0))
@@ -143,6 +147,32 @@ const mergeMessages = (existing: ImMessage[], incoming: ImMessage[]) => {
     map.set(buildId(msg), msg)
   })
   return sortMessages(Array.from(map.values()))
+}
+
+const markMessageRecalled = (messages: ImMessage[], recall: { messageId?: string; sentTime?: number }, senderId = '') => {
+  const targetMessageId = String(recall?.messageId || '').trim()
+  const targetSentTime = Number(recall?.sentTime || 0)
+  let changed = false
+  const next = messages.map((msg: any) => {
+    const currentMessageId = String(msg?.messageId || msg?.tid || '').trim()
+    const currentSentTime = Number(msg?.sentTime || 0)
+    const matched = (targetMessageId && currentMessageId === targetMessageId)
+      || (targetSentTime > 0 && currentSentTime === targetSentTime)
+    if (!matched) return msg
+    changed = true
+    return {
+      ...msg,
+      name: recallMessageType,
+      content: {
+        ...(msg?.content || {}),
+        messageId: targetMessageId || currentMessageId,
+        sentTime: targetSentTime || currentSentTime
+      },
+      sender: senderId ? { ...(msg?.sender || {}), id: senderId } : (msg?.sender || {})
+    }
+  })
+  if (!changed) return messages
+  return next
 }
 
 const getSentTimeRange = (messages: ImMessage[]) => {
@@ -791,6 +821,33 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }
   }, [appendDebugLog, scheduleRefresh])
 
+  const recallMessage = useCallback(async (conversationId: string, conversationType: number, payload: { messageId: string; sentTime: number }) => {
+    const client = clientRef.current as any
+    if (!client?.recallMessage) {
+      throw new Error('当前 IM SDK 不支持消息撤回')
+    }
+    const messageId = String(payload?.messageId || '').trim()
+    const sentTime = Number(payload?.sentTime || 0)
+    if (!conversationId || !conversationType || !messageId || !sentTime) {
+      throw new Error('撤回参数不完整')
+    }
+    await client.recallMessage({
+      conversationId,
+      conversationType,
+      messageId,
+      sentTime
+    })
+    const senderId = String(currentUserRef.current?.ID || '')
+    setMessagesByConversation(prev => {
+      const key = buildKey(conversationId, conversationType)
+      const current = prev[key] || []
+      const next = markMessageRecalled(current, { messageId, sentTime }, senderId)
+      if (next === current) return prev
+      return { ...prev, [key]: next }
+    })
+    scheduleRefresh()
+  }, [scheduleRefresh])
+
   const clearConversationUnread = useCallback(async (conversationId: string, conversationType: number, unreadIndex?: number) => {
     const client = clientRef.current as any
     if (!client) return
@@ -968,6 +1025,26 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
 
       scheduleRefresh()
     })
+    client.on(IMEvent.MESSAGE_RECALLED, (notify: any) => {
+      const conversationId = String(notify?.conversationId || '')
+      const conversationType = Number(notify?.conversationType || 0)
+      const content = notify?.content || {}
+      const senderId = String(notify?.sender?.id || '')
+      if (!conversationId || !conversationType) {
+        return
+      }
+      setMessagesByConversation(prev => {
+        const key = buildKey(conversationId, conversationType)
+        const current = prev[key] || []
+        const next = markMessageRecalled(current, {
+          messageId: String(content?.messageId || ''),
+          sentTime: Number(content?.sentTime || 0)
+        }, senderId)
+        if (next === current) return prev
+        return { ...prev, [key]: next }
+      })
+      scheduleRefresh()
+    })
     client.on(IMEvent.CONVERSATION_CHANGED, scheduleRefresh)
     client.on(IMEvent.CONVERSATION_ADDED, scheduleRefresh)
     client.on(IMEvent.CONVERSATION_REMOVED, scheduleRefresh)
@@ -977,6 +1054,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     client.off(IMEvent.STATE_CHANGED)
     client.off(IMEvent.MESSAGE_RECEIVED)
     client.off(IMEvent.MESSAGE_READ)
+    client.off(IMEvent.MESSAGE_RECALLED)
     client.off(IMEvent.CONVERSATION_CHANGED)
     client.off(IMEvent.CONVERSATION_ADDED)
     client.off(IMEvent.CONVERSATION_REMOVED)
@@ -1251,6 +1329,7 @@ export const ImProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     sendCustomMessage,
     sendImageMessage,
     sendFileMessage,
+    recallMessage,
     clearConversationUnread,
     removeConversation,
     setTopConversation,

@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { userApi } from '../services/api/user';
 import { useIm } from '../context/ImContext';
 import { IMConversationType } from '../services/im/client';
 import { useAuth } from '../context/AuthContext';
@@ -25,10 +26,11 @@ const GroupDetail: React.FC = () => {
     tags: string[];
     members: number;
     level: string;
+    isMute?: boolean;
     ownerId?: string;
     adminIds?: string[];
   } | null>(null);
-  const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string }>>([]);
+  const [members, setMembers] = useState<Array<{ memberId: string; displayName?: string; username?: string }>>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const { conversations, refreshConversations, getGroupInfo, getGroupMembers, ensureConnected } = useIm();
@@ -43,7 +45,10 @@ const GroupDetail: React.FC = () => {
   const [renameDraft, setRenameDraft] = useState('');
   const [renameError, setRenameError] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+  const [isAvatarUpdating, setIsAvatarUpdating] = useState(false);
   const [showMembersSheet, setShowMembersSheet] = useState(false);
+  const [memberSearchKeyword, setMemberSearchKeyword] = useState('');
   const [autoDeleteSeconds, setAutoDeleteSeconds] = useState(0);
   const [canEditAutoDelete, setCanEditAutoDelete] = useState(false);
   const [isAutoDeleteLoading, setIsAutoDeleteLoading] = useState(false);
@@ -56,6 +61,8 @@ const GroupDetail: React.FC = () => {
   const [memberActionSuccess, setMemberActionSuccess] = useState('');
   const [isMemberLoading, setIsMemberLoading] = useState(false);
   const [isMemberRequesting, setIsMemberRequesting] = useState(false);
+  const [isMemberRoleSubmitting, setIsMemberRoleSubmitting] = useState(false);
+  const [isMemberKicking, setIsMemberKicking] = useState(false);
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const [inviteLinks, setInviteLinks] = useState<Array<{
     inviteId: number;
@@ -72,6 +79,7 @@ const GroupDetail: React.FC = () => {
   const [inviteCopySuccess, setInviteCopySuccess] = useState('');
   const [inviteCreating, setInviteCreating] = useState(false);
   const [inviteRevokingId, setInviteRevokingId] = useState<number | null>(null);
+  const [inviteExpireDays, setInviteExpireDays] = useState<number>(7);
   const { user } = useAuth();
 
   const isJoined = useMemo(() => {
@@ -92,6 +100,7 @@ const GroupDetail: React.FC = () => {
   }, [group?.adminIds, user?.ID]);
 
   const canRename = isOwner || isAdmin;
+  const canEditGroupProfile = isOwner || isAdmin;
   const canManageMemberActions = isOwner || isAdmin;
   const canManageInvites = isOwner || isAdmin;
   const autoDeleteLabel = useMemo(() => {
@@ -106,6 +115,24 @@ const GroupDetail: React.FC = () => {
   const canAddFriend = canManageMemberActions && selectedMemberNumericId > 0 && !isSelfSelected;
   const memberDisplayName = selectedMember?.name
     || (selectedMemberNumericId ? `用户${selectedMemberNumericId}` : '群友');
+  const selectedMemberIsOwner = Boolean(group?.ownerId) && String(group?.ownerId) === selectedMemberId;
+  const selectedMemberIsAdmin = Boolean(selectedMemberId) && Boolean(group?.adminIds?.includes(selectedMemberId));
+  const canToggleAdmin = isOwner && selectedMemberId !== '' && !isSelfSelected && !selectedMemberIsOwner;
+  const canKickMember = canManageMemberActions
+    && selectedMemberId !== ''
+    && !isSelfSelected
+    && !selectedMemberIsOwner
+    && (isOwner || !selectedMemberIsAdmin);
+  const filteredMembers = useMemo(() => {
+    const keyword = memberSearchKeyword.trim().toLowerCase();
+    if (!keyword) return members;
+    return members.filter((member) => {
+      const displayName = String(member.displayName || '').toLowerCase();
+      const username = String(member.username || '').toLowerCase();
+      const memberId = String(member.memberId || '').toLowerCase();
+      return displayName.includes(keyword) || username.includes(keyword) || memberId.includes(keyword);
+    });
+  }, [memberSearchKeyword, members]);
 
   const parseGroupAdminIds = (value?: string) => {
     if (!value) return [];
@@ -161,7 +188,8 @@ const GroupDetail: React.FC = () => {
 
       setMembers(memberItems.map(item => ({
         memberId: item.memberId,
-        displayName: item.grpDisplayName
+        displayName: item.displayName || item.grpDisplayName || item.username,
+        username: item.username
       })));
       setMembersLoaded(membersResult.status === 'fulfilled');
       if (onlineStats && typeof onlineStats.onlineCount === 'number') {
@@ -176,6 +204,7 @@ const GroupDetail: React.FC = () => {
         tags,
         members: memberItems.length,
         level: levelLabel,
+        isMute: Number(info.isMute || 0) === 1,
         ownerId,
         adminIds
       });
@@ -274,7 +303,7 @@ const GroupDetail: React.FC = () => {
     };
   }, [showMemberActions, canAddFriend, selectedMemberNumericId]);
 
-  const handleMemberSelect = (member: { memberId: string; displayName?: string }) => {
+  const handleMemberSelect = (member: { memberId: string; displayName?: string; username?: string }) => {
     setSelectedMember({ id: member.memberId, name: member.displayName });
     setMemberActionError('');
     setMemberActionSuccess('');
@@ -331,11 +360,121 @@ const GroupDetail: React.FC = () => {
     }
   };
 
+  const handleToggleAdminRole = async () => {
+    if (!id || !selectedMemberId) {
+      setMemberActionError('无法识别成员');
+      return;
+    }
+    if (!canToggleAdmin) {
+      setMemberActionError('仅群主可设置管理员');
+      return;
+    }
+    setIsMemberRoleSubmitting(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      const res = await api.im.setGroupAdmin({
+        groupId: id,
+        memberId: selectedMemberId,
+        isAdmin: !selectedMemberIsAdmin
+      });
+      setGroup((prev) => prev ? { ...prev, adminIds: res.adminIds || [] } : prev);
+      setMemberActionSuccess(selectedMemberIsAdmin ? '已取消管理员' : '已设为管理员');
+    } catch (err: any) {
+      setMemberActionError(err?.message || '管理员设置失败');
+    } finally {
+      setIsMemberRoleSubmitting(false);
+    }
+  };
+
+  const handleKickMember = async () => {
+    if (!id || !selectedMemberId) {
+      setMemberActionError('无法识别成员');
+      return;
+    }
+    if (!canKickMember) {
+      setMemberActionError(selectedMemberIsAdmin ? '仅群主可移出管理员' : '暂无权限移出成员');
+      return;
+    }
+    setIsMemberKicking(true);
+    setMemberActionError('');
+    setMemberActionSuccess('');
+    try {
+      await api.im.kickGroupMember({
+        groupId: id,
+        memberId: selectedMemberId
+      });
+      setMembers(prev => prev.filter(item => item.memberId !== selectedMemberId));
+      setGroup(prev => prev ? {
+        ...prev,
+        members: Math.max((prev.members || 1) - 1, 0),
+        adminIds: (prev.adminIds || []).filter(item => item !== selectedMemberId)
+      } : prev);
+      setMemberActionSuccess('成员已移出群聊');
+      await refreshConversations().catch(() => null);
+    } catch (err: any) {
+      setMemberActionError(err?.message || '移出成员失败');
+    } finally {
+      setIsMemberKicking(false);
+    }
+  };
+
+  const handleToggleGroupMute = async () => {
+    if (!id || !canEditGroupProfile || !group) return;
+    setActionError('');
+    setIsActionSubmitting(true);
+    try {
+      const res = await api.im.setGroupMute({
+        groupId: id,
+        isMute: !Boolean(group.isMute)
+      });
+      setGroup(prev => prev ? { ...prev, isMute: res.isMute } : prev);
+    } catch (err: any) {
+      setActionError(err?.message || '群禁言设置失败');
+    } finally {
+      setIsActionSubmitting(false);
+    }
+  };
+
+  const handleAvatarPick = () => {
+    if (!canEditGroupProfile || isAvatarUpdating) return;
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+      avatarInputRef.current.click();
+    }
+  };
+
+  const handleAvatarInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !id || !canEditGroupProfile) return;
+    setIsAvatarUpdating(true);
+    setLoadError('');
+    try {
+      const uploaded = await userApi.uploadAvatar(file);
+      const res = await api.im.updateGroupAvatar({
+        groupId: id,
+        groupPortrait: uploaded.url
+      });
+      setGroup(prev => prev ? { ...prev, avatar: res.groupPortrait } : prev);
+      await refreshConversations().catch(() => null);
+    } catch (err: any) {
+      setLoadError(err?.message || '群头像更新失败');
+    } finally {
+      setIsAvatarUpdating(false);
+    }
+  };
+
   const formatInviteStatusText = (status: string, expireAt: number) => {
     if (status === 'revoked') return '已撤销';
     if (status === 'expired') return '已过期';
     if (status === 'active' && expireAt > 0 && Date.now() > expireAt) return '已过期';
     return '有效';
+  };
+
+  const formatInviteExpireText = (expireAt: number) => {
+    if (expireAt <= 0) return '永久有效';
+    return new Date(expireAt).toLocaleString();
   };
 
   const buildInviteFullUrl = (item: { invitePath?: string; inviteToken?: string }) => {
@@ -392,7 +531,7 @@ const GroupDetail: React.FC = () => {
     setInviteError('');
     setInviteCopySuccess('');
     try {
-      const created = await api.im.createGroupInviteLink({ groupId: id });
+      const created = await api.im.createGroupInviteLink({ groupId: id, expireDays: inviteExpireDays });
       setInviteLinks(prev => [created, ...prev]);
       setInviteCopySuccess('创建成功，可复制发送');
     } catch (err: any) {
@@ -554,6 +693,13 @@ const GroupDetail: React.FC = () => {
 
   return (
     <div className="app-bg min-h-screen relative flex flex-col transition-colors duration-500">
+       <input
+         ref={avatarInputRef}
+         type="file"
+         accept="image/*"
+         className="hidden"
+         onChange={handleAvatarInputChange}
+       />
        {/* Transparent Header */}
 		       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 p-4 flex justify-between items-center">
           <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/30 transition-colors border border-white/10">
@@ -581,7 +727,19 @@ const GroupDetail: React.FC = () => {
        <div className="-mt-20 px-4 relative z-10 pb-24 flex-1">
           <div className="card-bg rounded-3xl p-6 shadow-xl border border-theme">
              <div className="flex flex-col items-center -mt-16 mb-4">
-                <img src={group.avatar} alt="avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-md object-cover" />
+                <div className="relative">
+                  <img src={group.avatar} alt="avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-md object-cover" />
+                  {canEditGroupProfile && (
+                    <button
+                      type="button"
+                      onClick={handleAvatarPick}
+                      disabled={isAvatarUpdating}
+                      className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-black/70 text-white border border-white/10 text-[10px] disabled:opacity-60"
+                    >
+                      {isAvatarUpdating ? '...' : '改'}
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center justify-center gap-2 mt-3">
                   <h1 className="text-xl font-black text-center" style={{color: 'var(--text-primary)'}}>{group.name}</h1>
                   {canRename && (
@@ -618,6 +776,29 @@ const GroupDetail: React.FC = () => {
                 <div>
                    <h3 className="text-sm font-bold mb-2" style={{color: 'var(--text-primary)'}}>群介绍</h3>
                    <p className="text-sm text-slate-500 leading-relaxed">{group.desc}</p>
+                </div>
+
+                <div>
+                   <h3 className="text-sm font-bold mb-2" style={{color: 'var(--text-primary)'}}>群管理</h3>
+                   <button
+                     type="button"
+                     onClick={handleToggleGroupMute}
+                     disabled={!canEditGroupProfile || isActionSubmitting}
+                     className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 text-left ${canEditGroupProfile ? 'border-theme hover:bg-white/5' : 'border-theme opacity-60 cursor-not-allowed'}`}
+                   >
+                     <div>
+                       <div className="text-sm font-semibold text-[var(--text-primary)]">全员禁言</div>
+                       <div className="text-[11px] text-slate-500 mt-1">开启后仅群主和管理员可发送消息</div>
+                     </div>
+                     <span className={`text-xs font-bold ${group.isMute ? 'text-rose-400' : 'text-emerald-400'}`}>
+                       {group.isMute ? '已开启' : '已关闭'}
+                     </span>
+                   </button>
+                   {actionError && (
+                     <div className="mt-2 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                       {actionError}
+                     </div>
+                   )}
                 </div>
 
                 <div>
@@ -713,6 +894,17 @@ const GroupDetail: React.FC = () => {
 	             </button>
 	             <div className="h-px bg-white/5 mx-2"></div>
 	             <button
+	               onClick={() => {
+	                 setShowActions(false);
+	                 handleToggleGroupMute();
+	               }}
+	               disabled={!canEditGroupProfile || isActionSubmitting}
+	               className={`w-full text-left px-4 py-3 text-sm font-bold transition-colors ${canEditGroupProfile ? 'hover:bg-white/5 text-[var(--text-primary)]' : 'text-slate-500 cursor-not-allowed'}`}
+	             >
+	               {group.isMute ? '关闭全员禁言' : '开启全员禁言'}
+	             </button>
+	             <div className="h-px bg-white/5 mx-2"></div>
+	             <button
 	               onClick={() => handleActionSelect('leave')}
 	               className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm font-bold transition-colors"
                style={{ color: 'var(--text-primary)' }}
@@ -756,6 +948,20 @@ const GroupDetail: React.FC = () => {
 	             </div>
 
 	             <div className="p-4 border-b border-theme">
+	               <div className="mb-3">
+	                 <label className="block text-[11px] text-slate-500 mb-2">有效期</label>
+	                 <select
+	                   value={inviteExpireDays}
+	                   onChange={(e) => setInviteExpireDays(Number(e.target.value))}
+	                   disabled={inviteCreating || inviteLoading}
+	                   className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]"
+	                 >
+	                   <option value={1}>1天</option>
+	                   <option value={7}>7天</option>
+	                   <option value={30}>30天</option>
+	                   <option value={0}>永久</option>
+	                 </select>
+	               </div>
 	               <button
 	                 onClick={handleCreateInviteLink}
 	                 disabled={inviteCreating || inviteLoading}
@@ -791,8 +997,8 @@ const GroupDetail: React.FC = () => {
 	                 inviteLinks.map(item => {
 	                   const statusText = formatInviteStatusText(item.status, item.expireAt);
 	                   const createdText = item.createdAt ? new Date(item.createdAt).toLocaleString() : '--';
-	                   const expireText = item.expireAt ? new Date(item.expireAt).toLocaleString() : '--';
-	                   const canCopy = item.status === 'active' && item.expireAt > Date.now();
+	                   const expireText = formatInviteExpireText(item.expireAt);
+	                   const canCopy = item.status === 'active' && (item.expireAt <= 0 || item.expireAt > Date.now());
 	                   const canRevoke = item.status === 'active' && inviteRevokingId !== item.inviteId;
 	                   return (
 	                     <div key={item.inviteId} className="rounded-xl border border-theme bg-[var(--bg-primary)] p-3">
@@ -1002,20 +1208,33 @@ const GroupDetail: React.FC = () => {
                    {membersLoaded ? `${members.length} 人` : '加载中...'}
                  </p>
                </div>
-               <button
-                 onClick={() => setShowMembersSheet(false)}
-                 className="text-slate-500 hover:text-slate-300 p-1"
-                 aria-label="关闭"
-               >
+              <button
+                onClick={() => {
+                  setShowMembersSheet(false);
+                  setMemberSearchKeyword('');
+                }}
+                className="text-slate-500 hover:text-slate-300 p-1"
+                aria-label="关闭"
+              >
                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                  </svg>
                </button>
              </div>
 
+             <div className="p-4 border-b border-theme">
+               <input
+                 type="text"
+                 value={memberSearchKeyword}
+                 onChange={(event) => setMemberSearchKeyword(event.target.value)}
+                 placeholder="搜索成员ID/昵称/用户名"
+                 className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none focus:border-accent/50"
+               />
+             </div>
+
              <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
                {membersLoaded ? (
-                 members.map(member => {
+                 filteredMembers.length > 0 ? filteredMembers.map(member => {
                    const displayName = member.displayName || `用户${member.memberId}`;
                    const isOwnerBadge = group?.ownerId && String(member.memberId) === String(group.ownerId);
                    const isAdminBadge = group?.adminIds?.includes(String(member.memberId));
@@ -1051,7 +1270,9 @@ const GroupDetail: React.FC = () => {
                        </div>
                      </button>
                    );
-                 })
+                 }) : (
+                   <div className="text-sm text-slate-500 text-center py-8">未找到匹配成员</div>
+                 )
                ) : (
                  <div className="text-sm text-slate-500 text-center py-8">成员加载中...</div>
                )}
@@ -1073,7 +1294,7 @@ const GroupDetail: React.FC = () => {
                  <p className="text-xs text-slate-500 mt-1">{memberDisplayName}</p>
                  <p className="text-[10px] text-slate-600 mt-1">ID: {selectedMemberId || '-'}</p>
                </div>
-               {isMemberLoading && (
+               {(isMemberLoading || isMemberRoleSubmitting) && (
                  <span className="text-[10px] text-slate-500">资料加载中...</span>
                )}
              </div>
@@ -1108,6 +1329,24 @@ const GroupDetail: React.FC = () => {
                    >
                      {memberIsFriend ? '已是好友' : (isMemberRequesting ? '发送中...' : '加好友')}
                    </button>
+                   {canToggleAdmin && (
+                     <button
+                       onClick={handleToggleAdminRole}
+                       disabled={isMemberRoleSubmitting}
+                       className={`w-full py-3 rounded-xl border border-theme text-sm text-[var(--text-primary)] hover:bg-white/5 transition-colors ${isMemberRoleSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
+                     >
+                       {isMemberRoleSubmitting ? '提交中...' : (selectedMemberIsAdmin ? '取消管理员' : '设为管理员')}
+                     </button>
+                   )}
+                   {canKickMember && (
+                     <button
+                       onClick={handleKickMember}
+                       disabled={isMemberKicking}
+                       className={`w-full py-3 rounded-xl text-sm text-white bg-rose-500/90 ${isMemberKicking ? 'opacity-60 cursor-not-allowed' : 'active:scale-95 transition-transform'}`}
+                     >
+                       {isMemberKicking ? '移出中...' : (selectedMemberIsAdmin ? '移出管理员' : '移出群聊')}
+                     </button>
+                   )}
                  </>
                ) : (
                  <div className="text-xs text-slate-500 bg-white/5 border border-theme rounded-xl px-3 py-2">

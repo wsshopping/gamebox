@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { openExternalLink } from '../services/telegram';
 import { Game } from '../types';
 
 const GameDetail: React.FC = () => {
@@ -47,7 +48,7 @@ const GameDetail: React.FC = () => {
 
   const handleDownload = () => {
     if (game?.downloadUrl) {
-      window.open(game.downloadUrl, '_blank');
+      openExternalLink(game.downloadUrl);
     } else {
       alert('下载链接暂未配置');
     }
