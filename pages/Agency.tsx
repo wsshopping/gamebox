@@ -228,6 +228,14 @@ const ROLE_SUB_AGENT = 4;
 const ROLE_STREAMER = 5;
 const ROLE_BOSS = 7;
 
+const BOSS_AGENT_ROLE_OPTIONS = [
+  { value: 0, label: '全部角色' },
+  { value: ROLE_TOP_PROMOTER, label: '总推' },
+  { value: ROLE_GENERAL_AGENT, label: '总代' },
+  { value: ROLE_SUB_AGENT, label: '子代' },
+  { value: ROLE_STREAMER, label: '主播' }
+];
+
 const ROLE_OPTIONS: Record<number, { id: number; name: string }[]> = {
   [ROLE_SUPER_ADMIN]: [
     { id: ROLE_TOP_PROMOTER, name: '总推' }
@@ -814,15 +822,15 @@ const DirectAgentList = () => {
         phone: string;
         password?: string;
         status?: number;
-        canCreateChildAgents: boolean;
+        canCreateChildAgents?: boolean;
         gameRebates?: { gameId: number; rebateRatePct: number }[];
       } = {
         phone: editForm.phone,
         password: editForm.password || undefined,
-        status: isSuperAdmin ? editForm.status : undefined,
-        canCreateChildAgents: editForm.canCreateChildAgents
+        status: isSuperAdmin ? editForm.status : undefined
       };
       if (isSuperAdmin) {
+        payload.canCreateChildAgents = editForm.canCreateChildAgents;
         payload.gameRebates = gameRebates;
       }
       await api.agency.updateAgent(editingId, payload);
@@ -974,14 +982,16 @@ const DirectAgentList = () => {
                         <option value={2}>禁用</option>
                       </select>
                     )}
-                    <select
-                      value={editForm.canCreateChildAgents ? 1 : 0}
-                      onChange={(e) => setEditForm({ ...editForm, canCreateChildAgents: Number(e.target.value) === 1 })}
-                      className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-slate-400"
-                    >
-                      <option value={1}>允许继续开代理</option>
-                      <option value={0}>关闭开代理权限</option>
-                    </select>
+                    {isSuperAdmin && (
+                      <select
+                        value={editForm.canCreateChildAgents ? 1 : 0}
+                        onChange={(e) => setEditForm({ ...editForm, canCreateChildAgents: Number(e.target.value) === 1 })}
+                        className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-slate-400"
+                      >
+                        <option value={1}>允许继续开代理</option>
+                        <option value={0}>关闭开代理权限</option>
+                      </select>
+                    )}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-slate-500">分成设置</span>
@@ -2707,6 +2717,7 @@ const AgentList = () => {
   const [error, setError] = useState('');
   const [rebateAgentId, setRebateAgentId] = useState<number | null>(null);
   const [rebateSaving, setRebateSaving] = useState(false);
+  const [permissionSavingId, setPermissionSavingId] = useState<number | null>(null);
   const [rebateForm, setRebateForm] = useState({
     gameRebates: [] as { gameId: number; rebateRatePct: string }[]
   });
@@ -2876,6 +2887,23 @@ const AgentList = () => {
       await load(page);
     } catch (err: any) {
       setError(err?.message || '密码修改失败');
+    }
+  };
+
+  const updateChildCreationPermission = async (item: AgentItem, enabled: boolean) => {
+    const action = enabled ? '开启' : '关闭';
+    if (!window.confirm(`确认${action}代理 ${item.account} 的开代理权限吗？`)) {
+      return;
+    }
+    setError('');
+    setPermissionSavingId(item.id);
+    try {
+      await api.agency.updateAgent(item.id, { canCreateChildAgents: enabled });
+      await load(page);
+    } catch (err: any) {
+      setError(err?.message || `${action}代理权限失败`);
+    } finally {
+      setPermissionSavingId(null);
     }
   };
 
@@ -3072,6 +3100,7 @@ const AgentList = () => {
             const canManageDeposit = item.roleId === ROLE_TOP_PROMOTER || item.roleId === ROLE_GENERAL_AGENT || item.roleId === ROLE_SUB_AGENT || item.roleId === ROLE_STREAMER;
             const isDepositOpen = depositAgentId === item.id;
             const isRebateOpen = rebateAgentId === item.id;
+            const isPermissionSaving = permissionSavingId === item.id;
             const gamesText = Array.isArray(item.gameRebates) && item.gameRebates.length > 0
               ? item.gameRebates.map((rebate) => rebate.gameName || `游戏${rebate.gameId}`).join('，')
               : '--';
@@ -3113,6 +3142,13 @@ const AgentList = () => {
                           {isDepositOpen ? '收起押金' : '押金'}
                         </button>
                       )}
+                      <button
+                        onClick={() => updateChildCreationPermission(item, item.canCreateChildAgents === false)}
+                        disabled={isPermissionSaving}
+                        className={`${item.canCreateChildAgents === false ? 'text-emerald-500 border-emerald-500/30' : 'text-orange-400 border-orange-400/30'} border rounded-lg px-2 py-1 disabled:opacity-60`}
+                      >
+                        {isPermissionSaving ? '处理中' : item.canCreateChildAgents === false ? '开启代理' : '关闭代理'}
+                      </button>
                       <button
                         onClick={() => resetAgentPassword(item)}
                         className="text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
@@ -5622,7 +5658,7 @@ const SuperSensitiveVerifyModal = ({
 const BossCenter: React.FC = () => {
   const [overview, setOverview] = useState<BossOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'flow' | 'order'>('flow');
+  const [activeTab, setActiveTab] = useState<'flow' | 'order' | 'agent' | 'player'>('flow');
 
   const [flowGameId, setFlowGameId] = useState('');
   const [flowStartDate, setFlowStartDate] = useState('');
@@ -5641,6 +5677,20 @@ const BossCenter: React.FC = () => {
   const [orderTotal, setOrderTotal] = useState(0);
   const [orderPage, setOrderPage] = useState(1);
   const [orderLoading, setOrderLoading] = useState(false);
+
+  const [agentKeyword, setAgentKeyword] = useState('');
+  const [agentRoleId, setAgentRoleId] = useState(0);
+  const [agentList, setAgentList] = useState<AgentItem[]>([]);
+  const [agentTotal, setAgentTotal] = useState(0);
+  const [agentPage, setAgentPage] = useState(1);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState('');
+
+  const [playerKeyword, setPlayerKeyword] = useState('');
+  const [playerList, setPlayerList] = useState<PlayerItem[]>([]);
+  const [playerTotal, setPlayerTotal] = useState(0);
+  const [playerPage, setPlayerPage] = useState(1);
+  const [playerLoading, setPlayerLoading] = useState(false);
 
   const loadOverview = async () => {
     setOverviewLoading(true);
@@ -5696,6 +5746,58 @@ const BossCenter: React.FC = () => {
     }
   };
 
+  const loadAgents = async (nextPage = 1) => {
+    setAgentLoading(true);
+    setAgentError('');
+    try {
+      const data = await api.agency.getBossAgents({
+        roleId: agentRoleId || undefined,
+        keyword: agentKeyword || undefined,
+        page: nextPage,
+        pageSize: PAGE_SIZE
+      });
+      setAgentList((data.list || []) as AgentItem[]);
+      setAgentTotal(data.total || 0);
+      setAgentPage(nextPage);
+    } catch (err: any) {
+      setAgentError(err?.message || '代理列表加载失败');
+    } finally {
+      setAgentLoading(false);
+    }
+  };
+
+  const updateBossAgentStatus = async (item: AgentItem, nextStatus: 1 | 2) => {
+    const action = nextStatus === 2 ? '封禁' : '解封';
+    if (!window.confirm(`确认${action}代理 ${item.account} 吗？`)) {
+      return;
+    }
+    setAgentError('');
+    try {
+      await api.agency.updateAgent(item.id, { status: nextStatus });
+      await loadAgents(agentPage);
+    } catch (err: any) {
+      setAgentError(err?.message || `${action}失败`);
+    }
+  };
+
+  const loadPlayers = async (nextPage = 1) => {
+    setPlayerLoading(true);
+    try {
+      const data = await api.agency.getBossPlayers({
+        keyword: playerKeyword || undefined,
+        page: nextPage,
+        pageSize: PAGE_SIZE
+      });
+      setPlayerList((data.list || []) as PlayerItem[]);
+      setPlayerTotal(data.total || 0);
+      setPlayerPage(nextPage);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setPlayerLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadOverview();
     loadFlows(1);
@@ -5710,7 +5812,7 @@ const BossCenter: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-black text-white">老板中心</h2>
-                <p className="text-xs text-slate-400 mt-1">仅展示分配给你的游戏流水与充值记录</p>
+                <p className="text-xs text-slate-400 mt-1">可查看分配游戏数据，以及这些游戏关联的代理和玩家</p>
               </div>
               <button
                 onClick={loadOverview}
@@ -5755,13 +5857,35 @@ const BossCenter: React.FC = () => {
             >
               充值记录
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('agent');
+                if (agentList.length === 0) {
+                  loadAgents(1);
+                }
+              }}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'agent' ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-slate-500 hover:text-[var(--text-primary)]'}`}
+            >
+              全部代理
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('player');
+                if (playerList.length === 0) {
+                  loadPlayers(1);
+                }
+              }}
+              className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${activeTab === 'player' ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]' : 'text-slate-500 hover:text-[var(--text-primary)]'}`}
+            >
+              全部玩家
+            </button>
           </div>
 
-          {(overview?.games || []).length === 0 ? (
-            <div className="text-sm text-slate-500 py-10 text-center">当前未分配游戏，请联系超管配置后查看数据。</div>
-          ) : (
-            <>
-              {activeTab === 'flow' && (
+          <>
+            {activeTab === 'flow' && (
+              (overview?.games || []).length === 0 ? (
+                <div className="text-sm text-slate-500 py-10 text-center">当前未分配游戏，请联系超管配置后查看数据。</div>
+              ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <select value={flowGameId} onChange={(e) => setFlowGameId(e.target.value)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
@@ -5798,9 +5922,13 @@ const BossCenter: React.FC = () => {
                   )}
                   <Pagination page={flowPage} total={flowTotal} onChange={loadFlows} />
                 </div>
-              )}
+              )
+            )}
 
-              {activeTab === 'order' && (
+            {activeTab === 'order' && (
+              (overview?.games || []).length === 0 ? (
+                <div className="text-sm text-slate-500 py-10 text-center">当前未分配游戏，请联系超管配置后查看数据。</div>
+              ) : (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <input value={orderKeyword} onChange={(e) => setOrderKeyword(e.target.value)} placeholder="订单号/账号" className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
@@ -5844,9 +5972,94 @@ const BossCenter: React.FC = () => {
                   )}
                   <Pagination page={orderPage} total={orderTotal} onChange={loadOrders} />
                 </div>
-              )}
-            </>
-          )}
+              )
+            )}
+
+            {activeTab === 'agent' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={agentKeyword} onChange={(e) => setAgentKeyword(e.target.value)} placeholder="手机号/用户名/代理码" className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                  <select value={agentRoleId} onChange={(e) => setAgentRoleId(Number(e.target.value) || 0)} className="bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
+                    {BOSS_AGENT_ROLE_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => loadAgents(1)} className="col-span-2 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询代理</button>
+                </div>
+                {agentError && (
+                  <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20">
+                    {agentError}
+                  </div>
+                )}
+                {agentLoading ? (
+                  <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-20 rounded-xl border border-theme card-bg animate-pulse"></div>)}</div>
+                ) : agentList.length === 0 ? (
+                  <EmptyState title="暂无代理" />
+                ) : (
+                  <div className="space-y-3">
+                    {agentList.map((item) => (
+                      <div key={item.id} className="card-bg rounded-2xl border border-theme p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.remarkName || item.account}</div>
+                            <div className="text-[10px] text-slate-500 mt-1">{item.role} · 账号 {item.account}</div>
+                            <div className="text-[10px] text-slate-500 mt-1">代理码 {item.inviteCode || '--'} · 上级 {item.upline || '--'}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-[10px] text-slate-500">
+                              <div>状态 {item.status || '--'}</div>
+                              <div className="mt-1">今日注册 {item.todayRegisterCount || 0}</div>
+                              <div className="mt-1">累计注册 {item.totalRegisterCount || 0}</div>
+                              <div className="mt-1">创建于 {item.createdAt || '--'}</div>
+                            </div>
+                            <button
+                              onClick={() => updateBossAgentStatus(item, item.status === '正常' ? 2 : 1)}
+                              className={`mt-3 border rounded-lg px-3 py-1 text-[11px] font-bold ${item.status === '正常' ? 'text-red-500 border-red-500/30' : 'text-emerald-500 border-emerald-500/30'}`}
+                            >
+                              {item.status === '正常' ? '封禁' : '解封'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Pagination page={agentPage} total={agentTotal} onChange={loadAgents} />
+              </div>
+            )}
+
+            {activeTab === 'player' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <input value={playerKeyword} onChange={(e) => setPlayerKeyword(e.target.value)} placeholder="手机号/用户名" className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]" />
+                  <button onClick={() => loadPlayers(1)} className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 text-white border border-theme">查询玩家</button>
+                </div>
+                {playerLoading ? (
+                  <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-20 rounded-xl border border-theme card-bg animate-pulse"></div>)}</div>
+                ) : playerList.length === 0 ? (
+                  <EmptyState title="暂无玩家" />
+                ) : (
+                  <div className="space-y-3">
+                    {playerList.map((item) => (
+                      <div key={item.id} className="card-bg rounded-2xl border border-theme p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.account}</div>
+                            <div className="text-[10px] text-slate-500 mt-1">代理码 {item.inviteCode || '--'}</div>
+                          </div>
+                          <div className="text-right text-[10px] text-slate-500">
+                            <div>充值 ¥ {item.recharge || '0.00'}</div>
+                            <div className="mt-1">注册于 {item.registeredAt || '--'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Pagination page={playerPage} total={playerTotal} onChange={loadPlayers} />
+              </div>
+            )}
+          </>
         </div>
       </div>
     </div>

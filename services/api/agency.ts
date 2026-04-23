@@ -452,6 +452,12 @@ export const agencyApi = {
   getBossFlows: async (params?: { gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/boss/flows${buildQuery(params)}`)
   },
+  getBossAgents: async (params?: { roleId?: number; keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/boss/agents${buildQuery(params)}`)
+  },
+  getBossPlayers: async (params?: { keyword?: string; page?: number; pageSize?: number }) => {
+    return request<PageResult<any>>(`/portal/agency/boss/players${buildQuery(params)}`)
+  },
   getBossOrders: async (params?: { keyword?: string; status?: string; gameId?: string; startDate?: string; endDate?: string; page?: number; pageSize?: number }) => {
     return request<PageResult<any>>(`/portal/agency/boss/orders${buildQuery(params)}`)
   },
