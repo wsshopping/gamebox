@@ -25,6 +25,7 @@ type PortalGameItem = {
   developer?: string
   rating?: number
   downloads?: number
+  feeRatePct?: number
   isReserve?: number
 }
 
@@ -69,7 +70,8 @@ export const normalizeGame = (game: PortalGameItem): Game => ({
   size: game.packageSize,
   version: game.version,
   developer: game.developer,
-  isReserve: game.isReserve === 1
+  isReserve: game.isReserve === 1,
+  feeRatePct: Number(game.feeRatePct || 0)
 })
 
 export const gameApi = {

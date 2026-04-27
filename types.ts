@@ -16,6 +16,7 @@ export interface Game {
   version?: string;
   developer?: string;
   isReserve?: boolean;
+  feeRatePct?: number;
 }
 
 export interface TradeListing {

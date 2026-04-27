@@ -462,9 +462,9 @@ export const agencyApi = {
     return request<PageResult<any>>(`/portal/agency/boss/orders${buildQuery(params)}`)
   },
   getSuperRebates: async () => {
-    return request<{ gameId: number; gameName?: string; rebateRatePct: number }[]>('/portal/agency/super/rebates')
+    return request<{ gameId: number; gameName?: string; rebateRatePct: number; feeRatePct?: number }[]>('/portal/agency/super/rebates')
   },
-  updateSuperRebates: async (gameRebates: { gameId: number; rebateRatePct: number }[]) => {
+  updateSuperRebates: async (gameRebates: { gameId: number; rebateRatePct: number; feeRatePct?: number }[]) => {
     return request('/portal/agency/super/rebates', {
       method: 'PUT',
       body: JSON.stringify({ gameRebates })

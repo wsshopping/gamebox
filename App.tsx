@@ -16,6 +16,7 @@ import UserCenter from './pages/UserCenter';
 import Community from './pages/Community';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import GameRegisterLanding from './pages/GameRegisterLanding';
 import GameDetail from './pages/GameDetail';
 import Search from './pages/Search';
 import Chat from './pages/Chat';
@@ -331,6 +332,7 @@ const AppRoutes: React.FC = () => {
         
           {/* Auth */}
           <Route path="/login" element={<Login />} />
+          <Route path="/register/game/:id" element={<GameRegisterLanding />} />
           <Route path="/register" element={<Register />} />
         
           {/* Fallback */}

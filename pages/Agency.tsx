@@ -34,6 +34,7 @@ type AgentGameRebate = {
   gameId: number;
   gameName?: string;
   rebateRatePct: number;
+  feeRatePct?: number;
 };
 
 type AgentItem = {
@@ -251,6 +252,36 @@ const formatRatePct = (value: number) => {
   return fixed.replace(/\.?0+$/, '');
 };
 
+const RebateFeeTags = ({
+  rebates,
+  resolveGameName
+}: {
+  rebates?: AgentGameRebate[];
+  resolveGameName: (gameId: number, fallback?: string) => string;
+}) => {
+  if (!Array.isArray(rebates) || rebates.length === 0) {
+    return <span className="text-[10px] text-slate-500">未配置分成</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {rebates.map((rebate) => {
+        const feeRate = Number(rebate.feeRatePct || 0);
+        return (
+          <div key={`${rebate.gameId}-${rebate.gameName || ''}`} className="flex flex-wrap items-center gap-1 rounded-xl border border-theme bg-[var(--bg-primary)] px-2 py-1">
+            <span className="text-[10px] font-bold text-[var(--text-primary)]">{resolveGameName(rebate.gameId, rebate.gameName)}</span>
+            <span className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">
+              分成 {formatRatePct(Number(rebate.rebateRatePct || 0))}%
+            </span>
+            <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${feeRate > 0 ? 'border-sky-500/25 bg-sky-500/10 text-sky-400' : 'border-slate-500/20 bg-slate-500/10 text-slate-400'}`}>
+              费率 {formatRatePct(feeRate)}%
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const WITHDRAW_STATUS_LABELS: Record<string, string> = {
   pending: '待审核',
   approved: '已通过',
@@ -462,6 +493,131 @@ const UserInfoCard = ({
   );
 };
 
+const GameRegisterLinksCard = ({ inviteCode }: { inviteCode?: string }) => {
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadGames = async () => {
+      setLoading(true);
+      try {
+        const data = await gameApi.getList('all', 1, 200);
+        if (mounted) {
+          setGames(data || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+    loadGames();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const buildRegisterLink = (gameId: string) => {
+    const path = `/#/register/game/${gameId}`;
+    const code = String(inviteCode || '').trim().toUpperCase();
+    const suffix = code ? `?inviteCode=${encodeURIComponent(code)}` : '';
+    if (typeof window === 'undefined') {
+      return `${path}${suffix}`;
+    }
+    return `${window.location.origin}${path}${suffix}`;
+  };
+
+  const copyLink = async (gameId: string) => {
+    const url = buildRegisterLink(gameId);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedId(gameId);
+      window.setTimeout(() => setCopiedId((current) => (current === gameId ? null : current)), 1200);
+    } catch (err) {
+      window.alert('复制失败，请手动复制');
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-[28px] p-6 mb-6 border border-white/12 bg-white/6 backdrop-blur-2xl shadow-[0_24px_70px_-28px_rgba(15,23,42,0.75)]">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),transparent_30%,transparent_70%,rgba(255,255,255,0.05))]" />
+      <div className="pointer-events-none absolute top-0 left-8 right-8 h-px bg-white/25" />
+      <div className="flex items-center justify-between mb-4">
+        <div className="relative z-10">
+          <h3 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>游戏注册链接</h3>
+          <p className="text-xs text-slate-500 mt-1">每个游戏一个专属落地页，默认带入当前代理码</p>
+        </div>
+        <div className="relative z-10 text-right">
+          <div className="text-[10px] text-slate-400 uppercase tracking-[0.18em]">Invite</div>
+          <div className="text-sm font-black text-amber-400">{inviteCode || '--'}</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="relative z-10 grid grid-cols-1 gap-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={`register-link-skeleton-${index}`} className="h-24 rounded-2xl bg-white/8 border border-white/10 animate-pulse backdrop-blur-xl" />
+          ))}
+        </div>
+      ) : games.length === 0 ? (
+        <div className="relative z-10 text-sm text-slate-500 py-8 text-center">暂无可生成链接的游戏</div>
+      ) : (
+        <div className="relative z-10 space-y-3">
+          {games.map((game) => {
+            const url = buildRegisterLink(game.id);
+            const preview = game.banner || game.images?.[0] || game.icon;
+            return (
+              <div key={`register-link-${game.id}`} className="overflow-hidden rounded-[22px] border border-white/12 bg-white/7 backdrop-blur-xl shadow-[0_18px_45px_-24px_rgba(15,23,42,0.9)]">
+                <div className="flex">
+                  <div className="w-24 h-24 shrink-0 bg-slate-900/70">
+                    {preview ? (
+                      <img src={preview} alt={game.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">NO IMG</div>
+                    )}
+                  </div>
+                  <div className="flex-1 p-4 min-w-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-black truncate" style={{ color: 'var(--text-primary)' }}>{game.title}</div>
+                        <div className="mt-1 text-[10px] text-slate-500 truncate">gameId {game.id}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyLink(game.id)}
+                        className="shrink-0 px-3 py-2 rounded-xl bg-white/10 text-amber-300 text-xs font-bold border border-white/15 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/14"
+                      >
+                        {copiedId === game.id ? '已复制' : '复制链接'}
+                      </button>
+                    </div>
+                    <div className="mt-3 text-[10px] leading-5 text-slate-400 break-all">{url}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Functional Components ---
 
 const CreateAgent = ({
@@ -479,7 +635,7 @@ const CreateAgent = ({
     roleId: roleOptions[0]?.id || 0,
     inviteCode: '',
     remarkName: '',
-    gameRebates: [] as { gameId: number; rebateRatePct: string }[]
+    gameRebates: [] as { gameId: number; rebateRatePct: string; feeRatePct?: string }[]
   });
   const [games, setGames] = useState<Game[]>([]);
   const [result, setResult] = useState<any>(null);
@@ -583,6 +739,12 @@ const CreateAgent = ({
   const removeGameRebate = (index: number) => {
     const next = formData.gameRebates.filter((_, idx) => idx !== index);
     setFormData({ ...formData, gameRebates: next });
+  };
+
+  const resolveGameName = (gameId: number, fallback?: string) => {
+    if (fallback) return fallback;
+    const game = games.find((item) => Number(item.id) === gameId);
+    return game?.title || String(gameId);
   };
 
   return (
@@ -721,8 +883,8 @@ const CreateAgent = ({
           <div>密码：{result.password}</div>
           <div>代理码：{result.inviteCode}</div>
           {Array.isArray(result.gameRebates) && result.gameRebates.length > 0 && (
-            <div className="text-[10px] text-emerald-400">
-              分成：{result.gameRebates.map((item: any) => `${item.gameName || item.gameId} ${formatRatePct(Number(item.rebateRatePct))}%`).join(', ')}
+            <div className="pt-1">
+              <RebateFeeTags rebates={result.gameRebates} resolveGameName={resolveGameName} />
             </div>
           )}
         </div>
@@ -747,7 +909,7 @@ const DirectAgentList = () => {
     password: '',
     status: 1,
     canCreateChildAgents: true,
-    gameRebates: [] as { gameId: number; rebateRatePct: string }[]
+    gameRebates: [] as { gameId: number; rebateRatePct: string; feeRatePct?: string }[]
   });
   const [error, setError] = useState('');
 
@@ -791,7 +953,8 @@ const DirectAgentList = () => {
     const rebates = Array.isArray(item.gameRebates)
       ? item.gameRebates.map((rebate) => ({
           gameId: rebate.gameId,
-          rebateRatePct: String(rebate.rebateRatePct ?? '')
+          rebateRatePct: String(rebate.rebateRatePct ?? ''),
+          feeRatePct: String(rebate.feeRatePct ?? 0)
         }))
       : [];
     setEditingId(item.id);
@@ -831,8 +994,8 @@ const DirectAgentList = () => {
       };
       if (isSuperAdmin) {
         payload.canCreateChildAgents = editForm.canCreateChildAgents;
-        payload.gameRebates = gameRebates;
       }
+      payload.gameRebates = gameRebates;
       await api.agency.updateAgent(editingId, payload);
       setEditingId(null);
       setEditForm({ phone: '', password: '', status: 1, canCreateChildAgents: true, gameRebates: [] });
@@ -844,15 +1007,21 @@ const DirectAgentList = () => {
 
   const addEditGameRebate = () => {
     const firstGameId = games[0] ? Number(games[0].id) : 0;
+    const firstGame = games.find((game) => Number(game.id) === firstGameId);
     setEditForm({
       ...editForm,
-      gameRebates: [...editForm.gameRebates, { gameId: firstGameId, rebateRatePct: '' }]
+      gameRebates: [...editForm.gameRebates, { gameId: firstGameId, rebateRatePct: '', feeRatePct: String(firstGame?.feeRatePct ?? 0) }]
     });
   };
 
   const updateEditGameRebate = (index: number, key: 'gameId' | 'rebateRatePct', value: number | string) => {
     const next = [...editForm.gameRebates];
-    next[index] = { ...next[index], [key]: value };
+    if (key === 'gameId') {
+      const game = games.find((item) => Number(item.id) === Number(value));
+      next[index] = { ...next[index], gameId: Number(value), feeRatePct: String(game?.feeRatePct ?? next[index].feeRatePct ?? 0) };
+    } else {
+      next[index] = { ...next[index], [key]: value };
+    }
     setEditForm({ ...editForm, gameRebates: next });
   };
 
@@ -942,9 +1111,8 @@ const DirectAgentList = () => {
                 </div>
 
                 {Array.isArray(item.gameRebates) && item.gameRebates.length > 0 && (
-                  <div className="mt-2 text-[10px] text-slate-500">
-                    分成：
-                    {item.gameRebates.map((rebate) => `${resolveGameName(rebate.gameId, rebate.gameName)} ${formatRatePct(rebate.rebateRatePct)}%`).join('，')}
+                  <div className="mt-2">
+                    <RebateFeeTags rebates={item.gameRebates} resolveGameName={resolveGameName} />
                   </div>
                 )}
 
@@ -995,15 +1163,13 @@ const DirectAgentList = () => {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-slate-500">分成设置</span>
-                        {isSuperAdmin && (
-                          <button
-                            type="button"
-                            onClick={addEditGameRebate}
-                            className="text-[10px] text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
-                          >
-                            添加游戏
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={addEditGameRebate}
+                          className="text-[10px] text-amber-500 border border-amber-500/30 rounded-lg px-2 py-1"
+                        >
+                          添加游戏
+                        </button>
                       </div>
                       {editForm.gameRebates.length === 0 ? (
                         <div className="text-[10px] text-slate-500">未配置分成</div>
@@ -1011,54 +1177,39 @@ const DirectAgentList = () => {
                         <div className="space-y-2">
                           {editForm.gameRebates.map((item, index) => (
                             <div key={`${item.gameId}-${index}`} className="flex items-center space-x-2">
-                              {isSuperAdmin ? (
-                                <>
-                                  <select
-                                    value={item.gameId}
-                                    onChange={(e) => updateEditGameRebate(index, 'gameId', Number(e.target.value))}
-                                    className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-slate-400"
-                                  >
-                                    {games.map((game) => (
-                                      <option key={game.id} value={Number(game.id)}>
-                                        {game.title}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    step="0.01"
-                                    value={item.rebateRatePct}
-                                    onChange={(e) => updateEditGameRebate(index, 'rebateRatePct', e.target.value)}
-                                    className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all"
-                                    placeholder="比例(%)"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeEditGameRebate(index)}
-                                    className="text-xs text-slate-500 hover:text-red-400"
-                                  >
-                                    删除
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
-                                    {resolveGameName(item.gameId)}
-                                  </div>
-                                  <div className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-[var(--text-primary)]">
-                                    {formatRatePct(Number(item.rebateRatePct || 0))}%
-                                  </div>
-                                </>
-                              )}
+                              <select
+                                value={item.gameId}
+                                onChange={(e) => updateEditGameRebate(index, 'gameId', Number(e.target.value))}
+                                className="flex-1 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs text-slate-400"
+                              >
+                                {games.map((game) => (
+                                  <option key={game.id} value={Number(game.id)}>
+                                    {game.title}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="0.01"
+                                value={item.rebateRatePct}
+                                onChange={(e) => updateEditGameRebate(index, 'rebateRatePct', e.target.value)}
+                                className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)] focus:ring-2 focus:ring-amber-500/50 transition-all"
+                                placeholder="比例(%)"
+                              />
+                              <span className="rounded-lg border border-slate-500/20 bg-slate-500/10 px-2 py-1 text-[10px] text-slate-400">
+                                费率 {formatRatePct(Number(item.feeRatePct || 0))}%
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeEditGameRebate(index)}
+                                className="text-xs text-slate-500 hover:text-red-400"
+                              >
+                                删除
+                              </button>
                             </div>
                           ))}
-                        </div>
-                      )}
-                      {!isSuperAdmin && (
-                        <div className="text-[10px] text-slate-500">
-                          非超管可查看分成，但不能修改或删除；如需调整请使用超管账号。
                         </div>
                       )}
                     </div>
@@ -1127,7 +1278,7 @@ const AgentManagement = ({
 
 const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
   const [games, setGames] = useState<Game[]>([]);
-  const [rows, setRows] = useState<{ gameId: number; rebateRatePct: string }[]>([]);
+  const [rows, setRows] = useState<{ gameId: number; rebateRatePct: string; feeRatePct: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -1145,7 +1296,8 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
         Array.isArray(rebateList)
           ? rebateList.map((item) => ({
               gameId: Number(item.gameId) || 0,
-              rebateRatePct: String(item.rebateRatePct ?? '')
+              rebateRatePct: String(item.rebateRatePct ?? ''),
+              feeRatePct: String(item.feeRatePct ?? 0)
             }))
           : []
       );
@@ -1163,12 +1315,18 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
 
   const addRow = () => {
     const firstGameId = games[0] ? Number(games[0].id) : 0;
-    setRows((prev) => [...prev, { gameId: firstGameId, rebateRatePct: '' }]);
+    const firstGame = games.find((game) => Number(game.id) === firstGameId);
+    setRows((prev) => [...prev, { gameId: firstGameId, rebateRatePct: '', feeRatePct: String(firstGame?.feeRatePct ?? 0) }]);
   };
 
-  const updateRow = (index: number, key: 'gameId' | 'rebateRatePct', value: number | string) => {
+  const updateRow = (index: number, key: 'gameId' | 'rebateRatePct' | 'feeRatePct', value: number | string) => {
     const next = [...rows];
-    next[index] = { ...next[index], [key]: value };
+    if (key === 'gameId') {
+      const game = games.find((item) => Number(item.id) === Number(value));
+      next[index] = { ...next[index], gameId: Number(value), feeRatePct: String(game?.feeRatePct ?? next[index].feeRatePct ?? 0) };
+    } else {
+      next[index] = { ...next[index], [key]: value };
+    }
     setRows(next);
   };
 
@@ -1186,6 +1344,11 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
         setError('分成比例需在0-100之间');
         return;
       }
+      const feeRate = Number(item.feeRatePct || '0');
+      if (Number.isNaN(feeRate) || feeRate < 0 || feeRate >= 100) {
+        setError('游戏费率需在0-100之间，不能等于100');
+        return;
+      }
       if (used.has(item.gameId)) {
         setError('同一游戏不能重复配置');
         return;
@@ -1197,7 +1360,8 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
       await api.agency.updateSuperRebates(
         filtered.map((item) => ({
           gameId: item.gameId,
-          rebateRatePct: Number(item.rebateRatePct || '0')
+          rebateRatePct: Number(item.rebateRatePct || '0'),
+          feeRatePct: Number(item.feeRatePct || '0')
         }))
       );
       await load();
@@ -1217,7 +1381,7 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
     <div className="space-y-4 animate-fade-in-up">
       <div className="card-bg rounded-[24px] p-6 border border-theme shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>我的游戏分成</h3>
+          <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>游戏分成与费率</h3>
           <button
             onClick={addRow}
             className="text-xs font-bold text-amber-500 border border-amber-500/30 rounded-lg px-2.5 py-1"
@@ -1225,7 +1389,7 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
             添加游戏
           </button>
         </div>
-        <p className="text-[11px] text-slate-500 mb-4">仅超管可见。配置单位为百分比（0-100）。留空列表后保存表示清空自定义分成。</p>
+        <p className="text-[11px] text-slate-500 mb-4">仅超管可见。分成是超管该游戏比例；费率从该游戏所有层级代理利润中扣除，未设置按0%。</p>
 
         {error && (
           <div className="bg-red-500/10 text-red-500 text-xs px-4 py-3 rounded-xl border border-red-500/20 mb-3">
@@ -1246,7 +1410,7 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
         ) : (
           <div className="space-y-2">
             {rows.map((item, index) => (
-              <div key={`${item.gameId}-${index}`} className="flex items-center space-x-2">
+              <div key={`${item.gameId}-${index}`} className="grid grid-cols-[1fr_88px_88px_auto] items-center gap-2">
                 <select
                   value={item.gameId}
                   onChange={(e) => updateRow(index, 'gameId', Number(e.target.value))}
@@ -1266,8 +1430,18 @@ const SuperRebateSettings = ({ isSuperAdmin }: { isSuperAdmin: boolean }) => {
                   step="0.01"
                   value={item.rebateRatePct}
                   onChange={(e) => updateRow(index, 'rebateRatePct', e.target.value)}
-                  className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2.5 text-xs outline-none text-[var(--text-primary)]"
-                  placeholder="%"
+                  className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2.5 text-xs outline-none text-[var(--text-primary)]"
+                  placeholder="分成%"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={99.99}
+                  step="0.01"
+                  value={item.feeRatePct}
+                  onChange={(e) => updateRow(index, 'feeRatePct', e.target.value)}
+                  className="w-full bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2.5 text-xs outline-none text-[var(--text-primary)]"
+                  placeholder="费率%"
                 />
                 <button
                   type="button"
@@ -2719,7 +2893,7 @@ const AgentList = () => {
   const [rebateSaving, setRebateSaving] = useState(false);
   const [permissionSavingId, setPermissionSavingId] = useState<number | null>(null);
   const [rebateForm, setRebateForm] = useState({
-    gameRebates: [] as { gameId: number; rebateRatePct: string }[]
+    gameRebates: [] as { gameId: number; rebateRatePct: string; feeRatePct?: string }[]
   });
   const [depositAgentId, setDepositAgentId] = useState<number | null>(null);
   const [depositList, setDepositList] = useState<AgentGameDepositItem[]>([]);
@@ -2911,7 +3085,8 @@ const AgentList = () => {
     const rebates = Array.isArray(item.gameRebates)
       ? item.gameRebates.map((rebate) => ({
           gameId: rebate.gameId,
-          rebateRatePct: String(rebate.rebateRatePct ?? '')
+          rebateRatePct: String(rebate.rebateRatePct ?? ''),
+          feeRatePct: String(rebate.feeRatePct ?? 0)
         }))
       : [];
     setRebateAgentId((prev) => (prev === item.id ? null : item.id));
@@ -2921,16 +3096,22 @@ const AgentList = () => {
 
   const addRebateGame = () => {
     const firstGameId = games[0] ? Number(games[0].id) : 0;
+    const firstGame = games.find((game) => Number(game.id) === firstGameId);
     setRebateForm((prev) => ({
       ...prev,
-      gameRebates: [...prev.gameRebates, { gameId: firstGameId, rebateRatePct: '' }]
+      gameRebates: [...prev.gameRebates, { gameId: firstGameId, rebateRatePct: '', feeRatePct: String(firstGame?.feeRatePct ?? 0) }]
     }));
   };
 
   const updateRebateGame = (index: number, key: 'gameId' | 'rebateRatePct', value: number | string) => {
     setRebateForm((prev) => {
       const next = [...prev.gameRebates];
-      next[index] = { ...next[index], [key]: value };
+      if (key === 'gameId') {
+        const game = games.find((item) => Number(item.id) === Number(value));
+        next[index] = { ...next[index], gameId: Number(value), feeRatePct: String(game?.feeRatePct ?? next[index].feeRatePct ?? 0) };
+      } else {
+        next[index] = { ...next[index], [key]: value };
+      }
       return { ...prev, gameRebates: next };
     });
   };
@@ -3104,9 +3285,6 @@ const AgentList = () => {
             const gamesText = Array.isArray(item.gameRebates) && item.gameRebates.length > 0
               ? item.gameRebates.map((rebate) => rebate.gameName || `游戏${rebate.gameId}`).join('，')
               : '--';
-            const rebatesText = Array.isArray(item.gameRebates) && item.gameRebates.length > 0
-              ? item.gameRebates.map((rebate) => `${rebate.gameName || rebate.gameId} ${formatRatePct(rebate.rebateRatePct)}%`).join('，')
-              : '--';
             return (
               <div key={item.id} className="card-bg rounded-2xl border border-theme p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
@@ -3169,7 +3347,9 @@ const AgentList = () => {
                   <div className="text-[10px] text-slate-500">创建时间 {item.createdAt}</div>
                   <div className="text-[10px] text-slate-500">备注名：{item.remarkName || '--'}</div>
                   <div className="text-[10px] text-slate-500">游戏：{gamesText}</div>
-                  <div className="text-[10px] text-slate-500">分成：{rebatesText}</div>
+                  <div className="sm:col-span-2">
+                    <RebateFeeTags rebates={item.gameRebates} resolveGameName={resolveGameName} />
+                  </div>
                   <div className="text-[10px] text-slate-500">
                     密码：<span className="text-[var(--text-primary)]">{item.latestPassword || '--'}</span>
                   </div>
@@ -3236,6 +3416,9 @@ const AgentList = () => {
                               className="w-24 bg-[var(--bg-primary)] border border-theme rounded-xl px-3 py-2 text-xs outline-none text-[var(--text-primary)]"
                               placeholder="比例(%)"
                             />
+                            <span className="rounded-lg border border-slate-500/20 bg-slate-500/10 px-2 py-1 text-[10px] text-slate-400">
+                              费率 {formatRatePct(Number(rebate.feeRatePct || 0))}%
+                            </span>
                             <button
                               type="button"
                               onClick={() => removeRebateGame(index)}
@@ -3250,7 +3433,10 @@ const AgentList = () => {
                     <div className="text-[10px] text-slate-500 space-y-1">
                       {Array.isArray(item.gameRebates) && item.gameRebates.length > 0 ? (
                         <div>
-                          当前配置：{item.gameRebates.map((rebate) => `${resolveGameName(rebate.gameId, rebate.gameName)} ${formatRatePct(rebate.rebateRatePct)}%`).join('，')}
+                          当前配置：
+                          <div className="mt-1">
+                            <RebateFeeTags rebates={item.gameRebates} resolveGameName={resolveGameName} />
+                          </div>
                         </div>
                       ) : (
                         <div>当前配置：未配置分成</div>
@@ -6205,6 +6391,7 @@ const Agency: React.FC = () => {
             userId={user?.ID}
             onUnlockSensitive={isSuperAdmin && stats?.sensitiveMasked ? openSensitiveModal : undefined}
           />
+          <GameRegisterLinksCard inviteCode={stats?.code} />
           
           {/* Dashboard Grid Menu - Premium Black/Gold Style */}
           <div className="card-bg rounded-[24px] p-6 shadow-sm border border-theme mb-6">
